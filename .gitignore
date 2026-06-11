@@ -1,0 +1,24 @@
+# Disposable, regeneratable outputs
+output/
+*.pyc
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+.venv/
+
+# Native build artifacts
+plugin/fractisynth/build/
+*.so
+*.dll
+*.dylib
+*.o
+
+# Fetched OBS SDK headers (bootstrapped by build.sh; ~74M, not source)
+plugin/fractisynth/.obs-sdk/
+# Generated coverage/packaging artifacts
+*.egg-info/
+coverage_project.json
+.DS_Store

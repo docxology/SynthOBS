@@ -1,0 +1,50 @@
+# SynthOBS / FractiSynth v1.618 — Technical Design Blueprint metadata.
+
+paper:
+  title: "SynthOBS & FractiSynth (v1.618)"
+  subtitle: "A Golden-Ratio Broadcast Console and Native Transducer Phase-Locked to the Living Solar Wavefield"
+  version: "1.618"
+  date: ""
+
+authors:
+  - name: "Daniel Ari Friedman"
+    orcid: "0000-0001-6232-9096"
+    email: "daniel@activeinference.institute"
+    affiliation: "Active Inference Institute"
+    corresponding: true
+
+publication:
+  github_repository: "docxology/SynthOBS"
+  journal: "Technical Design Blueprint"
+  year: "2026"
+
+keywords:
+  - "OBS Studio"
+  - "golden ratio"
+  - "El Gran Sol fractal constant"
+  - "Solar Wavefield Oscillator"
+  - "space weather telemetry"
+  - "real-time DSP"
+  - "broadcast engineering"
+
+metadata:
+  license: "MIT"
+  language: "en"
+
+# This is a design blueprint, not an empirical study — LLM review/translation off.
+llm:
+  reviews:
+    enabled: false
+  translations:
+    enabled: false
+
+render:
+  formats:
+    pdf: true
+    html: true
+    slides: false
+
+testing:
+  max_test_failures: 0
+  max_infra_test_failures: 0
+  max_project_test_failures: 0

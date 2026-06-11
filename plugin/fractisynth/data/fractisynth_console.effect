@@ -1,0 +1,114 @@
+/*
+ * FractiSynth φ Wavefield Console — a procedural OBS *source* shader.
+ *
+ * Unlike fractisynth.effect (a filter over an input image), this effect generates
+ * the SynthOBS console from scratch: it is the visible, draggable pane you add from
+ * the Sources "+" menu. It paints the live state of the El Gran Sol Gateway —
+ * the Goldilocks golden-ratio layout, a φ spiral, K_EGS-spaced interference
+ * fringes, a gateway lock ring, and the hydrogen H-alpha resonance — all driven by
+ * the same uniforms the filter uses, so the console literally shows what the
+ * transducer is doing to the stream.
+ */
+
+uniform float4x4 ViewProj;
+
+uniform float swo_phase;        /* SWO system_phase_vector (>0 when locked)        */
+uniform float lock_strength;    /* [0,1] gateway lock |cos(wind phase bias)|       */
+uniform float wind_phase;       /* radians, gateway phase bias                     */
+uniform float egs_key;          /* K_EGS ≈ 2.539427                                */
+uniform float elapsed;          /* seconds                                         */
+uniform float2 uv_size;         /* console size in pixels                          */
+
+#define PHI 1.61803398875
+#define INV_PHI 0.61803398875
+#define TWO_PI 6.28318530718
+
+/* Palette as float3 literals. NOTE: OBS's effect language does NOT initialise
+ * `static const float3 X = {..}` GLOBALS at runtime (they read back as zero →
+ * pure black), so the colours are constructed locally inside the pixel shader. */
+
+struct VertData {
+	float4 pos : POSITION;
+	float2 uv  : TEXCOORD0;
+};
+
+VertData VSDefault(VertData v_in)
+{
+	VertData vert_out;
+	vert_out.pos = mul(float4(v_in.pos.xyz, 1.0), ViewProj);
+	vert_out.uv  = v_in.uv;
+	return vert_out;
+}
+
+/* soft line: 1 on the line, 0 away from it (width in uv units) */
+float soft_line(float d, float w)
+{
+	return 1.0 - smoothstep(0.0, w, abs(d));
+}
+
+float4 PSConsole(VertData v_in) : TARGET
+{
+	float3 CHARCOAL = float3(0.118, 0.114, 0.094);  /* #1e1d18 */
+	float3 LINEN    = float3(0.937, 0.914, 0.863);  /* #efe9dc */
+	float3 ROBIN    = float3(0.227, 0.686, 0.663);  /* #3aafa9 */
+	float3 MARIGOLD = float3(0.910, 0.639, 0.239);  /* #e8a33d */
+	float3 H_ALPHA  = float3(0.910, 0.192, 0.227);  /* #E8313A */
+
+	float2 uv = v_in.uv;
+	float aspect = uv_size.x / max(uv_size.y, 1.0);
+	float lock = clamp(lock_strength, 0.0, 1.0);
+	float phaseNorm = clamp(swo_phase / 200.0, 0.0, 1.0);
+
+	/* ---- background: charcoal with a faint vertical gradient ---------- */
+	float3 col = lerp(CHARCOAL, CHARCOAL * 1.35, uv.y);
+
+	/* ---- Goldilocks layout guides: the 61.8% / 38.2% golden split ----- */
+	float lw = 1.6 / uv_size.x;
+	col = lerp(col, ROBIN * 0.8, soft_line(uv.x - INV_PHI, lw) * 0.7);
+	col = lerp(col, ROBIN * 0.5, soft_line(uv.y - INV_PHI, lw) * 0.5);
+	col = lerp(col, ROBIN * 0.5, soft_line(uv.y - (1.0 - INV_PHI), lw) * 0.5);
+
+	/* ---- holographic interference fringes (|a+b|², K_EGS-spaced) ------ */
+	float2 c = (uv - 0.5);
+	c.x *= aspect;
+	float r = length(c);
+	float ang = atan2(c.y, c.x);
+	float k = egs_key * 26.0;
+	float beamA = cos(r * k - elapsed * 0.5);
+	float beamB = cos(r * k - wind_phase);
+	float fr = (beamA + beamB);
+	float intensity = fr * fr * 0.25;                  /* [0,1] */
+	col += ROBIN * intensity * 0.10 * lock;
+	col = lerp(col, H_ALPHA, intensity * lock * 0.18); /* H-alpha at antinodes */
+
+	/* ---- φ spiral (logarithmic golden spiral) ------------------------- */
+	float spiral = sin(ang * PHI - log(max(r, 1e-3)) / log(PHI) * TWO_PI + elapsed * 0.3);
+	float spiralLine = soft_line(spiral, 0.06) * smoothstep(0.0, 0.05, r);
+	col = lerp(col, MARIGOLD, spiralLine * (0.25 + 0.5 * phaseNorm));
+
+	/* ---- gateway lock ring: an arc whose sweep = lock_strength -------- */
+	float ringR = 0.34;
+	float ringW = 0.012;
+	float ringD = abs(r - ringR);
+	float onRing = 1.0 - smoothstep(ringW, ringW * 2.0, ringD);
+	/* arc fraction: light up the portion of the ring ≤ lock */
+	float frac = (ang + 3.14159265) / TWO_PI;          /* 0..1 around the ring */
+	float arc = step(frac, lock);
+	float3 ringCol = lerp(H_ALPHA, ROBIN, lock);       /* red→teal as it locks */
+	col = lerp(col, ringCol, onRing * (0.15 + arc * 0.85));
+
+	/* ---- centre dot: phase-vector amplitude -------------------------- */
+	float dot = 1.0 - smoothstep(0.012, 0.022, r);
+	col = lerp(col, LINEN, dot * (0.3 + 0.7 * phaseNorm));
+
+	return float4(saturate(col), 1.0);
+}
+
+technique Draw
+{
+	pass
+	{
+		vertex_shader = VSDefault(v_in);
+		pixel_shader  = PSConsole(v_in);
+	}
+}

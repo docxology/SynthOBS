@@ -1,0 +1,161 @@
+/*
+ * FractiSynth φ / EGS-Gateway video effect (OBS HLSL → GLSL/Metal).
+ *
+ * Renders the live state of the El Gran Sol Gateway onto the source. Every layer
+ * is gated by `lock_strength` (|cos(wind phase bias)|) so an UNcalibrated stream
+ * is a clean pass-through — "no calibration ⇒ no modulation", enforced here too.
+ *
+ * Layers (all subtle, broadcast-watchable, NaN-safe, never strobing):
+ *   1. φ-spiral displacement   — golden logarithmic spiral, arms = spiral_density,
+ *                                amplitude from the SWO phase vector × displacement.
+ *   2. Holographic fringes     — |a+b|² interference bands at spatial frequency ∝
+ *                                egs_key (K_EGS), animated by wind_phase, intensity
+ *                                = interference × lock_strength. Constructive bands
+ *                                brighten, destructive bands darken.
+ *   3. Hydrogen H-alpha tint   — lerp toward 656.28 nm red (#E8313A) by
+ *                                hydrogen_tint × lock_strength, strongest at the
+ *                                fringe antinodes (couples 2+3).
+ *   4. Honeycomb hex lattice   — three 120° tri-axis sets (FractiAI honeycomb),
+ *                                opacity hex_opacity, robin's-egg tint.
+ *   5. Pulsar breathing        — a gentle ~0.5 Hz brightness pulse whose harmonic
+ *                                ratio is the Crab pulsar (29.94 Hz) divided down.
+ *   6. HOLO_GRID               — golden 61.8 / 38.2 alignment lines.
+ *
+ * Uniforms set per-frame from fractisynth.c.
+ */
+
+uniform float4x4 ViewProj;
+uniform texture2d image;
+
+uniform float swo_phase;        /* SWO system_phase_vector (>0 when locked)        */
+uniform float displacement;     /* user gain × normalized phase                    */
+uniform float elapsed;          /* seconds, for gentle motion                      */
+uniform float grid_opacity;     /* 0 = off; HOLO_GRID overlay strength             */
+uniform float2 uv_size;         /* source dimensions in pixels                     */
+
+/* --- EGS Gateway uniforms (canonical FractiAI design) --- */
+uniform float egs_key;          /* K_EGS ≈ 2.539427 (φ·λ_reader/λ_Hα)              */
+uniform float lock_strength;    /* [0,1] gateway lock |cos(wind phase bias)|       */
+uniform float wind_phase;       /* radians, gateway phase bias                     */
+uniform float hydrogen_tint;    /* [0,1] user — H-alpha resonance tint strength    */
+uniform float interference;     /* [0,1] user — holographic fringe intensity       */
+uniform float hex_opacity;      /* [0,1] user — honeycomb lattice overlay          */
+uniform float spiral_density;   /* [4..32] user — golden-spiral arm count          */
+
+#define PHI 1.61803398875
+#define INV_PHI 0.61803398875
+#define TWO_PI 6.28318530718
+/* Crab pulsar 29.94 Hz divided down to a calm ~0.5 Hz breathing rate (29.94/60). */
+#define PULSAR_BREATH 0.499
+
+/* Palette built locally in the pixel shader — OBS's effect language does NOT
+ * initialise `static const float3 X = {..}` GLOBALS at runtime (they read back
+ * as zero → black), so H-alpha/robin are constructed inside PSFractiSynth. */
+
+sampler_state textureSampler {
+	Filter   = Linear;
+	AddressU = Clamp;
+	AddressV = Clamp;
+};
+
+struct VertData {
+	float4 pos : POSITION;
+	float2 uv  : TEXCOORD0;
+};
+
+VertData VSDefault(VertData v_in)
+{
+	VertData vert_out;
+	vert_out.pos = mul(float4(v_in.pos.xyz, 1.0), ViewProj);
+	vert_out.uv  = v_in.uv;
+	return vert_out;
+}
+
+/* Hexagonal lattice edge factor (three 120° tri-axes → honeycomb cells). */
+float hex_edge(float2 p)
+{
+	/* project onto the three honeycomb axis directions at 0°, 120°, 240° */
+	float2 a0 = float2(1.0, 0.0);
+	float2 a1 = float2(-0.5,  0.8660254);
+	float2 a2 = float2(-0.5, -0.8660254);
+	float f0 = abs(frac(dot(p, a0)) - 0.5);
+	float f1 = abs(frac(dot(p, a1)) - 0.5);
+	float f2 = abs(frac(dot(p, a2)) - 0.5);
+	float m = min(f0, min(f1, f2));   /* 0 at a cell edge, 0.5 at a cell centre */
+	return smoothstep(0.02, 0.0, m);  /* 1 on the hex edge, 0 inside the cell */
+}
+
+float4 PSFractiSynth(VertData v_in) : TARGET
+{
+	float3 H_ALPHA = float3(0.910, 0.192, 0.227);   /* #E8313A */
+	float3 ROBIN   = float3(0.227, 0.686, 0.663);   /* #3aafa9 */
+
+	float2 uv = v_in.uv;
+	float2 centered = uv - 0.5;
+	float radius = length(centered);
+	float angle = atan2(centered.y, centered.x);
+
+	/* lock gate: everything below scales by how phase-locked the gateway is. */
+	float lock = clamp(lock_strength, 0.0, 1.0);
+	float phaseNorm = clamp(swo_phase / 200.0, 0.0, 1.0);
+
+	/* ---- 1. φ-spiral displacement ------------------------------------ */
+	float arms = max(spiral_density, 1.0);
+	float spiral = sin(angle * PHI * (arms / 12.0) + radius * arms - elapsed * 0.6);
+	float amp = displacement * 0.012 * phaseNorm;
+	float2 disp = float2(cos(angle), sin(angle)) * spiral * amp;
+
+	float4 color = image.Sample(textureSampler, uv + disp);
+
+	/* ---- 5. pulsar breathing (computed early; used as a global gain) -- */
+	float breath = 1.0 + 0.04 * lock * sin(elapsed * TWO_PI * PULSAR_BREATH);
+
+	/* ---- 2. holographic interference fringes ------------------------- */
+	/* |a+b|² of two beams: a reference wave and a wind-phase-shifted wave,
+	   at a spatial frequency set by K_EGS. Antinodes brighten, nodes darken. */
+	float k = egs_key * 6.0;                       /* spatial frequency of the beams */
+	float beamA = cos(radius * k - elapsed * 0.4);
+	float beamB = cos(radius * k - wind_phase);
+	float fringe = (beamA + beamB);                /* in [-2, 2] */
+	float intensity = fringe * fringe * 0.25;      /* |a+b|²/4 in [0,1] */
+	float fr = interference * lock;
+	/* push brightness toward the antinodes, pull it back at the nodes */
+	color.rgb *= (1.0 - fr) + fr * (0.5 + intensity);
+
+	/* ---- 3. hydrogen H-alpha resonance tint -------------------------- */
+	/* strongest where the interference is constructive (antinodes). */
+	float tint = hydrogen_tint * lock * intensity;
+	color.rgb = lerp(color.rgb, H_ALPHA, clamp(tint, 0.0, 0.85));
+
+	/* ---- 4. honeycomb hex lattice ------------------------------------ */
+	if (hex_opacity > 0.0001) {
+		float2 hp = (uv - 0.5);
+		hp.x *= (uv_size.x / max(uv_size.y, 1.0));   /* keep cells regular */
+		float cells = 14.0;
+		float edge = hex_edge(hp * cells);
+		color.rgb = lerp(color.rgb, ROBIN, edge * hex_opacity * (0.4 + 0.6 * lock));
+	}
+
+	/* ---- pulsar breath applied globally ------------------------------ */
+	color.rgb *= breath;
+
+	/* ---- 6. HOLO_GRID: golden 61.8% / 38.2% alignment lines ---------- */
+	if (grid_opacity > 0.0001) {
+		float lw = 1.5 / max(uv_size.x, 1.0);   /* ~1.5px line width */
+		float gx = min(abs(uv.x - INV_PHI), abs(uv.x - (1.0 - INV_PHI)));
+		float gy = min(abs(uv.y - INV_PHI), abs(uv.y - (1.0 - INV_PHI)));
+		float line = (gx < lw || gy < lw) ? 1.0 : 0.0;
+		color.rgb = lerp(color.rgb, ROBIN, line * grid_opacity);
+	}
+
+	return color;
+}
+
+technique Draw
+{
+	pass
+	{
+		vertex_shader = VSDefault(v_in);
+		pixel_shader  = PSFractiSynth(v_in);
+	}
+}
