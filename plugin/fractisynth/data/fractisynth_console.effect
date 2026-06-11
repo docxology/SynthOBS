@@ -36,6 +36,7 @@ uniform float show_fringes;
 uniform float show_grid;
 uniform float show_hex;
 uniform float show_dot;
+uniform float show_tabs;     /* clickable feed-selector tab strip (interactive) */
 
 #define PHI 1.61803398875
 #define INV_PHI 0.61803398875
@@ -209,6 +210,17 @@ float4 PSConsole(VertData v_in) : TARGET
 	}
 	if (hue_cycle > 0.001)
 		col = hue_rotate(col, hue_cycle * elapsed * 0.25);
+
+	/* clickable feed-selector tab strip across the top (5 cells; active = ring) */
+	if (show_tabs > 0.5 && uv.y < 0.055) {
+		Palette p = get_palette();
+		float fcell = uv.x * 5.0;
+		float is_on = step(abs(floor(fcell) - feed), 0.5);
+		float3 tab = lerp(p.bg * 1.7, p.ring, is_on * 0.85);
+		float seam = step(frac(fcell), 0.012) + step(0.988, frac(fcell));
+		tab = lerp(tab, p.mari, saturate(seam));
+		col = lerp(tab, col, smoothstep(0.05, 0.055, uv.y)); /* hairline bottom edge */
+	}
 	return float4(saturate(col), 1.0);
 }
 

@@ -1086,6 +1086,7 @@ typedef struct fractisynth_console_data {
 	float show_grid;
 	float show_hex;
 	float show_dot;
+	float show_tabs;      /* clickable feed-selector tab strip (interactive) */
 
 	gs_effect_t *effect;
 	gs_eparam_t *p_swo_phase;
@@ -1107,6 +1108,7 @@ typedef struct fractisynth_console_data {
 	gs_eparam_t *p_show_grid;
 	gs_eparam_t *p_show_hex;
 	gs_eparam_t *p_show_dot;
+	gs_eparam_t *p_show_tabs;
 } fractisynth_console_data_t;
 
 static const char *fcv_get_name(void *unused)
@@ -1136,6 +1138,7 @@ static void fcv_update(void *data, obs_data_t *settings)
 	f->show_grid = obs_data_get_bool(settings, "show_grid") ? 1.0f : 0.0f;
 	f->show_hex = obs_data_get_bool(settings, "show_hex") ? 1.0f : 0.0f;
 	f->show_dot = obs_data_get_bool(settings, "show_dot") ? 1.0f : 0.0f;
+	f->show_tabs = obs_data_get_bool(settings, "show_tabs") ? 1.0f : 0.0f;
 }
 
 static void *fcv_create(obs_data_t *settings, obs_source_t *context)
@@ -1175,6 +1178,7 @@ static void *fcv_create(obs_data_t *settings, obs_source_t *context)
 		f->p_show_grid = gs_effect_get_param_by_name(f->effect, "show_grid");
 		f->p_show_hex = gs_effect_get_param_by_name(f->effect, "show_hex");
 		f->p_show_dot = gs_effect_get_param_by_name(f->effect, "show_dot");
+		f->p_show_tabs = gs_effect_get_param_by_name(f->effect, "show_tabs");
 	}
 
 	fcv_update(f, settings);
@@ -1215,6 +1219,7 @@ static void fcv_defaults(obs_data_t *settings)
 	obs_data_set_default_bool(settings, "show_grid", true);
 	obs_data_set_default_bool(settings, "show_hex", false);
 	obs_data_set_default_bool(settings, "show_dot", true);
+	obs_data_set_default_bool(settings, "show_tabs", true);
 }
 
 static obs_properties_t *fcv_properties(void *data)
@@ -1254,6 +1259,7 @@ static obs_properties_t *fcv_properties(void *data)
 	obs_properties_add_bool(props, "show_grid", obs_module_text("ShowGrid"));
 	obs_properties_add_bool(props, "show_hex", obs_module_text("ShowHex"));
 	obs_properties_add_bool(props, "show_dot", obs_module_text("ShowDot"));
+	obs_properties_add_bool(props, "show_tabs", obs_module_text("ShowTabs"));
 
 	obs_properties_add_int(props, "width", obs_module_text("ConsoleWidth"), 320, 3840, 2);
 	obs_properties_add_int(props, "height", obs_module_text("ConsoleHeight"), 180, 2160, 2);
@@ -1325,6 +1331,8 @@ static void fcv_video_render(void *data, gs_effect_t *effect)
 		gs_effect_set_float(f->p_show_hex, f->show_hex);
 	if (f->p_show_dot)
 		gs_effect_set_float(f->p_show_dot, f->show_dot);
+	if (f->p_show_tabs)
+		gs_effect_set_float(f->p_show_tabs, f->show_tabs);
 
 	/* Draw the procedural console via the custom effect (OBS color_source
 	 * technique pattern). Guard the technique lookup and keep render state balanced. */
@@ -1347,10 +1355,40 @@ static void fcv_video_render(void *data, gs_effect_t *effect)
 	gs_enable_framebuffer_srgb(prev_srgb);
 }
 
+/*
+ * Interactive feed selection: when the tab strip is shown, a left-click in the
+ * top ~9% of the source maps the x-position to one of the 5 synthetic feeds and
+ * switches to it live (the "clickable on-screen menu targets"). Interaction is
+ * delivered via OBS's Interact window / interactive projector. Fail-safe: clicks
+ * outside the strip, with tabs hidden, or non-left buttons are ignored.
+ */
+static void fcv_mouse_click(void *data, const struct obs_mouse_event *event, int32_t type,
+			    bool mouse_up, uint32_t click_count)
+{
+	UNUSED_PARAMETER(click_count);
+	fractisynth_console_data_t *f = data;
+	if (type != MOUSE_LEFT || !mouse_up || f->show_tabs < 0.5f)
+		return;
+	if (f->width == 0 || f->height == 0)
+		return;
+	if ((float)event->y > (float)f->height * 0.09f)
+		return; /* only the tab strip is clickable */
+	int cell = (int)((float)event->x / (float)f->width * 5.0f);
+	if (cell < 0)
+		cell = 0;
+	if (cell > 4)
+		cell = 4;
+	obs_data_t *s = obs_source_get_settings(f->context);
+	obs_data_set_int(s, "feed", cell);
+	obs_source_update(f->context, s);
+	obs_data_release(s);
+}
+
 static struct obs_source_info fractisynth_console_source = {
 	.id = "fractisynth_console",
 	.type = OBS_SOURCE_TYPE_INPUT,
-	.output_flags = OBS_SOURCE_VIDEO | OBS_SOURCE_CUSTOM_DRAW | OBS_SOURCE_SRGB,
+	.output_flags = OBS_SOURCE_VIDEO | OBS_SOURCE_CUSTOM_DRAW | OBS_SOURCE_SRGB |
+			OBS_SOURCE_INTERACTION,
 	.get_name = fcv_get_name,
 	.create = fcv_create,
 	.destroy = fcv_destroy,
@@ -1361,6 +1399,7 @@ static struct obs_source_info fractisynth_console_source = {
 	.video_tick = fcv_video_tick,
 	.get_width = fcv_get_width,
 	.get_height = fcv_get_height,
+	.mouse_click = fcv_mouse_click,
 	.icon_type = OBS_ICON_TYPE_CUSTOM,
 };
 

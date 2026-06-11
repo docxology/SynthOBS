@@ -31,17 +31,16 @@ Status legend: ✅ shipped · 🚧 in progress · 📋 planned
   zoom into the stream like a packet sniffer inspecting a flow.
 - 📋 Follow-mouse or fixed-region modes; pixel/region telemetry annotation.
 
-## Phase D — On-demand synthetic feed layers  🚧→📋
-- 🚧 The console source IS a synthetic feed; the feed selector (Phase A) makes it
-  multi-stream.
+## Phase D — On-demand synthetic feed layers  ✅(core)
+- ✅ The console source IS a synthetic feed; the feed selector (Phase A) makes it
+  multi-stream, switchable live (incl. by click — Phase E).
 - 📋 A scene-collection helper that drops several synthetic feeds as stacked
   layers with hotkeys to cross-fade between them on demand.
 
-## Phase E — Interactive on-screen targets / menu destinations  📋
-- 📋 Make the console source **interactive** (obs_source_info mouse_click /
-  mouse_move / get_interaction): clickable hotspots / menu targets painted on
-  the canvas that the operator can point-and-click to switch feed, toggle a
-  layer, or fire an action.
+## Phase E — Interactive on-screen targets / menu destinations  ✅(core)
+- ✅ Console source is **interactive** (OBS_SOURCE_INTERACTION + mouse_click): a
+  clickable 5-cell feed-tab strip painted across the top switches the synthetic
+  feed on click (via OBS's Interact window / interactive projector).
 - 📋 Define target actions (feed switch, layer toggle, marker drop).
 
 ## Cross-cutting
