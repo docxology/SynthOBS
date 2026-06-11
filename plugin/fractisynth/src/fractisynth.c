@@ -896,6 +896,9 @@ typedef struct fractisynth_console_data {
 	float elapsed;
 
 	/* user configuration */
+	float feed;           /* 0 Wavefield, 1 Hex Tunnel, 2 Interference Field, 3 Spectral Rings, 4 Spiral Drift */
+	float chroma;         /* chromatic-shimmer intensity */
+	float hue_cycle;      /* hue rotation amount over time (trippy) */
 	float theme;          /* 0=Observatory, 1=Laboratory, 2=Expedition palette */
 	float anim_speed;     /* animation rate multiplier */
 	float intensity;      /* master overlay intensity */
@@ -914,6 +917,9 @@ typedef struct fractisynth_console_data {
 	gs_eparam_t *p_egs_key;
 	gs_eparam_t *p_elapsed;
 	gs_eparam_t *p_uv_size;
+	gs_eparam_t *p_feed;
+	gs_eparam_t *p_chroma;
+	gs_eparam_t *p_hue_cycle;
 	gs_eparam_t *p_theme;
 	gs_eparam_t *p_anim_speed;
 	gs_eparam_t *p_intensity;
@@ -940,6 +946,9 @@ static void fcv_update(void *data, obs_data_t *settings)
 	f->width = w > 0 ? (uint32_t)w : 1280;
 	f->height = h > 0 ? (uint32_t)h : 720;
 
+	f->feed = (float)obs_data_get_int(settings, "feed");
+	f->chroma = (float)obs_data_get_double(settings, "chroma");
+	f->hue_cycle = (float)obs_data_get_double(settings, "hue_cycle");
 	f->theme = (float)obs_data_get_int(settings, "theme");
 	f->anim_speed = (float)obs_data_get_double(settings, "anim_speed");
 	f->intensity = (float)obs_data_get_double(settings, "intensity");
@@ -976,6 +985,9 @@ static void *fcv_create(obs_data_t *settings, obs_source_t *context)
 		f->p_egs_key = gs_effect_get_param_by_name(f->effect, "egs_key");
 		f->p_elapsed = gs_effect_get_param_by_name(f->effect, "elapsed");
 		f->p_uv_size = gs_effect_get_param_by_name(f->effect, "uv_size");
+		f->p_feed = gs_effect_get_param_by_name(f->effect, "feed");
+		f->p_chroma = gs_effect_get_param_by_name(f->effect, "chroma");
+		f->p_hue_cycle = gs_effect_get_param_by_name(f->effect, "hue_cycle");
 		f->p_theme = gs_effect_get_param_by_name(f->effect, "theme");
 		f->p_anim_speed = gs_effect_get_param_by_name(f->effect, "anim_speed");
 		f->p_intensity = gs_effect_get_param_by_name(f->effect, "intensity");
@@ -1013,6 +1025,9 @@ static void fcv_defaults(obs_data_t *settings)
 {
 	obs_data_set_default_int(settings, "width", 1280);
 	obs_data_set_default_int(settings, "height", 720);
+	obs_data_set_default_int(settings, "feed", 0);
+	obs_data_set_default_double(settings, "chroma", 0.25);
+	obs_data_set_default_double(settings, "hue_cycle", 0.0);
 	obs_data_set_default_int(settings, "theme", 0);
 	obs_data_set_default_double(settings, "anim_speed", 1.0);
 	obs_data_set_default_double(settings, "intensity", 1.0);
@@ -1029,6 +1044,19 @@ static obs_properties_t *fcv_properties(void *data)
 {
 	UNUSED_PARAMETER(data);
 	obs_properties_t *props = obs_properties_create();
+
+	obs_property_t *feed = obs_properties_add_list(props, "feed",
+		obs_module_text("ConsoleFeed"), OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
+	obs_property_list_add_int(feed, obs_module_text("FeedWavefield"), 0);
+	obs_property_list_add_int(feed, obs_module_text("FeedHexTunnel"), 1);
+	obs_property_list_add_int(feed, obs_module_text("FeedInterference"), 2);
+	obs_property_list_add_int(feed, obs_module_text("FeedSpectral"), 3);
+	obs_property_list_add_int(feed, obs_module_text("FeedSpiralDrift"), 4);
+
+	obs_properties_add_float_slider(props, "chroma",
+		obs_module_text("ConsoleChroma"), 0.0, 1.0, 0.01);
+	obs_properties_add_float_slider(props, "hue_cycle",
+		obs_module_text("ConsoleHueCycle"), 0.0, 1.0, 0.01);
 
 	obs_property_t *theme = obs_properties_add_list(props, "theme",
 		obs_module_text("ConsoleTheme"), OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
@@ -1094,6 +1122,12 @@ static void fcv_video_render(void *data, gs_effect_t *effect)
 		gs_effect_set_vec2(f->p_uv_size, &sz);
 	}
 	/* user configuration → shader */
+	if (f->p_feed)
+		gs_effect_set_float(f->p_feed, f->feed);
+	if (f->p_chroma)
+		gs_effect_set_float(f->p_chroma, f->chroma);
+	if (f->p_hue_cycle)
+		gs_effect_set_float(f->p_hue_cycle, f->hue_cycle);
 	if (f->p_theme)
 		gs_effect_set_float(f->p_theme, f->theme);
 	if (f->p_anim_speed)

@@ -1,30 +1,35 @@
 /*
- * FractiSynth φ Wavefield Console — a procedural, fully-configurable OBS *source*
- * shader. Generates the SynthOBS console from scratch (no input image): the
- * Goldilocks golden-ratio grid, a φ spiral, K_EGS-spaced holographic interference
- * fringes, a honeycomb hex lattice, a gateway lock ring, and a phase-vector core —
- * each independently toggleable, themed, and intensity-scaled by the source's OBS
- * properties, and driven live by the El Gran Sol Gateway uniforms.
+ * FractiSynth φ Wavefield Console — procedural, multi-feed OBS *source* shader.
  *
- * NOTE: OBS's effect language does NOT initialise global `static const float3`
- * constants at runtime (they read back zero → black), so all palette colours are
- * built as LOCAL float3() inside the pixel shader.
+ * Generates one of several SELECTABLE synthetic feeds from scratch (no input
+ * image), each driven live by the El Gran Sol Gateway telemetry:
+ *   feed 0  Wavefield Console — golden grid + lock ring + φ-spiral + fringes + hex + core
+ *   feed 1  Hex Tunnel        — log-polar honeycomb tunnel zooming with the solar wind
+ *   feed 2  Interference Field— two rotating K_EGS wave systems → holographic moiré
+ *   feed 3  Spectral Rings    — outward rainbow bands pulsing with flux/lock
+ *   feed 4  Spiral Drift      — drifting golden-spiral arms, density by lock
+ * Post: optional hue-cycle (trippy) + chromatic shimmer (radial RGB split).
+ *
+ * NOTE: OBS does NOT initialise global `static const float3`; all palette colours
+ * are built LOCALLY (see get_palette()).
  */
 
 uniform float4x4 ViewProj;
 
-uniform float swo_phase;        /* SWO system_phase_vector (>0 when locked)   */
-uniform float lock_strength;    /* [0,1] gateway lock |cos(wind phase bias)|  */
-uniform float wind_phase;       /* radians, gateway phase bias                */
-uniform float egs_key;          /* K_EGS ≈ 2.539427                           */
-uniform float elapsed;          /* seconds                                    */
-uniform float2 uv_size;         /* console size in pixels                     */
+uniform float swo_phase;
+uniform float lock_strength;
+uniform float wind_phase;
+uniform float egs_key;
+uniform float elapsed;
+uniform float2 uv_size;
 
-/* --- user configuration --- */
-uniform float theme;            /* 0 Observatory, 1 Laboratory, 2 Expedition  */
-uniform float anim_speed;       /* animation rate multiplier                  */
-uniform float intensity;        /* master overlay intensity [0,1]             */
-uniform float fringe_density;   /* interference spatial frequency             */
+uniform float feed;          /* 0..4 synthetic feed selector */
+uniform float chroma;        /* chromatic shimmer intensity  */
+uniform float hue_cycle;     /* hue rotation amount over time */
+uniform float theme;         /* 0 Observatory, 1 Laboratory, 2 Expedition */
+uniform float anim_speed;
+uniform float intensity;
+uniform float fringe_density;
 uniform float show_ring;
 uniform float show_spiral;
 uniform float show_fringes;
@@ -36,114 +41,174 @@ uniform float show_dot;
 #define INV_PHI 0.61803398875
 #define TWO_PI 6.28318530718
 
-struct VertData {
-	float4 pos : POSITION;
-	float2 uv  : TEXCOORD0;
-};
+struct VertData { float4 pos : POSITION; float2 uv : TEXCOORD0; };
+struct Palette { float3 bg; float3 ring; float3 mari; float3 hot; float3 core; };
 
 VertData VSDefault(VertData v_in)
 {
-	VertData vert_out;
-	vert_out.pos = mul(float4(v_in.pos.xyz, 1.0), ViewProj);
-	vert_out.uv  = v_in.uv;
-	return vert_out;
+	VertData o;
+	o.pos = mul(float4(v_in.pos.xyz, 1.0), ViewProj);
+	o.uv = v_in.uv;
+	return o;
 }
 
-float soft_line(float d, float w)
+Palette get_palette()
 {
-	return 1.0 - smoothstep(0.0, w, abs(d));
+	Palette p;
+	if (theme < 0.5) {            /* Observatory */
+		p.bg = float3(0.118, 0.114, 0.094); p.ring = float3(0.227, 0.686, 0.663);
+		p.mari = float3(0.910, 0.639, 0.239); p.hot = float3(0.910, 0.192, 0.227);
+		p.core = float3(0.937, 0.914, 0.863);
+	} else if (theme < 1.5) {     /* Laboratory */
+		p.bg = float3(0.063, 0.082, 0.125); p.ring = float3(0.357, 0.722, 0.949);
+		p.mari = float3(0.553, 0.804, 1.000); p.hot = float3(0.451, 0.553, 0.949);
+		p.core = float3(0.878, 0.949, 1.000);
+	} else {                      /* Expedition */
+		p.bg = float3(0.137, 0.098, 0.078); p.ring = float3(0.949, 0.620, 0.247);
+		p.mari = float3(0.980, 0.776, 0.302); p.hot = float3(0.922, 0.247, 0.176);
+		p.core = float3(1.000, 0.929, 0.804);
+	}
+	return p;
 }
 
-/* honeycomb hex edge factor (three 120° tri-axes) */
+float soft_line(float d, float w) { return 1.0 - smoothstep(0.0, w, abs(d)); }
+
 float hex_edge(float2 p)
 {
-	float2 a0 = float2(1.0, 0.0);
-	float2 a1 = float2(-0.5,  0.8660254);
-	float2 a2 = float2(-0.5, -0.8660254);
-	float f0 = abs(frac(dot(p, a0)) - 0.5);
-	float f1 = abs(frac(dot(p, a1)) - 0.5);
-	float f2 = abs(frac(dot(p, a2)) - 0.5);
-	float m = min(f0, min(f1, f2));
+	float2 a0 = float2(1.0, 0.0), a1 = float2(-0.5, 0.8660254), a2 = float2(-0.5, -0.8660254);
+	float m = min(abs(frac(dot(p, a0)) - 0.5), min(abs(frac(dot(p, a1)) - 0.5), abs(frac(dot(p, a2)) - 0.5)));
 	return smoothstep(0.03, 0.0, m);
+}
+
+/* YIQ-matrix hue rotation. */
+float3 hue_rotate(float3 c, float a)
+{
+	float u = cos(a), w = sin(a);
+	float3x3 m = float3x3(
+		0.299 + 0.701 * u + 0.168 * w, 0.587 - 0.587 * u + 0.330 * w, 0.114 - 0.114 * u - 0.497 * w,
+		0.299 - 0.299 * u - 0.328 * w, 0.587 + 0.413 * u + 0.035 * w, 0.114 - 0.114 * u + 0.292 * w,
+		0.299 - 0.300 * u + 1.250 * w, 0.587 - 0.588 * u - 1.050 * w, 0.114 + 0.886 * u - 0.203 * w);
+	return mul(m, c);
+}
+
+/* ---- feed 0: the Wavefield Console ---- */
+float3 feed_wavefield(float2 uv, float t, float lock, float pn, float inten, float aspect)
+{
+	Palette p = get_palette();
+	float2 c = (uv - 0.5); c.x *= aspect;
+	float r = length(c); float ang = atan2(c.y, c.x);
+	float3 col = lerp(p.bg, p.bg * 1.4, uv.y);
+
+	float k = max(fringe_density, 1.0);
+	float fr = cos(r * k - t * 0.5) + cos(r * k - wind_phase);
+	float fint = fr * fr * 0.25;
+	col += p.ring * fint * 0.10 * lock * show_fringes * inten;
+	col = lerp(col, p.hot, fint * lock * 0.18 * show_fringes * inten);
+
+	if (show_hex > 0.5) col = lerp(col, p.ring, hex_edge(c * 14.0) * (0.25 + 0.4 * lock) * inten);
+
+	float lw = 1.6 / uv_size.x;
+	float g = soft_line(uv.x - INV_PHI, lw) * 0.7 + soft_line(uv.y - INV_PHI, lw) * 0.5 + soft_line(uv.y - (1.0 - INV_PHI), lw) * 0.5;
+	col = lerp(col, p.ring * 0.75, saturate(g) * show_grid * inten);
+
+	float spiral = sin(ang * PHI - log(max(r, 1e-3)) / log(PHI) * TWO_PI + t * 0.3);
+	col = lerp(col, p.mari, soft_line(spiral, 0.06) * smoothstep(0.0, 0.05, r) * (0.25 + 0.5 * pn) * show_spiral * inten);
+
+	float onRing = 1.0 - smoothstep(0.012, 0.024, abs(r - 0.34));
+	float arc = step((ang + 3.14159265) / TWO_PI, lock);
+	col = lerp(col, lerp(p.hot, p.ring, lock), onRing * (0.15 + arc * 0.85) * show_ring * inten);
+
+	col = lerp(col, p.core, (1.0 - smoothstep(0.012, 0.022, r)) * (0.3 + 0.7 * pn) * show_dot);
+	return col;
+}
+
+/* ---- feed 1: Hex Tunnel ---- */
+float3 feed_hex_tunnel(float2 uv, float t, float lock, float pn, float inten, float aspect)
+{
+	Palette p = get_palette();
+	float2 c = (uv - 0.5); c.x *= aspect;
+	float r = length(c); float ang = atan2(c.y, c.x);
+	float u = log(max(r, 1e-3)) * 3.0 - (t * 0.4 + wind_phase * 0.1);
+	float edge = hex_edge(float2(ang / TWO_PI * 12.0, u * 2.0));
+	float depth = smoothstep(0.0, 0.55, r);
+	float3 col = lerp(p.bg, p.ring, edge * depth * (0.4 + 0.6 * lock) * inten);
+	col += p.mari * pow(saturate(1.0 - r * 1.6), 3.0) * (0.4 + 0.6 * lock) * inten;  /* centre glow */
+	return col;
+}
+
+/* ---- feed 2: Interference Field (holographic moiré) ---- */
+float3 feed_interference(float2 uv, float t, float lock, float pn, float inten, float aspect)
+{
+	Palette p = get_palette();
+	float2 c = (uv - 0.5); c.x *= aspect;
+	float k = max(fringe_density, 1.0) * 2.0;
+	float a1 = wind_phase, a2 = wind_phase + 1.0472 + t * 0.05;
+	float w1 = cos(dot(c, float2(cos(a1), sin(a1))) * k - t * 0.4);
+	float w2 = cos(dot(c, float2(cos(a2), sin(a2))) * k + t * 0.3);
+	float m = w1 + w2; float fi = m * m * 0.25;
+	float3 col = lerp(p.bg, p.ring, fi * (0.5 + 0.5 * lock) * inten);
+	col = lerp(col, p.hot, pow(fi, 3.0) * lock * inten);
+	col += p.mari * 0.12 * lock * inten * (0.5 + 0.5 * sin(fi * TWO_PI + t));
+	return col;
+}
+
+/* ---- feed 3: Spectral Rings ---- */
+float3 feed_spectral(float2 uv, float t, float lock, float pn, float inten, float aspect)
+{
+	Palette p = get_palette();
+	float2 c = (uv - 0.5); c.x *= aspect;
+	float r = length(c);
+	float bands = 8.0 + lock * 8.0;
+	float pos = r * bands - t * 0.3;
+	float ringf = frac(pos);
+	float idx = floor(pos);
+	float3 spec = 0.5 + 0.5 * cos(TWO_PI * (idx * 0.13 + pn) + float3(0.0, 2.094, 4.188));
+	float band = smoothstep(0.0, 0.10, ringf) * smoothstep(1.0, 0.90, ringf);
+	float3 col = lerp(p.bg, spec, band * (0.4 + 0.6 * lock) * inten);
+	return col;
+}
+
+/* ---- feed 4: Spiral Drift ---- */
+float3 feed_spiral_drift(float2 uv, float t, float lock, float pn, float inten, float aspect)
+{
+	Palette p = get_palette();
+	float2 c = (uv - 0.5); c.x *= aspect;
+	float r = length(c); float ang = atan2(c.y, c.x);
+	float arms = 5.0;
+	float s = sin(ang * arms - log(max(r, 1e-3)) / log(PHI) * TWO_PI + t * 0.6);
+	float3 col = lerp(p.bg, p.mari, smoothstep(0.6, 1.0, s) * (0.3 + 0.7 * lock) * inten);
+	col += p.ring * pow(s * 0.5 + 0.5, 4.0) * 0.3 * lock * inten;
+	col = lerp(col, p.core, (1.0 - smoothstep(0.01, 0.02, r)) * (0.3 + 0.7 * pn));
+	return col;
+}
+
+float3 feed_color(float2 uv)
+{
+	float t = elapsed * max(anim_speed, 0.0);
+	float lock = clamp(lock_strength, 0.0, 1.0);
+	float pn = clamp(swo_phase / 200.0, 0.0, 1.0);
+	float inten = clamp(intensity, 0.0, 1.0);
+	float aspect = uv_size.x / max(uv_size.y, 1.0);
+	if (feed < 0.5) return feed_wavefield(uv, t, lock, pn, inten, aspect);
+	if (feed < 1.5) return feed_hex_tunnel(uv, t, lock, pn, inten, aspect);
+	if (feed < 2.5) return feed_interference(uv, t, lock, pn, inten, aspect);
+	if (feed < 3.5) return feed_spectral(uv, t, lock, pn, inten, aspect);
+	return feed_spiral_drift(uv, t, lock, pn, inten, aspect);
 }
 
 float4 PSConsole(VertData v_in) : TARGET
 {
-	/* ---- theme palette (LOCAL colours) ---- */
-	float3 BG, RING, MARI, HOT, CORE;
-	if (theme < 0.5) {            /* Observatory — robin's-egg / marigold */
-		BG   = float3(0.118, 0.114, 0.094);
-		RING = float3(0.227, 0.686, 0.663);
-		MARI = float3(0.910, 0.639, 0.239);
-		HOT  = float3(0.910, 0.192, 0.227);
-		CORE = float3(0.937, 0.914, 0.863);
-	} else if (theme < 1.5) {    /* Laboratory — cool blue */
-		BG   = float3(0.063, 0.082, 0.125);
-		RING = float3(0.357, 0.722, 0.949);
-		MARI = float3(0.553, 0.804, 1.000);
-		HOT  = float3(0.451, 0.553, 0.949);
-		CORE = float3(0.878, 0.949, 1.000);
-	} else {                     /* Expedition — solar marigold / ember */
-		BG   = float3(0.137, 0.098, 0.078);
-		RING = float3(0.949, 0.620, 0.247);
-		MARI = float3(0.980, 0.776, 0.302);
-		HOT  = float3(0.922, 0.247, 0.176);
-		CORE = float3(1.000, 0.929, 0.804);
-	}
-
-	float t = elapsed * max(anim_speed, 0.0);
-	float lock = clamp(lock_strength, 0.0, 1.0);
-	float phaseNorm = clamp(swo_phase / 200.0, 0.0, 1.0);
-	float inten = clamp(intensity, 0.0, 1.0);
-
 	float2 uv = v_in.uv;
-	float aspect = uv_size.x / max(uv_size.y, 1.0);
-	float2 c = (uv - 0.5);
-	c.x *= aspect;
-	float r = length(c);
-	float ang = atan2(c.y, c.x);
-
-	/* ---- background gradient ---- */
-	float3 col = lerp(BG, BG * 1.4, uv.y);
-
-	/* ---- holographic interference fringes (|a+b|², density-tunable) ---- */
-	float k = max(fringe_density, 1.0);
-	float beamA = cos(r * k - t * 0.5);
-	float beamB = cos(r * k - wind_phase);
-	float fr = beamA + beamB;
-	float fint = fr * fr * 0.25;
-	col += RING * fint * 0.10 * lock * show_fringes * inten;
-	col = lerp(col, HOT, fint * lock * 0.18 * show_fringes * inten);
-
-	/* ---- honeycomb hex lattice ---- */
-	if (show_hex > 0.5) {
-		float edge = hex_edge(c * 14.0);
-		col = lerp(col, RING, edge * (0.25 + 0.4 * lock) * inten);
+	float3 col;
+	if (chroma > 0.001) {
+		/* radial RGB split — the "chromatic shimmer" */
+		float2 off = (uv - 0.5) * chroma * 0.03;
+		col = float3(feed_color(uv + off).r, feed_color(uv).g, feed_color(uv - off).b);
+	} else {
+		col = feed_color(uv);
 	}
-
-	/* ---- Goldilocks golden-ratio grid (61.8 / 38.2) ---- */
-	float lw = 1.6 / uv_size.x;
-	float g = soft_line(uv.x - INV_PHI, lw) * 0.7
-		+ soft_line(uv.y - INV_PHI, lw) * 0.5
-		+ soft_line(uv.y - (1.0 - INV_PHI), lw) * 0.5;
-	col = lerp(col, RING * 0.75, saturate(g) * show_grid * inten);
-
-	/* ---- φ spiral ---- */
-	float spiral = sin(ang * PHI - log(max(r, 1e-3)) / log(PHI) * TWO_PI + t * 0.3);
-	float spiralLine = soft_line(spiral, 0.06) * smoothstep(0.0, 0.05, r);
-	col = lerp(col, MARI, spiralLine * (0.25 + 0.5 * phaseNorm) * show_spiral * inten);
-
-	/* ---- gateway lock ring (arc sweep = lock) ---- */
-	float onRing = 1.0 - smoothstep(0.012, 0.024, abs(r - 0.34));
-	float frac = (ang + 3.14159265) / TWO_PI;
-	float arc = step(frac, lock);
-	float3 ringCol = lerp(HOT, RING, lock);
-	col = lerp(col, ringCol, onRing * (0.15 + arc * 0.85) * show_ring * inten);
-
-	/* ---- phase-vector core ---- */
-	float dot = 1.0 - smoothstep(0.012, 0.022, r);
-	col = lerp(col, CORE, dot * (0.3 + 0.7 * phaseNorm) * show_dot);
-
+	if (hue_cycle > 0.001)
+		col = hue_rotate(col, hue_cycle * elapsed * 0.25);
 	return float4(saturate(col), 1.0);
 }
 
