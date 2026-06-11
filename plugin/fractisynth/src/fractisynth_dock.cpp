@@ -76,7 +76,7 @@ public:
 	explicit FractiSynthDock(QWidget *parent = nullptr) : QWidget(parent)
 	{
 		setObjectName(QStringLiteral("FractiSynthDock"));
-		setMinimumSize(232, 320);
+		setMinimumSize(232, 372);
 		startTimer(120); /* ~8 Hz; timerEvent needs no moc */
 	}
 
@@ -121,8 +121,21 @@ protected:
 		body.setPointSizeF(body.pointSizeF() - 0.5);
 		p.setFont(body);
 
+		/* ---- live/validated status line ---- */
+		bool live = st.swo_calibrated && st.gateway_locked;
+		QColor dotc = live ? ROBIN : (st.swo_calibrated || st.gateway_locked ? MARIGOLD : H_ALPHA);
+		p.setPen(Qt::NoPen);
+		p.setBrush(dotc);
+		p.drawEllipse(QPointF(16, 36), 4, 4);
+		p.setPen(dotc);
+		p.drawText(QRectF(26, 28, w - 38, 16), Qt::AlignLeft | Qt::AlignVCenter,
+			   live ? fs("LIVE \xc2\xb7 NOAA SWPC verified")
+				: st.swo_calibrated || st.gateway_locked
+					  ? fs("partial \xc2\xb7 acquiring")
+					  : fs("acquiring telemetry\xe2\x80\xa6"));
+
 		/* ---- lock-ring gauge ---- */
-		const double cx = w * 0.5, cy = 92.0, R = 46.0;
+		const double cx = w * 0.5, cy = 108.0, R = 46.0;
 		QColor lk = QColor::fromRgbF(
 			H_ALPHA.redF() * (1.0 - lock) + ROBIN.redF() * lock,
 			H_ALPHA.greenF() * (1.0 - lock) + ROBIN.greenF() * lock,
@@ -187,11 +200,16 @@ protected:
 extern "C" {
 
 /* OBS calls obs_module_post_load() once the Qt frontend is ready; we define it
- * here in the C++ TU (fractisynth.c does not). We build our own QDockWidget and
- * register it with obs_frontend_add_custom_qdock so we can make it VISIBLE by
- * default (docks added via add_dock_by_id start hidden in the Docks menu, which
- * is easy to miss). It docks on the right and the user can move/float/close it;
- * OBS persists its placement under the id. */
+ * here in the C++ TU (fractisynth.c does not).
+ *
+ * We MUST use obs_frontend_add_dock_by_id (NOT add_custom_qdock): only the former
+ * calls OBSBasic::AddDockWidget, which registers the dock's toggle in the **Docks
+ * menu** (menuDocks->addAction(toggleViewAction())). add_custom_qdock just adds the
+ * widget to the window and an internal list — it never appears in the menu, so the
+ * user can't find it. add_dock_by_id creates the OBSDock hidden+floating; we then
+ * look it up by objectName and dock it on the right + SHOW it so it's visible
+ * immediately (and toggleable from the Docks menu thereafter). A fresh, unique id
+ * avoids any stale persisted-id collision from earlier builds. */
 __attribute__((visibility("default"))) void obs_module_post_load(void)
 {
 	QMainWindow *main = static_cast<QMainWindow *>(obs_frontend_get_main_window());
@@ -200,22 +218,24 @@ __attribute__((visibility("default"))) void obs_module_post_load(void)
 		return;
 	}
 
-	QDockWidget *dock = new QDockWidget(main);
-	dock->setObjectName(QStringLiteral("FractiSynthGatewayDock"));
-	dock->setWindowTitle(QStringLiteral("SynthOBS Gateway"));
-	dock->setWidget(new FractiSynthDock(dock));
-	dock->setFeatures(QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetFloatable |
-			  QDockWidget::DockWidgetClosable);
-	dock->setMinimumWidth(240);
+	const char *id = "synthobs_gateway_dock";
+	FractiSynthDock *widget = new FractiSynthDock();
+	if (!obs_frontend_add_dock_by_id(id, "SynthOBS Gateway", widget)) {
+		blog(LOG_WARNING, "[fractisynth] add_dock_by_id failed (id already in use?)");
+		delete widget;
+		return;
+	}
 
-	/* Place it docked on the right and make it visible immediately. */
-	main->addDockWidget(Qt::RightDockWidgetArea, dock);
-	dock->setVisible(true);
-	dock->raise();
-
-	if (obs_frontend_add_custom_qdock("fractisynth_dock", dock))
-		blog(LOG_INFO, "[fractisynth] frontend dock added (visible, right area)");
-	else
-		blog(LOG_WARNING, "[fractisynth] obs_frontend_add_custom_qdock failed");
+	/* Make it visible by default: find the OBSDock OBS created and show it. */
+	QDockWidget *dock = main->findChild<QDockWidget *>(QString::fromUtf8(id));
+	if (dock) {
+		main->addDockWidget(Qt::RightDockWidgetArea, dock);
+		dock->setFloating(false);
+		dock->setVisible(true);
+		dock->raise();
+		blog(LOG_INFO, "[fractisynth] dock registered in Docks menu + shown (right)");
+	} else {
+		blog(LOG_INFO, "[fractisynth] dock registered (enable via Docks menu)");
+	}
 }
 }
