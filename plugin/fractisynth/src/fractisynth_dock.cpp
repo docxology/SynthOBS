@@ -15,6 +15,8 @@
  */
 
 #include <QWidget>
+#include <QDockWidget>
+#include <QMainWindow>
 #include <QPainter>
 #include <QPaintEvent>
 #include <QTimerEvent>
@@ -185,15 +187,35 @@ protected:
 extern "C" {
 
 /* OBS calls obs_module_post_load() once the Qt frontend is ready; we define it
- * here in the C++ TU (fractisynth.c does not). */
+ * here in the C++ TU (fractisynth.c does not). We build our own QDockWidget and
+ * register it with obs_frontend_add_custom_qdock so we can make it VISIBLE by
+ * default (docks added via add_dock_by_id start hidden in the Docks menu, which
+ * is easy to miss). It docks on the right and the user can move/float/close it;
+ * OBS persists its placement under the id. */
 __attribute__((visibility("default"))) void obs_module_post_load(void)
 {
-	FractiSynthDock *dock = new FractiSynthDock();
-	if (!obs_frontend_add_dock_by_id("fractisynth_dock", "SynthOBS Gateway", dock)) {
-		blog(LOG_WARNING, "[fractisynth] could not add frontend dock");
-		delete dock;
-	} else {
-		blog(LOG_INFO, "[fractisynth] frontend dock registered");
+	QMainWindow *main = static_cast<QMainWindow *>(obs_frontend_get_main_window());
+	if (!main) {
+		blog(LOG_WARNING, "[fractisynth] no main window — dock not added");
+		return;
 	}
+
+	QDockWidget *dock = new QDockWidget(main);
+	dock->setObjectName(QStringLiteral("FractiSynthGatewayDock"));
+	dock->setWindowTitle(QStringLiteral("SynthOBS Gateway"));
+	dock->setWidget(new FractiSynthDock(dock));
+	dock->setFeatures(QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetFloatable |
+			  QDockWidget::DockWidgetClosable);
+	dock->setMinimumWidth(240);
+
+	/* Place it docked on the right and make it visible immediately. */
+	main->addDockWidget(Qt::RightDockWidgetArea, dock);
+	dock->setVisible(true);
+	dock->raise();
+
+	if (obs_frontend_add_custom_qdock("fractisynth_dock", dock))
+		blog(LOG_INFO, "[fractisynth] frontend dock added (visible, right area)");
+	else
+		blog(LOG_WARNING, "[fractisynth] obs_frontend_add_custom_qdock failed");
 }
 }

@@ -3,11 +3,11 @@ project: SynthOBS
 task: Spec and develop SynthOBS + FractiSynth — golden-ratio OBS plugin driven by fail-closed live solar telemetry
 effort: E5
 phase: complete
-progress: 142/142
+progress: 150/150
 mode: ALGORITHM
 started: 2026-06-10
 updated: 2026-06-10
-iteration: 6
+iteration: 7
 ---
 
 # SynthOBS / FractiSynth — Ideal State Articulation
@@ -492,3 +492,38 @@ and configurability, aesthetically + scientifically.
 - Dock pixels are the one thing not screenshot-verified this environment (no websocket dock
   path; OBS on a separate macOS Space; pyobjc/Quartz window-enum didn't find it). Standard
   QPainter + QColor against matching Qt → high confidence; honest residual SYNTHOBS-DOCKSHOT.
+
+## Iteration 7 — Live data verified/corrected + dock visible-by-default (2026-06-10)
+
+User: console looks great but "no dock" + "ensure live solar and other data is coming in
+and verified."
+
+### Criteria (iteration 7)
+- [x] ISC-128: **live telemetry VERIFIED against NOAA**: F10.7 flux=145.0 (exact match);
+  solar wind ~389–397 km/s (live, matches plasma-2-hour feed); both flowing every 60s.
+- [x] ISC-129: **SUNSPOT-COUNT BUG FIXED** — the C plugin counted `sunspot_report.json`'s
+  601 per-station observation records as "spots", over-dividing the SWO phase vector. Now
+  uses `solar_regions.json` and counts regions on the **latest observed_date** (the true
+  active-region count ≈10). Live-verified: `spots=10 phase=23.46` (was spots=601 phase=0.39).
+- [x] ISC-130: Python parity + regression test — `parse_noaa_solar_regions` mirrors the
+  native `extract_active_region_count` (latest-date count, fail-closed); test asserts
+  3-on-latest-date NOT 23-total, + fail-closed on empty/malformed.
+- [x] ISC-131: **dock now VISIBLE by default** — switched from `obs_frontend_add_dock_by_id`
+  (menu, hidden) to a `QDockWidget` + `obs_frontend_add_custom_qdock`, docked right +
+  `setVisible(true)`. Log: `frontend dock added (visible, right area)`, no crash.
+- [x] ISC-132: Anti: no regression — 897 tests/94.64%, ruff clean, OBS alive, console
+  renders, crash reports 8→8.
+
+### Iteration-7 verification
+- `curl` NOAA → flux 145.0, solar_regions latest-date=10 regions, wind ~389 km/s; plugin log
+  matches (flux=145.0 spots=10 wind=396.8).
+- 897 passed (+5 region tests), ruff clean.
+- Committed + pushed to docxology/SynthOBS.
+
+### Decisions (iteration 7)
+- Counting `sunspot_report.json` "Region" keys (Forge's earlier MEDIUM finding) was worse
+  than flagged: it's the divisor of the phase vector, so it materially corrupted the live
+  science. `solar_regions.json` latest-date count is the correct, stable active-region count.
+- Dock pixels still not screenshot-captured here (OBS window not enumerable via Quartz; on a
+  separate Space) — but it is now visible-by-default so the user sees it directly;
+  SYNTHOBS-DOCKSHOT residual stands for automated capture only.

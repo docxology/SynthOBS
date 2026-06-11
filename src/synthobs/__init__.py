@@ -64,6 +64,7 @@ from .swo import SolarWavefieldOscillator, phase_vector
 from .telemetry import (
     DEFAULT_MAX_AGE_S,
     NOAA_SOLAR_WIND_URL,
+    NOAA_SOLAR_REGIONS_URL,
     SolarTelemetry,
     SolarWind,
     TelemetryUnavailable,
@@ -71,6 +72,7 @@ from .telemetry import (
     fetch_live_telemetry,
     parse_noaa_f107_flux,
     parse_noaa_solar_wind,
+    parse_noaa_solar_regions,
     telemetry_from_payload,
 )
 
@@ -123,6 +125,8 @@ __all__ = [
     "parse_noaa_solar_wind",
     "fetch_live_solar_wind",
     "NOAA_SOLAR_WIND_URL",
+    "parse_noaa_solar_regions",
+    "NOAA_SOLAR_REGIONS_URL",
     # swo
     "SolarWavefieldOscillator",
     "phase_vector",

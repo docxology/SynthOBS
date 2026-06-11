@@ -183,6 +183,26 @@ def _wind_feed(speed: str, *, when: datetime | None = None) -> str:
     )
 
 
+def test_parse_solar_regions_counts_latest_date_only() -> None:
+    from synthobs.telemetry import parse_noaa_solar_regions
+
+    # a month of history: 3 regions on the latest date, 20 on an older date.
+    feed = (
+        [{"observed_date": "2026-06-01", "region": 4450 + i} for i in range(20)]
+        + [{"observed_date": "2026-06-10", "region": 4467 + i} for i in range(3)]
+    )
+    # must return 3 (latest date), NOT 23 (all records) — the over-count bug.
+    assert parse_noaa_solar_regions(feed) == 3
+
+
+@pytest.mark.parametrize("bad", ["not json", "[]", '[{"region": 1}]', '{"observed_date": "x"}'])
+def test_parse_solar_regions_fails_closed(bad: str) -> None:
+    from synthobs.telemetry import parse_noaa_solar_regions
+
+    with pytest.raises(TelemetryUnavailable):
+        parse_noaa_solar_regions(bad)
+
+
 def test_parse_solar_wind_happy_path() -> None:
     wind = parse_noaa_solar_wind(_wind_feed("551.7"))
     assert isinstance(wind, SolarWind)

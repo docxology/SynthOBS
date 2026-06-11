@@ -13,8 +13,9 @@ against a local ``pytest-httpserver`` instance — no mocks. The native FractiSy
 plugin hits the same NOAA SWPC endpoints via a libcurl background thread.
 
 NOAA SWPC reference endpoints (consumed by the C telemetry thread):
-  - F10.7 flux:  https://services.swpc.noaa.gov/json/f107_cm_flux.json
-  - Sunspots:    https://services.swpc.noaa.gov/json/sunspot_report.json
+  - F10.7 flux:    https://services.swpc.noaa.gov/json/f107_cm_flux.json
+  - Active regions: https://services.swpc.noaa.gov/json/solar_regions.json
+  - Solar wind:    https://services.swpc.noaa.gov/products/solar-wind/plasma-2-hour.json
 """
 
 from __future__ import annotations
@@ -37,7 +38,46 @@ __all__ = [
     "parse_noaa_solar_wind",
     "fetch_live_solar_wind",
     "NOAA_SOLAR_WIND_URL",
+    "parse_noaa_solar_regions",
+    "NOAA_SOLAR_REGIONS_URL",
 ]
+
+NOAA_SOLAR_REGIONS_URL: str = "https://services.swpc.noaa.gov/json/solar_regions.json"
+
+
+def parse_noaa_solar_regions(data: Any) -> int:
+    """Count active solar regions on the LATEST observed_date in NOAA's
+    ``solar_regions.json`` (one record per numbered region per day).
+
+    This is the scientifically-meaningful active-region count (≈10 currently),
+    NOT the raw record count over the ~month the feed spans, and NOT the hundreds
+    of per-station observation rows in the separate ``sunspot_report.json``. It
+    mirrors the native plugin's ``extract_active_region_count`` so the SWO phase
+    vector (``φ·flux/spots``) divides by a correct, stable count. Raises
+    :class:`TelemetryUnavailable` on an empty/malformed payload (fail closed).
+    """
+    if isinstance(data, (str, bytes)):
+        try:
+            data = json.loads(data)
+        except json.JSONDecodeError as exc:
+            raise TelemetryUnavailable("solar-regions payload is not valid JSON") from exc
+    if not isinstance(data, list) or not data:
+        raise TelemetryUnavailable("solar-regions payload must be a non-empty array")
+    dates = [
+        r.get("observed_date")
+        for r in data
+        if isinstance(r, dict) and r.get("observed_date")
+    ]
+    if not dates:
+        raise TelemetryUnavailable("solar-regions payload missing observed_date")
+    latest = max(dates)
+    count = sum(
+        1 for r in data if isinstance(r, dict) and r.get("observed_date") == latest
+    )
+    if count <= 0:
+        raise TelemetryUnavailable("solar-regions: no regions on the latest date")
+    return count
+
 
 # NOAA SWPC real-time solar-wind plasma feed (the EGS gateway's phase driver).
 NOAA_SOLAR_WIND_URL: str = (

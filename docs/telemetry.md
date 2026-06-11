@@ -9,7 +9,7 @@ The two telemetry planes are independent and both fail closed:
 ```mermaid
 flowchart LR
     F107["F10.7 flux<br/>f107_cm_flux.json"] --> AMP
-    SPOT["Active spots<br/>sunspot_report.json"] --> AMP
+    SPOT["Active regions<br/>solar_regions.json (latest date)"] --> AMP
     WIND["Solar-wind speed<br/>plasma-2-hour.json"] --> PHASE
     AMP["Amplitude plane<br/>φ·flux/spots → phase_vector"]
     PHASE["EGS gateway phase plane<br/>K_EGS·wind → phase_bias / lock_strength"]
@@ -24,15 +24,21 @@ Three public JSON feeds from the NOAA Space Weather Prediction Center:
 | Quantity                   | Endpoint                                                          | Drives                  |
 | -------------------------- | ---------------------------------------------------------------- | ----------------------- |
 | F10.7 cm solar radio flux  | `https://services.swpc.noaa.gov/json/f107_cm_flux.json`          | SWO amplitude plane     |
-| Active sunspot regions     | `https://services.swpc.noaa.gov/json/sunspot_report.json`        | SWO amplitude plane     |
+| Active solar regions       | `https://services.swpc.noaa.gov/json/solar_regions.json`         | SWO amplitude plane     |
 | Solar-wind plasma (speed)  | `https://services.swpc.noaa.gov/products/solar-wind/plasma-2-hour.json` | EGS gateway phase plane |
 
 The native C plugin polls all **three** every **60 seconds** from a background libcurl
-thread. The Python engine fetches on demand. Flux + sunspots drive the SWO amplitude
-vector; solar-wind speed drives the EGS gateway phase lock (see
-[egs-gateway.md](egs-gateway.md)). The solar-wind feed is parsed by
-`parse_noaa_solar_wind` / `fetch_live_solar_wind`, fail-closed exactly like the others
-(non-200, malformed, non-positive speed, or stale → `TelemetryUnavailable`).
+thread. The Python engine fetches on demand. Flux + active-region count drive the SWO
+amplitude vector; solar-wind speed drives the EGS gateway phase lock (see
+[egs-gateway.md](egs-gateway.md)).
+
+> **Active-region count, done right.** `solar_regions.json` carries one record per
+> numbered region per day across ~a month. The count that drives the phase vector is the
+> number of regions on the **latest observed date** (≈10), *not* the raw record count and
+> *not* the hundreds of per-station rows in `sunspot_report.json` — counting those
+> over-divides the phase vector (live-verified: 10 vs a 601-record over-count). Both the
+> native `extract_active_region_count` and Python `parse_noaa_solar_regions` take the
+> latest-date count, and both fail closed on an empty/malformed feed.
 
 ## The fail-closed contract
 

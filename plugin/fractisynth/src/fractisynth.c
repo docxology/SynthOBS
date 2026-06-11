@@ -57,7 +57,10 @@ OBS_MODULE_USE_DEFAULT_LOCALE("fractisynth", "en-US")
 
 /* NOAA SWPC live endpoints consumed by the telemetry thread. */
 #define NOAA_F107_URL "https://services.swpc.noaa.gov/json/f107_cm_flux.json"
-#define NOAA_SUNSPOT_URL "https://services.swpc.noaa.gov/json/sunspot_report.json"
+/* solar_regions.json = one record per numbered region per day; we count the
+ * latest day's regions (the true active-region count, ~10), NOT sunspot_report
+ * .json's hundreds of per-station observation records. */
+#define NOAA_SUNSPOT_URL "https://services.swpc.noaa.gov/json/solar_regions.json"
 #define NOAA_SOLARWIND_URL "https://services.swpc.noaa.gov/products/solar-wind/plasma-2-hour.json"
 #define TELEMETRY_POLL_SECONDS 60
 #define M_TWO_PI 6.28318530717958647692f
@@ -282,23 +285,54 @@ static float extract_last_flux(const char *json)
 	return last;
 }
 
+/* Read the 10-char "observed_date":"YYYY-MM-DD" value at p into out[11]. */
+static int read_observed_date(const char *p, char *out)
+{
+	while (*p && (*p == ':' || *p == ' ' || *p == '"'))
+		p++;
+	int i = 0;
+	while (i < 10 && p[i] && p[i] != '"') {
+		out[i] = p[i];
+		i++;
+	}
+	out[i] = '\0';
+	return i == 10;
+}
+
 /*
- * Count "Region" records in NOAA's sunspot_report.json as a coarse proxy for
- * monitored sunspot activity. This is intentionally a record count, NOT a claim
- * of byte-parity with the Python engine's count — it exists to give the fail-
- * closed divisor a live, non-zero value while keeping the plugin free of a JSON
- * dependency. A production build should link jansson and parse properly.
- * Returns -1 when no record is found (fail closed).
+ * Count the number of ACTIVE SOLAR REGIONS from NOAA's solar_regions.json — one
+ * record per numbered region per observed date. We take the count for the LATEST
+ * observed_date (the regions currently on the disk), NOT the raw record count:
+ * the feed spans ~a month, so counting all records (or all "Region" keys in the
+ * separate sunspot_report.json) wildly over-counts the active-region divisor and
+ * corrupts the SWO phase vector. Dependency-free; returns -1 when no region is
+ * found (fail closed). Verified live: 10 regions vs the old 601-record over-count.
  */
-static int extract_sunspot_count(const char *json)
+static int extract_active_region_count(const char *json)
 {
 	if (!json)
 		return -1;
-	int count = 0;
+
+	/* pass 1: find the maximum observed_date (ISO dates sort lexicographically) */
+	char maxdate[11] = {0};
 	const char *p = json;
-	while ((p = strstr(p, "\"Region\"")) != NULL) {
-		count++;
-		p += 8;
+	while ((p = strstr(p, "\"observed_date\"")) != NULL) {
+		p += 15;
+		char d[11];
+		if (read_observed_date(p, d) && strcmp(d, maxdate) > 0)
+			memcpy(maxdate, d, 11);
+	}
+	if (maxdate[0] == '\0')
+		return -1;
+
+	/* pass 2: count records whose observed_date equals the latest */
+	int count = 0;
+	p = json;
+	while ((p = strstr(p, "\"observed_date\"")) != NULL) {
+		p += 15;
+		char d[11];
+		if (read_observed_date(p, d) && strcmp(d, maxdate) == 0)
+			count++;
 	}
 	return count > 0 ? count : -1;
 }
@@ -362,7 +396,7 @@ static void *telemetry_thread_fn(void *arg)
 					  : NULL;
 
 		float flux = extract_last_flux(flux_json);
-		int spots = extract_sunspot_count(spot_json);
+		int spots = extract_active_region_count(spot_json);
 		float wind = extract_last_wind_speed(wind_json);
 
 		/* Amplitude plane: only lock with genuinely live, positive values. Any
