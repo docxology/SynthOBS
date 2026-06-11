@@ -11,23 +11,40 @@ SynthOBS shows up in OBS Studio four ways, from most to least visible:
 
 ## 0. The φ Wavefield Console source (the addable, draggable pane)
 
-After installing the plugin and restarting OBS, open **Sources → + → "SynthOBS — φ
-Wavefield Console"**. It drops a generated source onto the canvas — drag and resize it
-like any other source. It procedurally paints the live transducer state: the Goldilocks
-61.8 / 38.2 golden-ratio guides, K_EGS-spaced holographic interference fringes, a φ
-spiral, a **gateway lock ring** (red → teal as the gateway phase-locks), the hydrogen
-H-α resonance, and a centre dot whose size tracks the SWO phase vector. Size is
-configurable (default 1280×720). Until the gateway locks it renders dim/charcoal —
-fail-closed, like everything else.
+Open **Sources → + → "SynthOBS — φ Wavefield Console"**. It drops a generated source onto
+the canvas — drag and resize it like any other source. It procedurally paints the live
+transducer state: the Goldilocks 61.8 / 38.2 grid, K_EGS-spaced holographic interference
+fringes, a φ spiral, an optional honeycomb hex lattice, a **gateway lock ring** (filling
+red → teal as the gateway phase-locks), and a centre core whose size tracks the SWO phase
+vector. Until the gateway locks it renders dim/charcoal — fail-closed, like everything else.
 
-## The SynthOBS Gateway dock (optional, Qt-matched build)
+### Console configuration (Properties)
 
-The plugin also ships a native frontend **dock** — a compact live gateway gauge that
-sits in the OBS window chrome (under **Docks**), painting the lock ring, φ-spiral, and
-solar-wind bar. It is **opt-in at build time**: because a dock must be compiled against
-the *same* Qt minor version OBS runs (6.8.x), `build.sh` builds it **only** when
-`QT_PREFIX` points at a matching Qt — otherwise it auto-skips so the rest of the plugin
-always loads. See [build-and-install.md](build-and-install.md#the-optional-frontend-dock).
+Select the source and click **Properties** for a full config panel:
+
+| Control | Effect |
+| --- | --- |
+| **Operator Theme** | palette: *Observatory* (robin's-egg/marigold), *Laboratory* (cool blue), *Expedition* (solar marigold/ember) |
+| **Overlay Intensity** | master strength of all overlays (0–1) |
+| **Animation Speed** | motion rate (0–3); 0 freezes |
+| **Interference Fringe Density** | spatial frequency of the holographic fringes (6–48) |
+| **Show …** toggles | Gateway Lock Ring · Holographic Fringes · φ Spiral · Goldilocks Grid · Honeycomb Hex Lattice · Phase-Vector Core |
+| **Console Width / Height** | render resolution (default 1280×720) |
+
+## The SynthOBS Gateway dock (a live telemetry panel)
+
+Enable it from **Docks → SynthOBS Gateway** (OBS docks start hidden; enable it once and OBS
+remembers). It is a live panel in the OBS window chrome showing the **gateway lock-ring
+gauge** plus a numeric readout: SWO phase vector, F10.7 flux, active sunspots, solar wind,
+lock strength, phase bias θ, the **holographic interference verdict** (CONSTRUCTIVE /
+DESTRUCTIVE / MIXED), and the gateway key K_EGS — all updating ~8×/s, fail-closed (shows
+"— hold" until live telemetry locks).
+
+The dock is a native Qt6 panel and must be built against the **same Qt minor version OBS
+runs** (6.8.x). `build.sh` auto-uses a bundled obs-deps Qt 6.8 (dropped into
+`.obs-sdk/qt-6.8`) when present, and version-gates the build so a mismatched Qt is skipped
+rather than breaking the plugin. See
+[build-and-install.md](build-and-install.md#the-optional-frontend-dock).
 
 ## 1. The native filters
 

@@ -82,6 +82,12 @@ clang -c src/fractisynth.c -o "$BUILD/$PLUGIN_NAME.o" \
 # here is swallowed — the core plugin (filters + console source) still ships.
 DOCK_OBJ=""
 DOCK_LIBS=""
+# Prefer a bundled Qt whose version matches OBS's runtime Qt (e.g. obs-deps Qt
+# 6.8.x dropped into .obs-sdk/qt-6.8) so the frontend dock can actually load; the
+# version gate below still guards it. Falls back to Homebrew Qt otherwise.
+if [[ -z "${QT_PREFIX:-}" && -d "$SDK_DIR/qt-6.8/lib/QtWidgets.framework" ]]; then
+	QT_PREFIX="$SDK_DIR/qt-6.8"
+fi
 QT_PREFIX="${QT_PREFIX:-$(brew --prefix qt6 2>/dev/null || echo /opt/homebrew/opt/qt6)}"
 FRONTEND_API="$OBS_SRC/frontend/api"
 
@@ -127,7 +133,9 @@ if [[ "${FRACTISYNTH_NO_DOCK:-0}" != "1" && -f "$FRONTEND_API/obs-frontend-api.h
 		-I"$FRONTEND_API" "${QT_INC[@]}" \
 		-DQT_NO_VERSION_TAGGING \
 		-fPIC -std=c++17 -O2 -fvisibility=hidden \
-		-Wno-deprecated-declarations 2>"$BUILD/dock_compile.log"; then
+		-Wno-deprecated-declarations \
+		-Wno-error=implicit-function-declaration \
+		2>"$BUILD/dock_compile.log"; then
 		DOCK_OBJ="$BUILD/fractisynth_dock.o"
 		# Link against OBS's OWN Qt frameworks (runtime ABI) + frontend api.
 		DOCK_LIBS="-framework QtWidgets -framework QtGui -framework QtCore $FW/obs-frontend-api.dylib"

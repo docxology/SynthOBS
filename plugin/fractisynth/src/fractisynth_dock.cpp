@@ -1,23 +1,17 @@
 /*
- * FractiSynth frontend dock — an optional Qt6 pane in the OBS window chrome.
+ * FractiSynth frontend dock — a live "El Gran Sol Gateway" telemetry panel in the
+ * OBS window chrome (Docks → SynthOBS Gateway).
  *
- * A moc-free, TEXT-FREE QWidget (overrides paintEvent + timerEvent only) that
- * paints the live El Gran Sol Gateway state as a graphical gauge: a gateway lock
- * ring whose arc sweep and colour track lock_strength, a rotating φ-spiral driven
- * by the SWO phase vector, a solar-wind bar, and the golden 61.8 % split tick.
+ * A moc-free QWidget (overrides only paintEvent + timerEvent — no signals/slots, so
+ * no moc step) that paints the live transducer state read from the mutex-guarded C
+ * accessor fractisynth_get_state(): a gateway lock-ring gauge plus a numeric readout
+ * of the SWO phase vector, F10.7 flux, active sunspots, solar wind, lock strength,
+ * phase bias, the holographic interference verdict, and the gateway key K_EGS.
  *
- * Why text-free: OBS bundles Qt 6.8, but only Qt 6.11 dev headers are available
- * here. Every QString-touching call (drawText, setObjectName, arg, fromUtf8…)
- * inlines to QAnyStringView/QByteArrayView overloads ADDED after 6.8, which are
- * absent from OBS's runtime Qt and make the whole module fail to dlopen. Pure
- * QPainter geometry (fillRect, drawArc, drawEllipse, drawLine) uses only symbols
- * stable since Qt 4, so it loads cleanly against the 6.8 runtime. Build against a
- * matching Qt 6.8 (set QT_PREFIX) to re-enable a richer text dock.
- *
- * Registered via obs_frontend_add_dock_by_id() in obs_module_post_load(), which
- * OBS calls once the Qt frontend is ready. Compiled only when Qt6 is available;
- * if it is absent the core C plugin (filters + console source) builds and loads
- * exactly as before — the dock is purely additive.
+ * The dock is compiled ONLY against a Qt whose major.minor matches OBS's bundled
+ * runtime (build.sh gate; obs-deps Qt 6.8 is auto-used from .obs-sdk/qt-6.8). With a
+ * matching Qt the full QString/text API is safe; a mismatched Qt is skipped at build
+ * time so the core plugin always loads. Registered via obs_module_post_load().
  */
 
 #include <QWidget>
@@ -25,10 +19,14 @@
 #include <QPaintEvent>
 #include <QTimerEvent>
 #include <QColor>
+#include <QFont>
+#include <QString>
 #include <QRectF>
 #include <QPointF>
 
 #include <cmath>
+#include <cstdarg>
+#include <cstdio>
 
 extern "C" {
 #include <obs-module.h>
@@ -40,13 +38,16 @@ struct fractisynth_dock_state {
 	float lock_strength;
 	float wind_phase;
 	float solar_wind_kms;
+	float flux;
+	int sunspots;
+	int verdict; /* +1 constructive(AR14409), -1 destructive, 0 mixed */
 	int swo_calibrated;
 	int gateway_locked;
 };
 void fractisynth_get_state(struct fractisynth_dock_state *out);
 }
 
-/* Brand palette (matches the shaders / figures). */
+/* Brand palette. */
 static const QColor CHARCOAL(30, 29, 24);
 static const QColor LINEN(239, 233, 220);
 static const QColor ROBIN(58, 175, 169);
@@ -55,17 +56,42 @@ static const QColor H_ALPHA(232, 49, 58);
 static const QColor BONE(150, 145, 132);
 
 static const double TAU = 6.28318530717958647692;
+#define K_EGS 2.539427
+
+/* printf into a QString (avoids the QString::arg/number template machinery). */
+static QString fs(const char *fmt, ...)
+{
+	char buf[160];
+	va_list ap;
+	va_start(ap, fmt);
+	vsnprintf(buf, sizeof(buf), fmt, ap);
+	va_end(ap);
+	return QString::fromUtf8(buf);
+}
 
 class FractiSynthDock : public QWidget {
 public:
 	explicit FractiSynthDock(QWidget *parent = nullptr) : QWidget(parent)
 	{
-		setMinimumSize(180, 200);
-		startTimer(150); /* repaint ~6.6 Hz; timerEvent needs no moc */
+		setObjectName(QStringLiteral("FractiSynthDock"));
+		setMinimumSize(232, 320);
+		startTimer(120); /* ~8 Hz; timerEvent needs no moc */
 	}
 
 protected:
 	void timerEvent(QTimerEvent *) override { update(); }
+
+	/* one "label .... value" row, value right-aligned + coloured */
+	void row(QPainter &p, double &y, double w, const QString &label,
+		 const QString &value, const QColor &vcol)
+	{
+		const double h = 19.0;
+		p.setPen(BONE);
+		p.drawText(QRectF(12, y, w - 24, h), Qt::AlignLeft | Qt::AlignVCenter, label);
+		p.setPen(vcol);
+		p.drawText(QRectF(12, y, w - 24, h), Qt::AlignRight | Qt::AlignVCenter, value);
+		y += h;
+	}
 
 	void paintEvent(QPaintEvent *) override
 	{
@@ -75,93 +101,84 @@ protected:
 		QPainter p(this);
 		p.setRenderHint(QPainter::Antialiasing, true);
 		const double w = width();
-		const double h = height();
 		p.fillRect(rect(), CHARCOAL);
 
 		double lock = st.lock_strength;
 		if (lock < 0.0) lock = 0.0;
 		if (lock > 1.0) lock = 1.0;
-		double phaseNorm = st.swo_calibrated ? std::fmin(st.phase_vector / 1.0, 1.0) : 0.0;
-		if (phaseNorm < 0.0) phaseNorm = 0.0;
 
-		const double cx = w * 0.5;
-		const double cy = h * 0.42;
-		const double R = std::fmin(w, h) * 0.34;
+		/* ---- title ---- */
+		QFont title = p.font();
+		title.setBold(true);
+		title.setPointSizeF(title.pointSizeF() + 0.5);
+		p.setFont(title);
+		p.setPen(LINEN);
+		p.drawText(QRectF(12, 8, w - 24, 22), Qt::AlignLeft, fs("SynthOBS \xc2\xb7 EGS Gateway"));
+		QFont body = p.font();
+		body.setBold(false);
+		body.setPointSizeF(body.pointSizeF() - 0.5);
+		p.setFont(body);
 
-		/* red → teal as the gateway phase-locks */
+		/* ---- lock-ring gauge ---- */
+		const double cx = w * 0.5, cy = 92.0, R = 46.0;
 		QColor lk = QColor::fromRgbF(
 			H_ALPHA.redF() * (1.0 - lock) + ROBIN.redF() * lock,
 			H_ALPHA.greenF() * (1.0 - lock) + ROBIN.greenF() * lock,
 			H_ALPHA.blueF() * (1.0 - lock) + ROBIN.blueF() * lock);
-
-		/* ---- gateway lock RING: dim full circle + bright arc = lock ---- */
 		QRectF ring(cx - R, cy - R, 2 * R, 2 * R);
-		QPen base(QColor(0, 0, 0, 110));
-		base.setWidthF(R * 0.16);
+		QPen base(QColor(0, 0, 0, 120));
+		base.setWidthF(8);
 		p.setPen(base);
 		p.setBrush(Qt::NoBrush);
 		p.drawEllipse(ring);
-
-		QPen arcPen(st.gateway_locked ? lk : QColor(120, 40, 44));
-		arcPen.setWidthF(R * 0.16);
-		arcPen.setCapStyle(Qt::RoundCap);
-		p.setPen(arcPen);
-		/* Qt angles are in 1/16°, CCW from 3 o'clock. Start at top (90°). */
-		int startA = 90 * 16;
-		int spanA = -static_cast<int>(lock * 360.0 * 16.0);
-		p.drawArc(ring, startA, spanA);
-
-		/* ---- φ-spiral inside the ring, rotated by the wind phase -------- */
-		if (st.gateway_locked || st.swo_calibrated) {
+		QPen arc(st.gateway_locked ? lk : QColor(120, 40, 44));
+		arc.setWidthF(8);
+		arc.setCapStyle(Qt::RoundCap);
+		p.setPen(arc);
+		p.drawArc(ring, 90 * 16, -static_cast<int>(lock * 360.0 * 16.0));
+		if (st.gateway_locked) {
 			QPen sp(MARIGOLD);
-			sp.setWidthF(1.6);
+			sp.setWidthF(1.3);
 			p.setPen(sp);
-			const double PHI = 1.61803398875;
 			QPointF prev;
 			bool have = false;
-			const int N = 90;
-			for (int i = 0; i < N; ++i) {
-				double t = (double)i / (double)(N - 1);
-				double ang = t * TAU * 1.5 + st.wind_phase;
-				double rr = R * 0.82 * std::pow(1.0 / PHI, t * 4.0);
-				QPointF cur(cx + rr * std::cos(ang), cy + rr * std::sin(ang));
+			for (int i = 0; i < 70; ++i) {
+				double t = i / 69.0;
+				double a = t * TAU * 1.5 + st.wind_phase;
+				double rr = R * 0.78 * std::pow(1.0 / 1.61803398875, t * 4.0);
+				QPointF cur(cx + rr * std::cos(a), cy + rr * std::sin(a));
 				if (have)
 					p.drawLine(prev, cur);
 				prev = cur;
 				have = true;
 			}
 		}
+		p.setPen(LINEN);
+		p.drawText(QRectF(0, cy + R + 2, w, 16), Qt::AlignHCenter,
+			   st.gateway_locked ? fs("lock %.0f%%", lock * 100.0) : fs("\xe2\x80\x94 acquiring"));
 
-		/* ---- centre dot: phase-vector amplitude ------------------------ */
-		double dotR = R * (0.10 + 0.22 * phaseNorm);
-		p.setPen(Qt::NoPen);
-		p.setBrush(st.swo_calibrated ? LINEN : QColor(90, 86, 78));
-		p.drawEllipse(QPointF(cx, cy), dotR, dotR);
+		/* ---- numeric readout ---- */
+		double y = cy + R + 24;
+		row(p, y, w, fs("SWO phase vector"),
+		    st.swo_calibrated ? fs("%.4f", st.phase_vector) : fs("\xe2\x80\x94 hold"),
+		    st.swo_calibrated ? MARIGOLD : H_ALPHA);
+		row(p, y, w, fs("F10.7 flux (sfu)"),
+		    st.swo_calibrated ? fs("%.1f", st.flux) : fs("\xe2\x80\x94"), LINEN);
+		row(p, y, w, fs("active sunspots"),
+		    st.swo_calibrated ? fs("%d", st.sunspots) : fs("\xe2\x80\x94"), LINEN);
+		row(p, y, w, fs("solar wind (km/s)"),
+		    st.gateway_locked ? fs("%.1f", st.solar_wind_kms) : fs("\xe2\x80\x94 hold"), LINEN);
+		row(p, y, w, fs("lock strength"), fs("%.3f", lock),
+		    st.gateway_locked ? lk : H_ALPHA);
+		row(p, y, w, fs("phase bias \xce\xb8"), fs("%.3f rad", st.wind_phase), LINEN);
+		const char *vt = st.verdict > 0 ? "CONSTRUCTIVE" : st.verdict < 0 ? "DESTRUCTIVE" : "MIXED";
+		QColor vc = st.verdict > 0 ? ROBIN : st.verdict < 0 ? H_ALPHA : BONE;
+		row(p, y, w, fs("holographic gate"), fs("%s", vt), st.gateway_locked ? vc : BONE);
+		row(p, y, w, fs("K_EGS  \xcf\x86\xc2\xb7\xce\xbbr/\xce\xbbH\xce\xb1"), fs("%.4f", (double)K_EGS), ROBIN);
 
-		/* ---- bottom: solar-wind bar + 61.8% golden split tick ---------- */
-		double by = h - 26;
-		QRectF barBg(14, by, w - 28, 9);
-		p.setPen(Qt::NoPen);
-		p.setBrush(QColor(0, 0, 0, 110));
-		p.drawRect(barBg);
-		/* map wind 250..750 km/s → 0..1 for a visible fill */
-		double wf = st.gateway_locked ? (st.solar_wind_kms - 250.0) / 500.0 : 0.0;
-		if (wf < 0.0) wf = 0.0;
-		if (wf > 1.0) wf = 1.0;
-		p.setBrush(ROBIN);
-		p.drawRect(QRectF(14, by, (w - 28) * wf, 9));
-
-		/* golden 61.8% split tick across the whole pane */
-		QPen gp(QColor(58, 175, 169, 120));
-		gp.setWidthF(1.0);
-		p.setPen(gp);
-		double gx = 14 + (w - 28) * 0.618;
-		p.drawLine(QPointF(gx, by - 6), QPointF(gx, by + 15));
-
-		/* calibration heartbeat tick (marigold when amplitude-locked) */
-		p.setPen(Qt::NoPen);
-		p.setBrush(st.swo_calibrated ? MARIGOLD : QColor(90, 40, 44));
-		p.drawEllipse(QPointF(18.0, 16.0), 4.0, 4.0);
+		p.setPen(QColor(58, 175, 169, 110));
+		double gx = 12 + (w - 24) * 0.618;
+		p.drawLine(QPointF(gx, y + 4), QPointF(gx, y + 14));
 	}
 };
 
@@ -172,9 +189,7 @@ extern "C" {
 __attribute__((visibility("default"))) void obs_module_post_load(void)
 {
 	FractiSynthDock *dock = new FractiSynthDock();
-	/* The id/title are plain C strings handed to the C frontend API — no QString. */
-	if (!obs_frontend_add_dock_by_id("fractisynth_dock",
-					 "SynthOBS Gateway", dock)) {
+	if (!obs_frontend_add_dock_by_id("fractisynth_dock", "SynthOBS Gateway", dock)) {
 		blog(LOG_WARNING, "[fractisynth] could not add frontend dock");
 		delete dock;
 	} else {

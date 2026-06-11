@@ -809,6 +809,9 @@ struct fractisynth_dock_state {
 	float lock_strength;
 	float wind_phase;
 	float solar_wind_kms;
+	float flux;        /* live F10.7 cm radio flux */
+	int sunspots;      /* live active-region count */
+	int verdict;       /* holographic gate: +1 constructive(AR14409), -1 destructive, 0 mixed */
 	int swo_calibrated;
 	int gateway_locked;
 };
@@ -819,11 +822,25 @@ void fractisynth_get_state(struct fractisynth_dock_state *out)
 		return;
 	pthread_mutex_lock(&g_swo_mutex);
 	out->phase_vector = g_swo.system_phase_vector;
+	out->flux = g_swo.active_f107_flux;
+	out->sunspots = g_swo.monitored_sunspots;
 	out->swo_calibrated = g_swo.is_calibrated ? 1 : 0;
 	out->gateway_locked = g_swo.gateway_locked ? 1 : 0;
 	out->lock_strength = g_swo.gateway_locked ? g_swo.lock_strength : 0.0f;
 	out->wind_phase = g_swo.gateway_locked ? g_swo.wind_phase : 0.0f;
 	out->solar_wind_kms = g_swo.gateway_locked ? g_swo.solar_wind_kms : 0.0f;
+	/* Holographic interference verdict (mirrors interference.holographic_gate):
+	 * AR14409 node vs hydrogen phase-flip beat, amplitude = lock strength. */
+	if (g_swo.gateway_locked) {
+		float amp = g_swo.lock_strength;
+		float ph = g_swo.wind_phase;
+		float ar_re = amp * cosf(ph) + 1.0f, ar_im = amp * sinf(ph);
+		float i_ar = ar_re * ar_re + ar_im * ar_im;          /* |ar + ref|^2 */
+		float i_h = (2.0f * amp * cosf(ph)) * (2.0f * amp * cosf(ph)); /* |h + conj h|^2 */
+		out->verdict = (i_ar > i_h + 1e-6f) ? 1 : (i_h > i_ar + 1e-6f) ? -1 : 0;
+	} else {
+		out->verdict = 0;
+	}
 	pthread_mutex_unlock(&g_swo_mutex);
 }
 
@@ -844,6 +861,18 @@ typedef struct fractisynth_console_data {
 	uint32_t height;
 	float elapsed;
 
+	/* user configuration */
+	float theme;          /* 0=Observatory, 1=Laboratory, 2=Expedition palette */
+	float anim_speed;     /* animation rate multiplier */
+	float intensity;      /* master overlay intensity */
+	float fringe_density; /* interference-fringe spatial frequency */
+	float show_ring;      /* element toggles (1/0 as float for the shader) */
+	float show_spiral;
+	float show_fringes;
+	float show_grid;
+	float show_hex;
+	float show_dot;
+
 	gs_effect_t *effect;
 	gs_eparam_t *p_swo_phase;
 	gs_eparam_t *p_lock_strength;
@@ -851,6 +880,16 @@ typedef struct fractisynth_console_data {
 	gs_eparam_t *p_egs_key;
 	gs_eparam_t *p_elapsed;
 	gs_eparam_t *p_uv_size;
+	gs_eparam_t *p_theme;
+	gs_eparam_t *p_anim_speed;
+	gs_eparam_t *p_intensity;
+	gs_eparam_t *p_fringe_density;
+	gs_eparam_t *p_show_ring;
+	gs_eparam_t *p_show_spiral;
+	gs_eparam_t *p_show_fringes;
+	gs_eparam_t *p_show_grid;
+	gs_eparam_t *p_show_hex;
+	gs_eparam_t *p_show_dot;
 } fractisynth_console_data_t;
 
 static const char *fcv_get_name(void *unused)
@@ -866,6 +905,17 @@ static void fcv_update(void *data, obs_data_t *settings)
 	int h = (int)obs_data_get_int(settings, "height");
 	f->width = w > 0 ? (uint32_t)w : 1280;
 	f->height = h > 0 ? (uint32_t)h : 720;
+
+	f->theme = (float)obs_data_get_int(settings, "theme");
+	f->anim_speed = (float)obs_data_get_double(settings, "anim_speed");
+	f->intensity = (float)obs_data_get_double(settings, "intensity");
+	f->fringe_density = (float)obs_data_get_double(settings, "fringe_density");
+	f->show_ring = obs_data_get_bool(settings, "show_ring") ? 1.0f : 0.0f;
+	f->show_spiral = obs_data_get_bool(settings, "show_spiral") ? 1.0f : 0.0f;
+	f->show_fringes = obs_data_get_bool(settings, "show_fringes") ? 1.0f : 0.0f;
+	f->show_grid = obs_data_get_bool(settings, "show_grid") ? 1.0f : 0.0f;
+	f->show_hex = obs_data_get_bool(settings, "show_hex") ? 1.0f : 0.0f;
+	f->show_dot = obs_data_get_bool(settings, "show_dot") ? 1.0f : 0.0f;
 }
 
 static void *fcv_create(obs_data_t *settings, obs_source_t *context)
@@ -892,6 +942,16 @@ static void *fcv_create(obs_data_t *settings, obs_source_t *context)
 		f->p_egs_key = gs_effect_get_param_by_name(f->effect, "egs_key");
 		f->p_elapsed = gs_effect_get_param_by_name(f->effect, "elapsed");
 		f->p_uv_size = gs_effect_get_param_by_name(f->effect, "uv_size");
+		f->p_theme = gs_effect_get_param_by_name(f->effect, "theme");
+		f->p_anim_speed = gs_effect_get_param_by_name(f->effect, "anim_speed");
+		f->p_intensity = gs_effect_get_param_by_name(f->effect, "intensity");
+		f->p_fringe_density = gs_effect_get_param_by_name(f->effect, "fringe_density");
+		f->p_show_ring = gs_effect_get_param_by_name(f->effect, "show_ring");
+		f->p_show_spiral = gs_effect_get_param_by_name(f->effect, "show_spiral");
+		f->p_show_fringes = gs_effect_get_param_by_name(f->effect, "show_fringes");
+		f->p_show_grid = gs_effect_get_param_by_name(f->effect, "show_grid");
+		f->p_show_hex = gs_effect_get_param_by_name(f->effect, "show_hex");
+		f->p_show_dot = gs_effect_get_param_by_name(f->effect, "show_dot");
 	}
 
 	fcv_update(f, settings);
@@ -919,12 +979,43 @@ static void fcv_defaults(obs_data_t *settings)
 {
 	obs_data_set_default_int(settings, "width", 1280);
 	obs_data_set_default_int(settings, "height", 720);
+	obs_data_set_default_int(settings, "theme", 0);
+	obs_data_set_default_double(settings, "anim_speed", 1.0);
+	obs_data_set_default_double(settings, "intensity", 1.0);
+	obs_data_set_default_double(settings, "fringe_density", 26.0);
+	obs_data_set_default_bool(settings, "show_ring", true);
+	obs_data_set_default_bool(settings, "show_spiral", true);
+	obs_data_set_default_bool(settings, "show_fringes", true);
+	obs_data_set_default_bool(settings, "show_grid", true);
+	obs_data_set_default_bool(settings, "show_hex", false);
+	obs_data_set_default_bool(settings, "show_dot", true);
 }
 
 static obs_properties_t *fcv_properties(void *data)
 {
 	UNUSED_PARAMETER(data);
 	obs_properties_t *props = obs_properties_create();
+
+	obs_property_t *theme = obs_properties_add_list(props, "theme",
+		obs_module_text("ConsoleTheme"), OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
+	obs_property_list_add_int(theme, obs_module_text("ThemeObservatory"), 0);
+	obs_property_list_add_int(theme, obs_module_text("ThemeLaboratory"), 1);
+	obs_property_list_add_int(theme, obs_module_text("ThemeExpedition"), 2);
+
+	obs_properties_add_float_slider(props, "intensity",
+		obs_module_text("ConsoleIntensity"), 0.0, 1.0, 0.01);
+	obs_properties_add_float_slider(props, "anim_speed",
+		obs_module_text("ConsoleAnimSpeed"), 0.0, 3.0, 0.05);
+	obs_properties_add_float_slider(props, "fringe_density",
+		obs_module_text("ConsoleFringeDensity"), 6.0, 48.0, 1.0);
+
+	obs_properties_add_bool(props, "show_ring", obs_module_text("ShowRing"));
+	obs_properties_add_bool(props, "show_fringes", obs_module_text("ShowFringes"));
+	obs_properties_add_bool(props, "show_spiral", obs_module_text("ShowSpiral"));
+	obs_properties_add_bool(props, "show_grid", obs_module_text("ShowGrid"));
+	obs_properties_add_bool(props, "show_hex", obs_module_text("ShowHex"));
+	obs_properties_add_bool(props, "show_dot", obs_module_text("ShowDot"));
+
 	obs_properties_add_int(props, "width", obs_module_text("ConsoleWidth"), 320, 3840, 2);
 	obs_properties_add_int(props, "height", obs_module_text("ConsoleHeight"), 180, 2160, 2);
 	return props;
@@ -968,6 +1059,27 @@ static void fcv_video_render(void *data, gs_effect_t *effect)
 		vec2_set(&sz, (float)f->width, (float)f->height);
 		gs_effect_set_vec2(f->p_uv_size, &sz);
 	}
+	/* user configuration → shader */
+	if (f->p_theme)
+		gs_effect_set_float(f->p_theme, f->theme);
+	if (f->p_anim_speed)
+		gs_effect_set_float(f->p_anim_speed, f->anim_speed);
+	if (f->p_intensity)
+		gs_effect_set_float(f->p_intensity, f->intensity);
+	if (f->p_fringe_density)
+		gs_effect_set_float(f->p_fringe_density, f->fringe_density);
+	if (f->p_show_ring)
+		gs_effect_set_float(f->p_show_ring, f->show_ring);
+	if (f->p_show_spiral)
+		gs_effect_set_float(f->p_show_spiral, f->show_spiral);
+	if (f->p_show_fringes)
+		gs_effect_set_float(f->p_show_fringes, f->show_fringes);
+	if (f->p_show_grid)
+		gs_effect_set_float(f->p_show_grid, f->show_grid);
+	if (f->p_show_hex)
+		gs_effect_set_float(f->p_show_hex, f->show_hex);
+	if (f->p_show_dot)
+		gs_effect_set_float(f->p_show_dot, f->show_dot);
 
 	/* Draw the procedural console via the custom effect (OBS color_source
 	 * technique pattern). Guard the technique lookup and keep render state balanced. */
