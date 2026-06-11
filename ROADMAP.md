@@ -9,7 +9,7 @@
 
 Status legend: ✅ shipped · 🚧 in progress · 📋 planned
 
-## Phase A — Trippier + more informative visuals  ✅(core)
+## Phase A — Trippier + more informative visuals  ✅
 - ✅ Live EGS Gateway console (grid, lock ring, φ-spiral, fringes, hex, core)
 - ✅ Themes (Observatory / Laboratory / Expedition) + element toggles + intensity
 - ✅ **Synthetic Feed modes** — multiple generative visualizations selectable on
@@ -17,10 +17,11 @@ Status legend: ✅ shipped · 🚧 in progress · 📋 planned
   Rings / Spiral Drift), each driven by live telemetry. ("synthetic streams on
   demand" + the trippy factor.)
 - ✅ Chromatic shimmer + optional hue-cycle, telemetry-reactive glow/motion.
-- 📋 In-shader telemetry HUD (numeric flux/wind/lock burned into the overlay so
-  the visual is self-documenting on a recorded stream).
+- ✅ **Telemetry HUD feed** (CPU-rendered): validated metadata rows + live
+  waveform sparklines + a steganographic provenance strip (LSB-embedded,
+  C↔Python-verifiable) + on-screen signature. Self-documenting on a stream.
 
-## Phase B — A more configurable dock  ✅(core)
+## Phase B — A more configurable dock  ✅
 - ✅ In-dock clickable display-mode cycle (moc-free mousePressEvent): Full · Compact · Gauge-only.
 - 📋 Further dock config: gauge style, decimal precision, pause/freeze.
 - 📋 Dock theme follows the source theme.

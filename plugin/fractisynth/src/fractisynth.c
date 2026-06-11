@@ -33,6 +33,11 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
+#include <time.h>
+
+#include "text8x8.h"   /* embedded bitmap font + RGBA draw helpers (Telemetry HUD) */
+#include "sha256.h"    /* FIPS-180-4 SHA-256 — provenance signature, matches Python */
 
 #ifdef HAVE_CURL
 #include <curl/curl.h>
@@ -83,6 +88,55 @@ typedef struct fractisynth_swo {
 
 static fractisynth_swo_t g_swo = {0.0f, 0, 1.0f, false, 0.0f, 0.0f, 0.0f, false};
 static pthread_mutex_t g_swo_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+/* ------------------------------------------------------------------ */
+/*  Telemetry history ring buffer (mirrors src/synthobs/history.py)    */
+/*  Feeds the Telemetry HUD waveform sparklines.                       */
+/* ------------------------------------------------------------------ */
+#define HIST_CAP 128
+typedef struct {
+	float flux[HIST_CAP];
+	float wind[HIST_CAP];
+	float lock[HIST_CAP];
+	float phase[HIST_CAP];
+	int head;  /* next write slot */
+	int count; /* number of valid samples (<= HIST_CAP) */
+} fractisynth_history_t;
+static fractisynth_history_t g_hist = {0};
+static pthread_mutex_t g_hist_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+static void history_append(float flux, float wind, float lock, float phase)
+{
+	pthread_mutex_lock(&g_hist_mutex);
+	g_hist.flux[g_hist.head] = flux;
+	g_hist.wind[g_hist.head] = wind;
+	g_hist.lock[g_hist.head] = lock;
+	g_hist.phase[g_hist.head] = phase;
+	g_hist.head = (g_hist.head + 1) % HIST_CAP;
+	if (g_hist.count < HIST_CAP)
+		g_hist.count++;
+	pthread_mutex_unlock(&g_hist_mutex);
+}
+
+/* Copy the recent samples of one field (0 flux,1 wind,2 lock,3 phase) into out[]
+ * in chronological order; returns the count. */
+static int history_series(int field, float *out, int max)
+{
+	pthread_mutex_lock(&g_hist_mutex);
+	int n = g_hist.count;
+	if (n > max)
+		n = max;
+	int first = (g_hist.head - n + HIST_CAP * 2) % HIST_CAP;
+	for (int i = 0; i < n; i++) {
+		int idx = (first + i) % HIST_CAP;
+		out[i] = field == 0 ? g_hist.flux[idx]
+			 : field == 1 ? g_hist.wind[idx]
+			 : field == 2 ? g_hist.lock[idx]
+				      : g_hist.phase[idx];
+	}
+	pthread_mutex_unlock(&g_hist_mutex);
+	return n;
+}
 
 /*
  * Calibrate the software matrix exclusively from current telemetry. Fails
@@ -1109,6 +1163,13 @@ typedef struct fractisynth_console_data {
 	gs_eparam_t *p_show_hex;
 	gs_eparam_t *p_show_dot;
 	gs_eparam_t *p_show_tabs;
+
+	/* Telemetry HUD feed (feed 5): CPU-rendered metadata + waveforms + provenance */
+	uint8_t *hud_buf;     /* RGBA scratch (W*H*4), reused across frames */
+	size_t hud_cap;       /* allocated size of hud_buf */
+	gs_texture_t *hud_tex;
+	int hud_w, hud_h;     /* dimensions of hud_tex */
+	float hist_t;         /* seconds accumulator for ~2 Hz history sampling */
 } fractisynth_console_data_t;
 
 static const char *fcv_get_name(void *unused)
@@ -1188,11 +1249,16 @@ static void *fcv_create(obs_data_t *settings, obs_source_t *context)
 static void fcv_destroy(void *data)
 {
 	fractisynth_console_data_t *f = data;
-	if (f->effect) {
+	if (f->effect || f->hud_tex) {
 		obs_enter_graphics();
-		gs_effect_destroy(f->effect);
+		if (f->effect)
+			gs_effect_destroy(f->effect);
+		if (f->hud_tex)
+			gs_texture_destroy(f->hud_tex);
 		obs_leave_graphics();
 	}
+	if (f->hud_buf)
+		bfree(f->hud_buf);
 	bfree(f);
 }
 
@@ -1200,6 +1266,21 @@ static void fcv_video_tick(void *data, float seconds)
 {
 	fractisynth_console_data_t *f = data;
 	f->elapsed += seconds;
+
+	/* Telemetry HUD: sample the live (held) SWO into the waveform history at
+	 * ~2 Hz so the sparklines fill quickly and update live. Values between the
+	 * 60 s NOAA polls are held (flat) — truthful: that IS the live state. */
+	if (f->feed > 4.5f) {
+		f->hist_t += seconds;
+		if (f->hist_t >= 0.5f) {
+			f->hist_t = 0.0f;
+			struct fractisynth_dock_state st;
+			fractisynth_get_state(&st);
+			if (st.swo_calibrated || st.gateway_locked)
+				history_append(st.flux, st.solar_wind_kms, st.lock_strength,
+					       st.wind_phase);
+		}
+	}
 }
 
 static void fcv_defaults(obs_data_t *settings)
@@ -1234,6 +1315,7 @@ static obs_properties_t *fcv_properties(void *data)
 	obs_property_list_add_int(feed, obs_module_text("FeedInterference"), 2);
 	obs_property_list_add_int(feed, obs_module_text("FeedSpectral"), 3);
 	obs_property_list_add_int(feed, obs_module_text("FeedSpiralDrift"), 4);
+	obs_property_list_add_int(feed, obs_module_text("FeedTelemetryHUD"), 5);
 
 	obs_properties_add_float_slider(props, "chroma",
 		obs_module_text("ConsoleChroma"), 0.0, 1.0, 0.01);
@@ -1276,10 +1358,199 @@ static uint32_t fcv_get_height(void *data)
 	return ((fractisynth_console_data_t *)data)->height;
 }
 
+/* ================================================================== */
+/*  Telemetry HUD feed (feed 5) — CPU-rendered metadata + waveforms +  */
+/*  steganographic provenance. Uses text8x8.h + sha256.h.              */
+/* ================================================================== */
+
+/* Bresenham line into an RGBA buffer (for waveform sparklines). */
+static void hud_line(uint8_t *b, int W, int H, int x0, int y0, int x1, int y1,
+		     uint8_t r, uint8_t g, uint8_t bl, uint8_t a)
+{
+	int dx = abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
+	int dy = -abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
+	int err = dx + dy;
+	for (;;) {
+		t8_putpx(b, W, H, x0, y0, r, g, bl, a);
+		if (x0 == x1 && y0 == y1)
+			break;
+		int e2 = 2 * err;
+		if (e2 >= dy) { err += dy; x0 += sx; }
+		if (e2 <= dx) { err += dx; y0 += sy; }
+	}
+}
+
+/* A labelled waveform box plotting the normalized recent history of one field. */
+static void hud_sparkline(uint8_t *b, int W, int H, int bx, int by, int bw, int bh,
+			  int field, int lsc, const char *label, uint8_t r, uint8_t g, uint8_t bl)
+{
+	t8_text(b, W, H, bx, by - 8 * lsc - 4, label, lsc, 150, 145, 132, 255);
+	t8_fill_rect(b, W, H, bx, by, bw, bh, 14, 14, 11, 255);
+	t8_hline(b, W, H, bx, by, bw, 60, 58, 50, 255);
+	t8_hline(b, W, H, bx, by + bh - 1, bw, 60, 58, 50, 255);
+	float s[HIST_CAP];
+	int n = history_series(field, s, HIST_CAP);
+	if (n < 2)
+		return;
+	float mn = s[0], mx = s[0];
+	for (int i = 1; i < n; i++) {
+		if (s[i] < mn) mn = s[i];
+		if (s[i] > mx) mx = s[i];
+	}
+	float range = mx - mn;
+	int px = -1, py = 0;
+	for (int i = 0; i < n; i++) {
+		float nrm = range > 1e-6f ? (s[i] - mn) / range : 0.5f;
+		int cx = bx + (bw - 1) * i / (n - 1);
+		int cy = by + bh - 1 - (int)(nrm * (float)(bh - 1));
+		if (px >= 0)
+			hud_line(b, W, H, px, py, cx, cy, r, g, bl, 255);
+		px = cx;
+		py = cy;
+	}
+}
+
+static void fcv_render_hud(fractisynth_console_data_t *f)
+{
+	int W = (int)f->width, H = (int)f->height;
+	if (W < 64 || H < 64)
+		return;
+	size_t need = (size_t)W * H * 4;
+	if (f->hud_cap < need) {
+		if (f->hud_buf)
+			bfree(f->hud_buf);
+		f->hud_buf = bzalloc(need);
+		f->hud_cap = need;
+	}
+	uint8_t *b = f->hud_buf;
+	if (!b)
+		return;
+
+	t8_fill_rect(b, W, H, 0, 0, W, H, 22, 21, 17, 255);   /* charcoal bg */
+	t8_fill_rect(b, W, H, 0, 0, W, 4, 58, 175, 169, 255); /* top accent */
+
+	struct fractisynth_dock_state st;
+	fractisynth_get_state(&st);
+
+	int sc = W >= 1100 ? 3 : (W >= 700 ? 2 : 1);
+	int lsc = sc >= 3 ? 2 : 1;
+	int lh = 8 * sc + 8;
+	int ts = sc + 1;
+	int x = 16;
+	/* title (full width, top) */
+	t8_text(b, W, H, x, 14, "SYNTHOBS  EGS GATEWAY  TELEMETRY", ts, 239, 233, 220, 255);
+	int colY = 14 + 8 * ts + 26;       /* both columns begin below the title */
+	int y = colY;
+	if (st.swo_calibrated && st.gateway_locked)
+		t8_text(b, W, H, x, y, "LIVE - NOAA SWPC VERIFIED", sc, 58, 175, 169, 255);
+	else
+		t8_text(b, W, H, x, y, "ACQUIRING TELEMETRY...", sc, 232, 163, 61, 255);
+	y += lh + 6;
+
+	char ln[96];
+	if (st.swo_calibrated) {
+		snprintf(ln, sizeof ln, "FLUX        %.1f SFU", (double)st.flux);
+		t8_text(b, W, H, x, y, ln, sc, 210, 205, 193, 255); y += lh;
+		snprintf(ln, sizeof ln, "SPOTS       %d", st.sunspots);
+		t8_text(b, W, H, x, y, ln, sc, 210, 205, 193, 255); y += lh;
+		snprintf(ln, sizeof ln, "PHASE VEC   %.4f", (double)st.phase_vector);
+		t8_text(b, W, H, x, y, ln, sc, 232, 163, 61, 255); y += lh;
+	} else {
+		t8_text(b, W, H, x, y, "SWO  -- HOLD", sc, 232, 49, 58, 255); y += lh;
+	}
+	if (st.gateway_locked) {
+		snprintf(ln, sizeof ln, "WIND        %.1f KM/S", (double)st.solar_wind_kms);
+		t8_text(b, W, H, x, y, ln, sc, 210, 205, 193, 255); y += lh;
+		snprintf(ln, sizeof ln, "LOCK        %.3f", (double)st.lock_strength);
+		t8_text(b, W, H, x, y, ln, sc, 58, 175, 169, 255); y += lh;
+		snprintf(ln, sizeof ln, "PHASE BIAS  %.3f RAD", (double)st.wind_phase);
+		t8_text(b, W, H, x, y, ln, sc, 210, 205, 193, 255); y += lh;
+		const char *v = st.verdict > 0 ? "CONSTRUCTIVE" : st.verdict < 0 ? "DESTRUCTIVE" : "MIXED";
+		snprintf(ln, sizeof ln, "GATE        %s", v);
+		t8_text(b, W, H, x, y, ln, sc, st.verdict < 0 ? 232 : 58,
+			st.verdict < 0 ? 49 : 175, st.verdict < 0 ? 58 : 169, 255); y += lh;
+	} else {
+		t8_text(b, W, H, x, y, "GATEWAY  -- HOLD", sc, 232, 49, 58, 255); y += lh;
+	}
+	t8_text(b, W, H, x, y, "K_EGS  2.5394  PHI.LR/LHA", sc, 58, 175, 169, 255);
+
+	/* waveform sparklines (right column, below the title) */
+	int bx = W * 58 / 100, bw = W - bx - 16;
+	if (bw > 80) {
+		int avail = H - colY - 40;
+		int bh = avail / 3 - (8 * lsc + 18);
+		if (bh > 16) {
+			int wy = colY + 8 * lsc + 6;
+			hud_sparkline(b, W, H, bx, wy, bw, bh, 1, lsc, "SOLAR WIND (KM/S)", 58, 175, 169);
+			wy += bh + 8 * lsc + 18;
+			hud_sparkline(b, W, H, bx, wy, bw, bh, 2, lsc, "LOCK STRENGTH", 232, 163, 61);
+			wy += bh + 8 * lsc + 18;
+			hud_sparkline(b, W, H, bx, wy, bw, bh, 0, lsc, "F10.7 FLUX (SFU)", 232, 49, 58);
+		}
+	}
+
+	/* steganographic provenance: canonical 24B (<f i f f f I>) -> SHA-256 -> payload */
+	uint8_t canon[24];
+	float ff = st.flux, wf = st.solar_wind_kms, lf = st.lock_strength, pf = st.wind_phase;
+	int32_t sp = st.sunspots;
+	uint32_t obs = (uint32_t)time(NULL);
+	memcpy(canon + 0, &ff, 4);
+	memcpy(canon + 4, &sp, 4);
+	memcpy(canon + 8, &wf, 4);
+	memcpy(canon + 12, &lf, 4);
+	memcpy(canon + 16, &pf, 4);
+	memcpy(canon + 20, &obs, 4);
+	uint8_t dig[32];
+	sha256_hash(canon, 24, dig);
+	uint8_t stream[2 + 28];
+	stream[0] = 28 & 0xFF;
+	stream[1] = (28 >> 8) & 0xFF;
+	memcpy(stream + 2, canon, 24);
+	memcpy(stream + 26, dig, 4); /* payload checksum = SHA-256[:4] */
+	char sig[12];
+	snprintf(sig, sizeof sig, "%02x%02x%02x%02x", dig[0], dig[1], dig[2], dig[3]);
+	snprintf(ln, sizeof ln, "PROVENANCE  %s  LSB-EMBEDDED", sig);
+	t8_text(b, W, H, x, H - 8 * sc - 14, ln, sc, 120, 200, 180, 255);
+	/* embed LAST (MSB-first per byte, one bit per pixel's blue LSB, row 0) */
+	int total_bits = (int)sizeof(stream) * 8;
+	for (int i = 0; i < total_bits; i++) {
+		int bit = (stream[i >> 3] >> (7 - (i & 7))) & 1;
+		size_t bp = (size_t)i * 4 + 2;
+		if (bp < need)
+			b[bp] = (uint8_t)((b[bp] & 0xFE) | bit);
+	}
+
+	/* upload + draw 1:1, no sRGB transform → the blue LSBs survive to the texture */
+	const uint8_t *data = b;
+	if (!f->hud_tex || f->hud_w != W || f->hud_h != H) {
+		if (f->hud_tex)
+			gs_texture_destroy(f->hud_tex);
+		f->hud_tex = gs_texture_create((uint32_t)W, (uint32_t)H, GS_RGBA, 1, &data, GS_DYNAMIC);
+		f->hud_w = W;
+		f->hud_h = H;
+	} else {
+		gs_texture_set_image(f->hud_tex, b, (uint32_t)(W * 4), false);
+	}
+	if (!f->hud_tex)
+		return;
+	const bool prev_srgb = gs_framebuffer_srgb_enabled();
+	gs_enable_framebuffer_srgb(false);
+	gs_effect_t *def = obs_get_base_effect(OBS_EFFECT_DEFAULT);
+	gs_eparam_t *img = gs_effect_get_param_by_name(def, "image");
+	gs_effect_set_texture(img, f->hud_tex);
+	while (gs_effect_loop(def, "Draw"))
+		gs_draw_sprite(f->hud_tex, 0, (uint32_t)W, (uint32_t)H);
+	gs_enable_framebuffer_srgb(prev_srgb);
+}
+
 static void fcv_video_render(void *data, gs_effect_t *effect)
 {
 	UNUSED_PARAMETER(effect);
 	fractisynth_console_data_t *f = data;
+	if (f->feed > 4.5f) { /* feed 5 = Telemetry HUD (CPU-rendered data panel) */
+		fcv_render_hud(f);
+		return;
+	}
 	if (!f->effect)
 		return;
 
