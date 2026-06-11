@@ -20,9 +20,9 @@ Status legend: ✅ shipped · 🚧 in progress · 📋 planned
 - 📋 In-shader telemetry HUD (numeric flux/wind/lock burned into the overlay so
   the visual is self-documenting on a recorded stream).
 
-## Phase B — A more configurable dock  📋
-- 📋 In-dock clickable controls (moc-free mousePressEvent): compact/full mode,
-  per-row visibility, gauge style, decimal precision, pause/freeze.
+## Phase B — A more configurable dock  ✅(core)
+- ✅ In-dock clickable display-mode cycle (moc-free mousePressEvent): Full · Compact · Gauge-only.
+- 📋 Further dock config: gauge style, decimal precision, pause/freeze.
 - 📋 Dock theme follows the source theme.
 
 ## Phase C — Overlay inspector: "frame within the frame" / packet-sniffer  ✅

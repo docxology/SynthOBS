@@ -20,6 +20,7 @@
 #include <QPainter>
 #include <QPaintEvent>
 #include <QTimerEvent>
+#include <QMouseEvent>
 #include <QColor>
 #include <QFont>
 #include <QString>
@@ -77,11 +78,25 @@ public:
 	{
 		setObjectName(QStringLiteral("FractiSynthDock"));
 		setMinimumSize(232, 372);
+		setCursor(Qt::PointingHandCursor);
+		setToolTip(QStringLiteral("Click to cycle display: Full · Compact · Gauge"));
 		startTimer(120); /* ~8 Hz; timerEvent needs no moc */
 	}
 
 protected:
+	int m_mode = 0; /* 0 Full · 1 Compact · 2 Gauge-only — cycled by click (moc-free) */
+
 	void timerEvent(QTimerEvent *) override { update(); }
+
+	/* Click anywhere cycles the display density — the dock's in-place config. */
+	void mousePressEvent(QMouseEvent *e) override
+	{
+		if (e->button() == Qt::LeftButton) {
+			m_mode = (m_mode + 1) % 3;
+			update();
+		}
+		QWidget::mousePressEvent(e);
+	}
 
 	/* one "label .... value" row, value right-aligned + coloured */
 	void row(QPainter &p, double &y, double w, const QString &label,
@@ -172,24 +187,40 @@ protected:
 		p.drawText(QRectF(0, cy + R + 2, w, 16), Qt::AlignHCenter,
 			   st.gateway_locked ? fs("lock %.0f%%", lock * 100.0) : fs("\xe2\x80\x94 acquiring"));
 
-		/* ---- numeric readout ---- */
-		double y = cy + R + 24;
-		row(p, y, w, fs("SWO phase vector"),
-		    st.swo_calibrated ? fs("%.4f", st.phase_vector) : fs("\xe2\x80\x94 hold"),
-		    st.swo_calibrated ? MARIGOLD : H_ALPHA);
-		row(p, y, w, fs("F10.7 flux (sfu)"),
-		    st.swo_calibrated ? fs("%.1f", st.flux) : fs("\xe2\x80\x94"), LINEN);
-		row(p, y, w, fs("active sunspots"),
-		    st.swo_calibrated ? fs("%d", st.sunspots) : fs("\xe2\x80\x94"), LINEN);
-		row(p, y, w, fs("solar wind (km/s)"),
-		    st.gateway_locked ? fs("%.1f", st.solar_wind_kms) : fs("\xe2\x80\x94 hold"), LINEN);
-		row(p, y, w, fs("lock strength"), fs("%.3f", lock),
-		    st.gateway_locked ? lk : H_ALPHA);
-		row(p, y, w, fs("phase bias \xce\xb8"), fs("%.3f rad", st.wind_phase), LINEN);
+		/* ---- numeric readout (density set by the click-cycled mode) ---- */
 		const char *vt = st.verdict > 0 ? "CONSTRUCTIVE" : st.verdict < 0 ? "DESTRUCTIVE" : "MIXED";
 		QColor vc = st.verdict > 0 ? ROBIN : st.verdict < 0 ? H_ALPHA : BONE;
-		row(p, y, w, fs("holographic gate"), fs("%s", vt), st.gateway_locked ? vc : BONE);
-		row(p, y, w, fs("K_EGS  \xcf\x86\xc2\xb7\xce\xbbr/\xce\xbbH\xce\xb1"), fs("%.4f", (double)K_EGS), ROBIN);
+		double y = cy + R + 24;
+		if (m_mode == 0) { /* Full */
+			row(p, y, w, fs("SWO phase vector"),
+			    st.swo_calibrated ? fs("%.4f", st.phase_vector) : fs("\xe2\x80\x94 hold"),
+			    st.swo_calibrated ? MARIGOLD : H_ALPHA);
+			row(p, y, w, fs("F10.7 flux (sfu)"),
+			    st.swo_calibrated ? fs("%.1f", st.flux) : fs("\xe2\x80\x94"), LINEN);
+			row(p, y, w, fs("active sunspots"),
+			    st.swo_calibrated ? fs("%d", st.sunspots) : fs("\xe2\x80\x94"), LINEN);
+			row(p, y, w, fs("solar wind (km/s)"),
+			    st.gateway_locked ? fs("%.1f", st.solar_wind_kms) : fs("\xe2\x80\x94 hold"), LINEN);
+			row(p, y, w, fs("lock strength"), fs("%.3f", lock),
+			    st.gateway_locked ? lk : H_ALPHA);
+			row(p, y, w, fs("phase bias \xce\xb8"), fs("%.3f rad", st.wind_phase), LINEN);
+			row(p, y, w, fs("holographic gate"), fs("%s", vt), st.gateway_locked ? vc : BONE);
+			row(p, y, w, fs("K_EGS  \xcf\x86\xc2\xb7\xce\xbbr/\xce\xbbH\xce\xb1"), fs("%.4f", (double)K_EGS), ROBIN);
+		} else if (m_mode == 1) { /* Compact — the essentials */
+			row(p, y, w, fs("flux / spots"),
+			    st.swo_calibrated ? fs("%.0f / %d", st.flux, st.sunspots) : fs("\xe2\x80\x94"), LINEN);
+			row(p, y, w, fs("solar wind"),
+			    st.gateway_locked ? fs("%.0f km/s", st.solar_wind_kms) : fs("\xe2\x80\x94"), LINEN);
+			row(p, y, w, fs("lock strength"), fs("%.3f", lock), st.gateway_locked ? lk : H_ALPHA);
+			row(p, y, w, fs("holographic gate"), fs("%s", vt), st.gateway_locked ? vc : BONE);
+		}
+		/* m_mode == 2 (Gauge-only): no rows — just the gauge + lock%. */
+
+		/* mode hint */
+		const char *mn = m_mode == 0 ? "full" : m_mode == 1 ? "compact" : "gauge";
+		p.setPen(BONE);
+		p.drawText(QRectF(12, height() - 18, w - 24, 14),
+			   Qt::AlignRight | Qt::AlignVCenter, fs("\xe2\x97\x89 %s \xc2\xb7 click to cycle", mn));
 
 		p.setPen(QColor(58, 175, 169, 110));
 		double gx = 12 + (w - 24) * 0.618;
