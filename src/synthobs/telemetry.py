@@ -40,6 +40,9 @@ __all__ = [
     "NOAA_SOLAR_WIND_URL",
     "parse_noaa_solar_regions",
     "NOAA_SOLAR_REGIONS_URL",
+    "parse_noaa_plasma_series",
+    "parse_noaa_xray_flux",
+    "parse_noaa_kp_index",
 ]
 
 NOAA_SOLAR_REGIONS_URL: str = "https://services.swpc.noaa.gov/json/solar_regions.json"
@@ -335,3 +338,95 @@ def fetch_live_solar_wind(
     """
     _status, body = _http_get(url, timeout=timeout, opener=opener)
     return parse_noaa_solar_wind(body, source=url, max_age_s=max_age_s, now=now)
+
+
+def parse_noaa_plasma_series(data: Any) -> tuple[list[float], list[float], list[float]]:
+    """Parse the full NOAA ``plasma-2-hour`` series into (density, speed, temperature).
+
+    The feed is an array of arrays; the first row is the header
+    ``["time_tag","density","speed","temperature"]``. Returns three parallel
+    lists in chronological order, skipping the header and any row whose speed is
+    non-positive/non-numeric. Mirrors the native ``parse_plasma_series`` so the
+    realtime graphs match. Fail-closed on an empty/malformed feed.
+    """
+    if isinstance(data, (str, bytes)):
+        try:
+            data = json.loads(data)
+        except json.JSONDecodeError as exc:
+            raise TelemetryUnavailable("plasma series is not valid JSON") from exc
+    if not isinstance(data, list) or len(data) < 2:
+        raise TelemetryUnavailable("plasma series must have a header + >=1 row")
+    density: list[float] = []
+    speed: list[float] = []
+    temp: list[float] = []
+    for row in data[1:]:
+        if not isinstance(row, list) or len(row) < 4:
+            continue
+        try:
+            d, s, t = float(row[1]), float(row[2]), float(row[3])
+        except (TypeError, ValueError):
+            continue
+        if s > 0.0:
+            density.append(d)
+            speed.append(s)
+            temp.append(t)
+    if not speed:
+        raise TelemetryUnavailable("plasma series has no valid rows")
+    return density, speed, temp
+
+
+def parse_noaa_xray_flux(data: Any, band: str = "0.1-0.8nm") -> list[float]:
+    """Parse the GOES X-ray flux series for one energy band -> list[float].
+
+    NOAA emits two records per minute (one per energy band); we keep the chosen
+    ``band`` (default the long 0.1-0.8 nm channel) and its positive flux values
+    (W/m^2). Mirrors the native ``parse_xray_series``. Fail-closed.
+    """
+    if isinstance(data, (str, bytes)):
+        try:
+            data = json.loads(data)
+        except json.JSONDecodeError as exc:
+            raise TelemetryUnavailable("xray series is not valid JSON") from exc
+    if not isinstance(data, list) or not data:
+        raise TelemetryUnavailable("xray series is empty")
+    out: list[float] = []
+    for r in data:
+        if not isinstance(r, dict) or r.get("energy") != band:
+            continue
+        try:
+            v = float(r["flux"])
+        except (TypeError, ValueError, KeyError):
+            continue
+        if v > 0.0:
+            out.append(v)
+    if not out:
+        raise TelemetryUnavailable(f"xray series has no rows for band {band!r}")
+    return out
+
+
+def parse_noaa_kp_index(data: Any) -> list[float]:
+    """Parse the 1-min estimated planetary Kp series -> list[float] (0..9).
+
+    Reads ``estimated_kp`` from each record (Kp may legitimately be 0). Mirrors
+    the native ``parse_kp_series``. Fail-closed on an empty/malformed feed.
+    """
+    if isinstance(data, (str, bytes)):
+        try:
+            data = json.loads(data)
+        except json.JSONDecodeError as exc:
+            raise TelemetryUnavailable("kp series is not valid JSON") from exc
+    if not isinstance(data, list) or not data:
+        raise TelemetryUnavailable("kp series is empty")
+    out: list[float] = []
+    for r in data:
+        if not isinstance(r, dict) or "estimated_kp" not in r:
+            continue
+        try:
+            v = float(r["estimated_kp"])
+        except (TypeError, ValueError):
+            continue
+        if 0.0 <= v <= 12.0:
+            out.append(v)
+    if not out:
+        raise TelemetryUnavailable("kp series has no valid rows")
+    return out

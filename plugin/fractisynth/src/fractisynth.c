@@ -67,6 +67,8 @@ OBS_MODULE_USE_DEFAULT_LOCALE("fractisynth", "en-US")
  * .json's hundreds of per-station observation records. */
 #define NOAA_SUNSPOT_URL "https://services.swpc.noaa.gov/json/solar_regions.json"
 #define NOAA_SOLARWIND_URL "https://services.swpc.noaa.gov/products/solar-wind/plasma-2-hour.json"
+#define NOAA_XRAY_URL "https://services.swpc.noaa.gov/json/goes/primary/xrays-6-hour.json"
+#define NOAA_KP_URL "https://services.swpc.noaa.gov/json/planetary_k_index_1m.json"
 #define TELEMETRY_POLL_SECONDS 60
 #define M_TWO_PI 6.28318530717958647692f
 
@@ -143,7 +145,7 @@ static int history_series(int field, float *out, int max)
 /*  solar-data graphs. Populated from the full plasma-2-hour feed.     */
 /* ------------------------------------------------------------------ */
 #define SERIES_MAX 256
-enum { SER_WIND = 0, SER_DENS = 1, SER_TEMP = 2, SER_COUNT = 3 };
+enum { SER_WIND = 0, SER_DENS = 1, SER_TEMP = 2, SER_XRAY = 3, SER_KP = 4, SER_COUNT = 5 };
 typedef struct {
 	float v[SERIES_MAX];
 	int n;
@@ -329,8 +331,12 @@ static char *telemetry_http_get(const char *url)
 	curl_easy_setopt(curl, CURLOPT_URL, url);
 	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, curl_write_cb);
 	curl_easy_setopt(curl, CURLOPT_WRITEDATA, &buf);
-	curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L);
-	curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 5L);
+	/* 25 s transfer: the GOES X-ray feed is ~160 KB and NOAA can be slow (the old
+	 * 10 s truncated it). 12 s connect: NOAA's TLS handshake intermittently exceeds
+	 * 5 s, which silently failed every fetch. Shutdown stays bounded by the XFERINFO
+	 * abort during transfer (the slow phase); only a mid-TLS quit waits up to 12 s. */
+	curl_easy_setopt(curl, CURLOPT_TIMEOUT, 25L);
+	curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 12L);
 	/* NOSIGNAL is mandatory off the main thread (the SIGALRM timeout path is
 	 * unsafe in a multithreaded host like OBS). CAVEAT: NOSIGNAL also means a
 	 * *synchronous* resolver's getaddrinfo() is NOT bounded by CONNECTTIMEOUT/
@@ -352,6 +358,8 @@ static char *telemetry_http_get(const char *url)
 	curl_easy_cleanup(curl);
 
 	if (res != CURLE_OK || http_code != 200) {
+		blog(LOG_WARNING, "[fractisynth] fetch failed: curl=%d (%s) http=%ld %zuB %s",
+		     res, curl_easy_strerror(res), http_code, buf.len, url);
 		bfree(buf.data);
 		return NULL; /* connectivity drop / non-200 → Hold State */
 	}
@@ -533,6 +541,67 @@ static int parse_plasma_series(const char *json, float *density, float *speed, f
 	return n;
 }
 
+/*
+ * Parse GOES X-ray flux (xrays-6-hour.json): an array of objects, two per minute
+ * (one per energy band). We take the long band "0.1-0.8nm" flux (W/m^2, scientific
+ * notation, ~1e-9..1e-4). Dependency-free object scan. Returns the count.
+ */
+static int parse_xray_series(const char *json, float *out, int max)
+{
+	if (!json)
+		return 0;
+	int n = 0;
+	const char *p = json;
+	while (n < max) {
+		const char *obj = strchr(p, '{');
+		if (!obj)
+			break;
+		const char *oend = strchr(obj, '}');
+		if (!oend)
+			break;
+		const char *f = strstr(obj, "\"flux\"");
+		const char *band = strstr(obj, "0.1-0.8nm");
+		if (f && f < oend && band && band < oend) {
+			const char *q = f + 6;
+			while (*q && (*q == ':' || *q == ' ' || *q == '"'))
+				q++;
+			float v = strtof(q, NULL);
+			if (v > 0.0f)
+				out[n++] = v;
+		}
+		p = oend + 1;
+	}
+	return n;
+}
+
+/*
+ * Parse the 1-min estimated planetary Kp (planetary_k_index_1m.json): array of
+ * objects with an "estimated_kp" float (0..9). Kp may legitimately be 0.
+ */
+static int parse_kp_series(const char *json, float *out, int max)
+{
+	if (!json)
+		return 0;
+	int n = 0;
+	const char *p = json;
+	while (n < max) {
+		const char *f = strstr(p, "\"estimated_kp\"");
+		if (!f)
+			break;
+		const char *q = f + 14;
+		while (*q && (*q == ':' || *q == ' ' || *q == '"'))
+			q++;
+		char *end = NULL;
+		float v = strtof(q, &end);
+		if (end == q)
+			break;
+		if (v >= 0.0f && v <= 12.0f)
+			out[n++] = v;
+		p = (end > q) ? end : q + 1;
+	}
+	return n;
+}
+
 static void *telemetry_thread_fn(void *arg)
 {
 	UNUSED_PARAMETER(arg);
@@ -560,6 +629,28 @@ static void *telemetry_thread_fn(void *arg)
 				series_store(SER_WIND, spd, sn);
 				series_store(SER_DENS, dens, sn);
 				series_store(SER_TEMP, tmp, sn);
+			}
+		}
+
+		/* GOES X-ray flux + planetary Kp series (more live awareness streams). */
+		if (atomic_load(&g_telemetry_run)) {
+			char *xray_json = telemetry_http_get(NOAA_XRAY_URL);
+			if (xray_json) {
+				static float xr[SERIES_MAX];
+				int xn = parse_xray_series(xray_json, xr, SERIES_MAX);
+				if (xn > 1)
+					series_store(SER_XRAY, xr, xn);
+				bfree(xray_json);
+			}
+		}
+		if (atomic_load(&g_telemetry_run)) {
+			char *kp_json = telemetry_http_get(NOAA_KP_URL);
+			if (kp_json) {
+				static float kp[SERIES_MAX];
+				int kn = parse_kp_series(kp_json, kp, SERIES_MAX);
+				if (kn > 1)
+					series_store(SER_KP, kp, kn);
+				bfree(kp_json);
 			}
 		}
 
@@ -1443,6 +1534,8 @@ static obs_properties_t *fcv_properties(void *data)
 	obs_property_list_add_int(gm, obs_module_text("MetricWindSpeed"), 0);
 	obs_property_list_add_int(gm, obs_module_text("MetricDensity"), 1);
 	obs_property_list_add_int(gm, obs_module_text("MetricTemperature"), 2);
+	obs_property_list_add_int(gm, obs_module_text("MetricXray"), 3);
+	obs_property_list_add_int(gm, obs_module_text("MetricKp"), 4);
 
 	obs_properties_add_float_slider(props, "chroma",
 		obs_module_text("ConsoleChroma"), 0.0, 1.0, 0.01);
@@ -1698,33 +1791,33 @@ static void fcv_render_graph(fractisynth_console_data_t *f)
 		return;
 
 	int metric = (int)(f->graph_metric + 0.5f);
-	int ser; const char *title; const char *unit;
+	int ser, logscale = 0;
+	const char *title, *unit, *sub;
 	uint8_t cr, cg, cb;
 	switch (metric) {
-	case 1: ser = SER_DENS; title = "SOLAR WIND DENSITY"; unit = "P/CM3"; cr = 232; cg = 163; cb = 61; break;
-	case 2: ser = SER_TEMP; title = "SOLAR WIND TEMPERATURE"; unit = "K"; cr = 232; cg = 49; cb = 58; break;
-	default: ser = SER_WIND; title = "SOLAR WIND SPEED"; unit = "KM/S"; cr = 58; cg = 175; cb = 169; break;
+	case 1: ser = SER_DENS; title = "SOLAR WIND DENSITY"; unit = "P/CM3"; sub = "LIVE NOAA SWPC - 2H 1-MIN"; cr = 232; cg = 163; cb = 61; break;
+	case 2: ser = SER_TEMP; title = "SOLAR WIND TEMPERATURE"; unit = "K"; sub = "LIVE NOAA SWPC - 2H 1-MIN"; cr = 232; cg = 49; cb = 58; break;
+	case 3: ser = SER_XRAY; title = "GOES X-RAY FLUX 0.1-0.8NM"; unit = "W/M2"; sub = "LIVE NOAA SWPC - 6H 1-MIN - LOG"; logscale = 1; cr = 200; cg = 120; cb = 232; break;
+	case 4: ser = SER_KP; title = "PLANETARY K-INDEX (KP)"; unit = ""; sub = "LIVE NOAA SWPC - 1-MIN EST"; cr = 120; cg = 200; cb = 120; break;
+	default: ser = SER_WIND; title = "SOLAR WIND SPEED"; unit = "KM/S"; sub = "LIVE NOAA SWPC - 2H 1-MIN"; cr = 58; cg = 175; cb = 169; break;
 	}
 
 	t8_fill_rect(b, W, H, 0, 0, W, H, 18, 18, 14, 255);
 	t8_fill_rect(b, W, H, 0, 0, W, 4, cr, cg, cb, 255);
 	int sc = W >= 1100 ? 3 : (W >= 640 ? 2 : 1);
+	int ssc = sc >= 3 ? 2 : 1;
 	t8_text(b, W, H, 14, 14, title, sc, 239, 233, 220, 255);
-	t8_text(b, W, H, 14, 14 + 8 * sc + 8, "LIVE - NOAA SWPC  (2H, 1-MIN)", sc >= 3 ? 2 : 1, 150, 145, 132, 255);
+	t8_text(b, W, H, 14, 14 + 8 * sc + 8, sub, ssc, 150, 145, 132, 255);
 
 	float s[SERIES_MAX];
 	int n = series_get(ser, s, SERIES_MAX);
-	/* plot box */
-	int gx = 70, gy = 14 + 8 * sc + 8 + 8 * (sc >= 3 ? 2 : 1) + 14;
+	int gx = 70, gy = 14 + 8 * sc + 8 + 8 * ssc + 14;
 	int gw = W - gx - 16, gh = H - gy - 40;
 	if (gw < 32 || gh < 24)
 		return;
 	t8_fill_rect(b, W, H, gx, gy, gw, gh, 10, 10, 8, 255);
-	/* frame + 3 gridlines */
-	for (int i = 0; i <= 3; i++) {
-		int yy = gy + gh * i / 3;
-		t8_hline(b, W, H, gx, yy, gw, 44, 43, 37, 255);
-	}
+	for (int i = 0; i <= 3; i++)
+		t8_hline(b, W, H, gx, gy + gh * i / 3, gw, 44, 43, 37, 255);
 	t8_vline(b, W, H, gx, gy, gh, 60, 58, 50, 255);
 
 	if (n >= 2) {
@@ -1733,10 +1826,14 @@ static void fcv_render_graph(fractisynth_console_data_t *f)
 			if (s[i] < mn) mn = s[i];
 			if (s[i] > mx) mx = s[i];
 		}
-		float range = mx - mn;
+		/* value transform: log10 for X-ray (orders-of-magnitude flux) */
+		float tmn = logscale ? log10f(mn > 0 ? mn : 1e-12f) : mn;
+		float tmx = logscale ? log10f(mx > 0 ? mx : 1e-12f) : mx;
+		float trange = tmx - tmn;
 		int px = -1, py = 0;
 		for (int i = 0; i < n; i++) {
-			float nrm = range > 1e-6f ? (s[i] - mn) / range : 0.5f;
+			float tv = logscale ? log10f(s[i] > 0 ? s[i] : 1e-12f) : s[i];
+			float nrm = trange > 1e-9f ? (tv - tmn) / trange : 0.5f;
 			int cx = gx + (gw - 1) * i / (n - 1);
 			int cy = gy + gh - 1 - (int)(nrm * (float)(gh - 1));
 			if (px >= 0)
@@ -1744,18 +1841,29 @@ static void fcv_render_graph(fractisynth_console_data_t *f)
 			px = cx;
 			py = cy;
 		}
-		/* current value (big) + min/max axis labels */
 		char ln[64];
-		snprintf(ln, sizeof ln, "%.1f %s", (double)s[n - 1], unit);
+		/* current value (big) */
+		if (logscale)
+			snprintf(ln, sizeof ln, "%.2e %s", (double)s[n - 1], unit);
+		else if (metric == 4)
+			snprintf(ln, sizeof ln, "KP %.2f", (double)s[n - 1]);
+		else
+			snprintf(ln, sizeof ln, "%.1f %s", (double)s[n - 1], unit);
 		t8_text(b, W, H, gx + 8, gy + 6, ln, sc, cr, cg, cb, 255);
-		snprintf(ln, sizeof ln, "%.0f", (double)mx);
-		t8_text(b, W, H, 6, gy - 4, ln, 1, 150, 145, 132, 255);
-		snprintf(ln, sizeof ln, "%.0f", (double)mn);
-		t8_text(b, W, H, 6, gy + gh - 10, ln, 1, 150, 145, 132, 255);
+		/* y-axis max/min */
+		if (logscale) snprintf(ln, sizeof ln, "%.0e", (double)mx);
+		else snprintf(ln, sizeof ln, "%.0f", (double)mx);
+		t8_text(b, W, H, 4, gy - 4, ln, 1, 150, 145, 132, 255);
+		if (logscale) snprintf(ln, sizeof ln, "%.0e", (double)mn);
+		else snprintf(ln, sizeof ln, "%.0f", (double)mn);
+		t8_text(b, W, H, 4, gy + gh - 10, ln, 1, 150, 145, 132, 255);
+		/* time axis: oldest (left) -> now (right) + sample count */
+		t8_text(b, W, H, gx, gy + gh + 6, "OLDEST", ssc, 110, 106, 96, 255);
+		t8_text(b, W, H, gx + gw - t8_text_w("NOW", ssc), gy + gh + 6, "NOW", ssc, cr, cg, cb, 255);
 		snprintf(ln, sizeof ln, "%d SAMPLES", n);
-		t8_text(b, W, H, gx, H - 8 * (sc >= 3 ? 2 : 1) - 12, ln, sc >= 3 ? 2 : 1, 150, 145, 132, 255);
+		t8_text(b, W, H, gx + (gw - t8_text_w(ln, 1)) / 2, gy + gh + 6, ln, 1, 110, 106, 96, 255);
 	} else {
-		t8_text(b, W, H, gx + 12, gy + gh / 2 - 4, "ACQUIRING SERIES...", sc >= 3 ? 2 : 1, 232, 163, 61, 255);
+		t8_text(b, W, H, gx + 12, gy + gh / 2 - 4, "ACQUIRING SERIES...", ssc, 232, 163, 61, 255);
 	}
 
 	hud_blit(f, W, H);
