@@ -24,12 +24,32 @@ Select the source and click **Properties** for a full config panel:
 
 | Control | Effect |
 | --- | --- |
+| **Synthetic Feed** | which generative stream to render: *Wavefield Console*, *Hex Tunnel*, *Interference Field*, *Spectral Rings*, *Spiral Drift* — each driven by the live telemetry |
+| **Chromatic Shimmer** | radial RGB split (the trippy fringe), 0–1 |
+| **Hue Cycle** | rotate the whole palette over time, 0–1 |
 | **Operator Theme** | palette: *Observatory* (robin's-egg/marigold), *Laboratory* (cool blue), *Expedition* (solar marigold/ember) |
 | **Overlay Intensity** | master strength of all overlays (0–1) |
 | **Animation Speed** | motion rate (0–3); 0 freezes |
 | **Interference Fringe Density** | spatial frequency of the holographic fringes (6–48) |
 | **Show …** toggles | Gateway Lock Ring · Holographic Fringes · φ Spiral · Goldilocks Grid · Honeycomb Hex Lattice · Phase-Vector Core |
+| **Show Clickable Feed Tabs** | paint a 5-cell tab strip across the top; the active feed is highlighted |
 | **Console Width / Height** | render resolution (default 1280×720) |
+
+### Switching feeds by clicking (interactive)
+
+With **Show Clickable Feed Tabs** on, the console source is interactive: **right-click
+the source → Interact** (or open an interactive projector), then click a cell in the top
+tab strip to switch the synthetic feed live — point-and-click "menu destinations" on the
+canvas. (OBS only delivers clicks to a source through its Interact window/projector, not
+the plain preview.)
+
+### The Zoom Inspector filter — "frame within the frame"
+
+Add **Filters → + → "FractiSynth — Zoom Inspector (loupe)"** to *any* source to magnify a
+sub-region into an inset loupe — zoom into the stream like a packet sniffer. Properties:
+**Zoom** (1.5–16×), **Inspect Region X/Y**, **Loupe Size**, **Loupe Corner**, and toggles
+for the source-region box, the loupe's golden grid, and its crosshair. The loupe border
+brightens with the live gateway lock.
 
 ## The SynthOBS Gateway dock (a live telemetry panel)
 
@@ -38,7 +58,8 @@ remembers). It is a live panel in the OBS window chrome showing the **gateway lo
 gauge** plus a numeric readout: SWO phase vector, F10.7 flux, active sunspots, solar wind,
 lock strength, phase bias θ, the **holographic interference verdict** (CONSTRUCTIVE /
 DESTRUCTIVE / MIXED), and the gateway key K_EGS — all updating ~8×/s, fail-closed (shows
-"— hold" until live telemetry locks).
+"— hold" until live telemetry locks). **Click the dock** to cycle its density: *Full* →
+*Compact* → *Gauge-only* (so it can be a full readout or a minimal HUD).
 
 The dock is a native Qt6 panel and must be built against the **same Qt minor version OBS
 runs** (6.8.x). `build.sh` auto-uses a bundled obs-deps Qt 6.8 (dropped into
