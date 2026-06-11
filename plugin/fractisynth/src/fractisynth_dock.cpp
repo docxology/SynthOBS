@@ -48,6 +48,7 @@ struct fractisynth_dock_state {
 	int gateway_locked;
 };
 void fractisynth_get_state(struct fractisynth_dock_state *out);
+int fractisynth_get_series(int metric, float *out, int max); /* 0 wind,1 dens,2 temp */
 }
 
 /* Brand palette. */
@@ -254,6 +255,43 @@ protected:
 			row(p, y, w, fs("phase bias \xce\xb8"), fs("%.3f rad", st.wind_phase), LINEN);
 			row(p, y, w, fs("holographic gate"), fs("%s", vt), st.gateway_locked ? vc : BONE);
 			row(p, y, w, fs("K_EGS  \xcf\x86\xc2\xb7\xce\xbbr/\xce\xbbH\xce\xb1"), fs("%.4f", (double)K_EGS), ROBIN);
+			/* live realtime solar-wind graph (real NOAA 2 h series) */
+			y += 8;
+			double gx = 12, gw = w - 24;
+			double gyt = y, ght = height() - 38 - gyt - 6;
+			if (ght > 28) {
+				p.setPen(BONE);
+				p.drawText(QRectF(gx, gyt, gw, 12), Qt::AlignLeft,
+					   fs("solar wind \xc2\xb7 NOAA 2h"));
+				double gby = gyt + 14, gbh = ght - 14;
+				p.fillRect(QRectF(gx, gby, gw, gbh), QColor(14, 14, 11));
+				float s[256];
+				int n = fractisynth_get_series(0, s, 256);
+				if (n >= 2) {
+					float mn = s[0], mx = s[0];
+					for (int i = 1; i < n; ++i) {
+						if (s[i] < mn) mn = s[i];
+						if (s[i] > mx) mx = s[i];
+					}
+					double rng = mx - mn;
+					QPen gp(ROBIN); gp.setWidthF(1.4); p.setPen(gp);
+					QPointF prev; bool have = false;
+					for (int i = 0; i < n; ++i) {
+						double nrm = rng > 1e-6 ? (s[i] - mn) / rng : 0.5;
+						double px = gx + gw * i / (n - 1);
+						double py = gby + gbh - 1 - nrm * (gbh - 1);
+						QPointF cur(px, py);
+						if (have) p.drawLine(prev, cur);
+						prev = cur; have = true;
+					}
+					p.setPen(ROBIN);
+					p.drawText(QRectF(gx + 4, gby + 2, gw - 8, 12), Qt::AlignRight,
+						   fs("%.0f km/s", (double)s[n - 1]));
+				} else {
+					p.setPen(MARIGOLD);
+					p.drawText(QRectF(gx, gby, gw, gbh), Qt::AlignCenter, fs("acquiring series\xe2\x80\xa6"));
+				}
+			}
 		} else if (m_mode == 1) { /* Compact — the essentials */
 			row(p, y, w, fs("flux / spots"),
 			    st.swo_calibrated ? fs("%.0f / %d", st.flux, st.sunspots) : fs("\xe2\x80\x94"), LINEN);

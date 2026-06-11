@@ -1042,6 +1042,13 @@ void fractisynth_get_state(struct fractisynth_dock_state *out)
 	pthread_mutex_unlock(&g_swo_mutex);
 }
 
+/* Exported for the frontend dock: copy a live NOAA series (0 wind, 1 density,
+ * 2 temperature) in chronological order. Returns the sample count. */
+int fractisynth_get_series(int metric, float *out, int max)
+{
+	return series_get(metric, out, max);
+}
+
 /* ================================================================== */
 /*  VIDEO FILTER — fractisynth_inspector (zoom loupe / packet sniffer)  */
 /* ================================================================== */

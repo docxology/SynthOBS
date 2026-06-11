@@ -24,7 +24,8 @@ Select the source and click **Properties** for a full config panel:
 
 | Control | Effect |
 | --- | --- |
-| **Synthetic Feed** | which generative stream to render: *Wavefield Console*, *Hex Tunnel*, *Interference Field*, *Spectral Rings*, *Spiral Drift* — each driven by the live telemetry |
+| **Synthetic Feed** | which stream to render: *Wavefield Console*, *Hex Tunnel*, *Interference Field*, *Spectral Rings*, *Spiral Drift* (visual, telemetry-driven), *Telemetry HUD* (metadata + waveforms + provenance), *Solar Graph* (realtime NOAA time-series) |
+| **Graph Metric** (Solar Graph) | which real metric to graph: *Solar Wind Speed*, *Density*, *Temperature* — drop several Solar Graph sources set to different metrics for a multi-panel live dashboard |
 | **Chromatic Shimmer** | radial RGB split (the trippy fringe), 0–1 |
 | **Hue Cycle** | rotate the whole palette over time, 0–1 |
 | **Operator Theme** | palette: *Observatory* (robin's-egg/marigold), *Laboratory* (cool blue), *Expedition* (solar marigold/ember) |
