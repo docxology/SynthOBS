@@ -49,3 +49,13 @@ Status legend: ✅ shipped · 🚧 in progress · 📋 planned
 - Every new shader: LOCAL float3 palette (OBS doesn't init global static const).
 - Every native change: rebuild + crash-gate (`.ips` count + OBS-stays-alive) +
   websocket scene-shot verification (never trust the load log alone).
+
+## Phase F — Realtime solar-data graphs + multi-source dashboard  ✅(core)
+- ✅ Parse the FULL NOAA plasma-2-hour series (real 1-min cadence) → wind speed /
+  density / temperature time-series store.
+- ✅ **Solar Graph feed** (feed 6) with a metric selector: a big realtime graph of
+  the chosen real metric (current value + min/max + sample count). Drop several
+  sources set to different metrics → a multi-panel awareness dashboard, each with
+  different real verified ongoing data.
+- ✅ Telemetry HUD waveforms now plot the real NOAA series (wind/density), not held values.
+- 📋 More metrics (GOES X-ray flux, Kp index), log-scale option, time-axis labels.

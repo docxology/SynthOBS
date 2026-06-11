@@ -138,6 +138,50 @@ static int history_series(int field, float *out, int max)
 	return n;
 }
 
+/* ------------------------------------------------------------------ */
+/*  Live NOAA time-series store (real 1-min cadence) for realtime      */
+/*  solar-data graphs. Populated from the full plasma-2-hour feed.     */
+/* ------------------------------------------------------------------ */
+#define SERIES_MAX 256
+enum { SER_WIND = 0, SER_DENS = 1, SER_TEMP = 2, SER_COUNT = 3 };
+typedef struct {
+	float v[SERIES_MAX];
+	int n;
+} fractisynth_series_t;
+static fractisynth_series_t g_series[SER_COUNT];
+static pthread_mutex_t g_series_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+static void series_store(int idx, const float *vals, int n)
+{
+	if (idx < 0 || idx >= SER_COUNT || n <= 0)
+		return;
+	if (n > SERIES_MAX) {
+		vals += (n - SERIES_MAX); /* keep the most recent */
+		n = SERIES_MAX;
+	}
+	pthread_mutex_lock(&g_series_mutex);
+	for (int i = 0; i < n; i++)
+		g_series[idx].v[i] = vals[i];
+	g_series[idx].n = n;
+	pthread_mutex_unlock(&g_series_mutex);
+}
+
+/* Copy the most-recent <=max samples of a series in chronological order. */
+static int series_get(int idx, float *out, int max)
+{
+	if (idx < 0 || idx >= SER_COUNT)
+		return 0;
+	pthread_mutex_lock(&g_series_mutex);
+	int n = g_series[idx].n;
+	if (n > max)
+		n = max;
+	int off = g_series[idx].n - n;
+	for (int i = 0; i < n; i++)
+		out[i] = g_series[idx].v[off + i];
+	pthread_mutex_unlock(&g_series_mutex);
+	return n;
+}
+
 /*
  * Calibrate the software matrix exclusively from current telemetry. Fails
  * closed: non-positive flux or spots leaves the last good vector untouched.
@@ -434,6 +478,61 @@ static float extract_last_wind_speed(const char *json)
 	return val;
 }
 
+/*
+ * Parse the FULL NOAA plasma-2-hour series (real ~1-min cadence) into three
+ * arrays: density (col 1), speed (col 2), temperature (col 3). The feed is an
+ * array of arrays, all values JSON strings; the first row is the header. Returns
+ * the number of valid rows parsed (rows with non-positive speed are skipped).
+ * Dependency-free; used to drive the realtime solar-data graphs.
+ */
+static int parse_plasma_series(const char *json, float *density, float *speed, float *temp, int max)
+{
+	if (!json)
+		return 0;
+	const char *p = strchr(json, '['); /* outer array */
+	if (!p)
+		return 0;
+	p++;
+	p = strchr(p, '['); /* header row */
+	if (!p)
+		return 0;
+	p = strchr(p, ']'); /* end of header */
+	if (!p)
+		return 0;
+	p++;
+	int n = 0;
+	while (n < max) {
+		const char *row = strchr(p, '[');
+		if (!row)
+			break;
+		const char *rend = strchr(row, ']');
+		if (!rend)
+			break;
+		/* extract the 4 quoted tokens: 0=time, 1=density, 2=speed, 3=temp */
+		const char *q = row;
+		float v[4] = {0, 0, 0, 0};
+		int ok = 1;
+		for (int t = 0; t < 4; t++) {
+			q = strchr(q, '"');
+			if (!q || q > rend) { ok = 0; break; }
+			q++;
+			const char *qe = strchr(q, '"');
+			if (!qe || qe > rend) { ok = 0; break; }
+			if (t >= 1)
+				v[t] = strtof(q, NULL); /* "null"/empty -> 0 */
+			q = qe + 1;
+		}
+		if (ok && v[2] > 0.0f) { /* require a real speed */
+			density[n] = v[1];
+			speed[n] = v[2];
+			temp[n] = v[3];
+			n++;
+		}
+		p = rend + 1;
+	}
+	return n;
+}
+
 static void *telemetry_thread_fn(void *arg)
 {
 	UNUSED_PARAMETER(arg);
@@ -452,6 +551,17 @@ static void *telemetry_thread_fn(void *arg)
 		float flux = extract_last_flux(flux_json);
 		int spots = extract_active_region_count(spot_json);
 		float wind = extract_last_wind_speed(wind_json);
+
+		/* Store the FULL plasma series for the realtime solar-data graphs. */
+		if (wind_json) {
+			static float dens[SERIES_MAX], spd[SERIES_MAX], tmp[SERIES_MAX];
+			int sn = parse_plasma_series(wind_json, dens, spd, tmp, SERIES_MAX);
+			if (sn > 1) {
+				series_store(SER_WIND, spd, sn);
+				series_store(SER_DENS, dens, sn);
+				series_store(SER_TEMP, tmp, sn);
+			}
+		}
 
 		/* Amplitude plane: only lock with genuinely live, positive values. Any
 		 * failure leaves g_swo holding its last verified vector. */
@@ -1127,7 +1237,8 @@ typedef struct fractisynth_console_data {
 	float elapsed;
 
 	/* user configuration */
-	float feed;           /* 0 Wavefield, 1 Hex Tunnel, 2 Interference Field, 3 Spectral Rings, 4 Spiral Drift */
+	float feed;           /* 0 Wavefield, 1 Hex Tunnel, 2 Interference Field, 3 Spectral Rings, 4 Spiral Drift, 5 Telemetry HUD, 6 Solar Graph */
+	float graph_metric;   /* Solar Graph: 0 wind speed, 1 density, 2 temperature */
 	float chroma;         /* chromatic-shimmer intensity */
 	float hue_cycle;      /* hue rotation amount over time (trippy) */
 	float theme;          /* 0=Observatory, 1=Laboratory, 2=Expedition palette */
@@ -1187,6 +1298,7 @@ static void fcv_update(void *data, obs_data_t *settings)
 	f->height = h > 0 ? (uint32_t)h : 720;
 
 	f->feed = (float)obs_data_get_int(settings, "feed");
+	f->graph_metric = (float)obs_data_get_int(settings, "graph_metric");
 	f->chroma = (float)obs_data_get_double(settings, "chroma");
 	f->hue_cycle = (float)obs_data_get_double(settings, "hue_cycle");
 	f->theme = (float)obs_data_get_int(settings, "theme");
@@ -1288,6 +1400,7 @@ static void fcv_defaults(obs_data_t *settings)
 	obs_data_set_default_int(settings, "width", 1280);
 	obs_data_set_default_int(settings, "height", 720);
 	obs_data_set_default_int(settings, "feed", 0);
+	obs_data_set_default_int(settings, "graph_metric", 0);
 	obs_data_set_default_double(settings, "chroma", 0.25);
 	obs_data_set_default_double(settings, "hue_cycle", 0.0);
 	obs_data_set_default_int(settings, "theme", 0);
@@ -1316,6 +1429,13 @@ static obs_properties_t *fcv_properties(void *data)
 	obs_property_list_add_int(feed, obs_module_text("FeedSpectral"), 3);
 	obs_property_list_add_int(feed, obs_module_text("FeedSpiralDrift"), 4);
 	obs_property_list_add_int(feed, obs_module_text("FeedTelemetryHUD"), 5);
+	obs_property_list_add_int(feed, obs_module_text("FeedSolarGraph"), 6);
+
+	obs_property_t *gm = obs_properties_add_list(props, "graph_metric",
+		obs_module_text("GraphMetric"), OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
+	obs_property_list_add_int(gm, obs_module_text("MetricWindSpeed"), 0);
+	obs_property_list_add_int(gm, obs_module_text("MetricDensity"), 1);
+	obs_property_list_add_int(gm, obs_module_text("MetricTemperature"), 2);
 
 	obs_properties_add_float_slider(props, "chroma",
 		obs_module_text("ConsoleChroma"), 0.0, 1.0, 0.01);
@@ -1380,16 +1500,19 @@ static void hud_line(uint8_t *b, int W, int H, int x0, int y0, int x1, int y1,
 	}
 }
 
-/* A labelled waveform box plotting the normalized recent history of one field. */
+/* A labelled waveform box plotting the normalized recent values of one field.
+ * use_series: 1 → real NOAA time-series (field = SER_*), 0 → 2 Hz held history. */
 static void hud_sparkline(uint8_t *b, int W, int H, int bx, int by, int bw, int bh,
-			  int field, int lsc, const char *label, uint8_t r, uint8_t g, uint8_t bl)
+			  int field, int use_series, int lsc, const char *label,
+			  uint8_t r, uint8_t g, uint8_t bl)
 {
 	t8_text(b, W, H, bx, by - 8 * lsc - 4, label, lsc, 150, 145, 132, 255);
 	t8_fill_rect(b, W, H, bx, by, bw, bh, 14, 14, 11, 255);
 	t8_hline(b, W, H, bx, by, bw, 60, 58, 50, 255);
 	t8_hline(b, W, H, bx, by + bh - 1, bw, 60, 58, 50, 255);
-	float s[HIST_CAP];
-	int n = history_series(field, s, HIST_CAP);
+	float s[SERIES_MAX];
+	int n = use_series ? series_get(field, s, SERIES_MAX)
+			   : history_series(field, s, HIST_CAP);
 	if (n < 2)
 		return;
 	float mn = s[0], mx = s[0];
@@ -1410,11 +1533,9 @@ static void hud_sparkline(uint8_t *b, int W, int H, int bx, int by, int bw, int 
 	}
 }
 
-static void fcv_render_hud(fractisynth_console_data_t *f)
+/* Ensure the reusable RGBA scratch buffer is at least W*H*4 bytes. */
+static uint8_t *hud_buf_ensure(fractisynth_console_data_t *f, int W, int H)
 {
-	int W = (int)f->width, H = (int)f->height;
-	if (W < 64 || H < 64)
-		return;
 	size_t need = (size_t)W * H * 4;
 	if (f->hud_cap < need) {
 		if (f->hud_buf)
@@ -1422,7 +1543,43 @@ static void fcv_render_hud(fractisynth_console_data_t *f)
 		f->hud_buf = bzalloc(need);
 		f->hud_cap = need;
 	}
+	return f->hud_buf;
+}
+
+/* Upload f->hud_buf to a dynamic texture and draw it 1:1 (no sRGB transform, so
+ * any embedded blue-LSB data survives). Shared by the HUD and Solar Graph feeds. */
+static void hud_blit(fractisynth_console_data_t *f, int W, int H)
+{
 	uint8_t *b = f->hud_buf;
+	const uint8_t *data = b;
+	if (!f->hud_tex || f->hud_w != W || f->hud_h != H) {
+		if (f->hud_tex)
+			gs_texture_destroy(f->hud_tex);
+		f->hud_tex = gs_texture_create((uint32_t)W, (uint32_t)H, GS_RGBA, 1, &data, GS_DYNAMIC);
+		f->hud_w = W;
+		f->hud_h = H;
+	} else {
+		gs_texture_set_image(f->hud_tex, b, (uint32_t)(W * 4), false);
+	}
+	if (!f->hud_tex)
+		return;
+	const bool prev_srgb = gs_framebuffer_srgb_enabled();
+	gs_enable_framebuffer_srgb(false);
+	gs_effect_t *def = obs_get_base_effect(OBS_EFFECT_DEFAULT);
+	gs_eparam_t *img = gs_effect_get_param_by_name(def, "image");
+	gs_effect_set_texture(img, f->hud_tex);
+	while (gs_effect_loop(def, "Draw"))
+		gs_draw_sprite(f->hud_tex, 0, (uint32_t)W, (uint32_t)H);
+	gs_enable_framebuffer_srgb(prev_srgb);
+}
+
+static void fcv_render_hud(fractisynth_console_data_t *f)
+{
+	int W = (int)f->width, H = (int)f->height;
+	if (W < 64 || H < 64)
+		return;
+	size_t need = (size_t)W * H * 4;
+	uint8_t *b = hud_buf_ensure(f, W, H);
 	if (!b)
 		return;
 
@@ -1481,11 +1638,11 @@ static void fcv_render_hud(fractisynth_console_data_t *f)
 		int bh = avail / 3 - (8 * lsc + 18);
 		if (bh > 16) {
 			int wy = colY + 8 * lsc + 6;
-			hud_sparkline(b, W, H, bx, wy, bw, bh, 1, lsc, "SOLAR WIND (KM/S)", 58, 175, 169);
+			hud_sparkline(b, W, H, bx, wy, bw, bh, SER_WIND, 1, lsc, "SOLAR WIND (KM/S)", 58, 175, 169);
 			wy += bh + 8 * lsc + 18;
-			hud_sparkline(b, W, H, bx, wy, bw, bh, 2, lsc, "LOCK STRENGTH", 232, 163, 61);
+			hud_sparkline(b, W, H, bx, wy, bw, bh, SER_DENS, 1, lsc, "WIND DENSITY (P/CM3)", 232, 163, 61);
 			wy += bh + 8 * lsc + 18;
-			hud_sparkline(b, W, H, bx, wy, bw, bh, 0, lsc, "F10.7 FLUX (SFU)", 232, 49, 58);
+			hud_sparkline(b, W, H, bx, wy, bw, bh, 2, 0, lsc, "LOCK STRENGTH", 232, 49, 58);
 		}
 	}
 
@@ -1520,33 +1677,91 @@ static void fcv_render_hud(fractisynth_console_data_t *f)
 			b[bp] = (uint8_t)((b[bp] & 0xFE) | bit);
 	}
 
-	/* upload + draw 1:1, no sRGB transform → the blue LSBs survive to the texture */
-	const uint8_t *data = b;
-	if (!f->hud_tex || f->hud_w != W || f->hud_h != H) {
-		if (f->hud_tex)
-			gs_texture_destroy(f->hud_tex);
-		f->hud_tex = gs_texture_create((uint32_t)W, (uint32_t)H, GS_RGBA, 1, &data, GS_DYNAMIC);
-		f->hud_w = W;
-		f->hud_h = H;
-	} else {
-		gs_texture_set_image(f->hud_tex, b, (uint32_t)(W * 4), false);
-	}
-	if (!f->hud_tex)
+	hud_blit(f, W, H);
+}
+
+/* ---- Solar Graph feed (feed 6): a big realtime graph of one NOAA metric ---- */
+static void fcv_render_graph(fractisynth_console_data_t *f)
+{
+	int W = (int)f->width, H = (int)f->height;
+	if (W < 64 || H < 64)
 		return;
-	const bool prev_srgb = gs_framebuffer_srgb_enabled();
-	gs_enable_framebuffer_srgb(false);
-	gs_effect_t *def = obs_get_base_effect(OBS_EFFECT_DEFAULT);
-	gs_eparam_t *img = gs_effect_get_param_by_name(def, "image");
-	gs_effect_set_texture(img, f->hud_tex);
-	while (gs_effect_loop(def, "Draw"))
-		gs_draw_sprite(f->hud_tex, 0, (uint32_t)W, (uint32_t)H);
-	gs_enable_framebuffer_srgb(prev_srgb);
+	uint8_t *b = hud_buf_ensure(f, W, H);
+	if (!b)
+		return;
+
+	int metric = (int)(f->graph_metric + 0.5f);
+	int ser; const char *title; const char *unit;
+	uint8_t cr, cg, cb;
+	switch (metric) {
+	case 1: ser = SER_DENS; title = "SOLAR WIND DENSITY"; unit = "P/CM3"; cr = 232; cg = 163; cb = 61; break;
+	case 2: ser = SER_TEMP; title = "SOLAR WIND TEMPERATURE"; unit = "K"; cr = 232; cg = 49; cb = 58; break;
+	default: ser = SER_WIND; title = "SOLAR WIND SPEED"; unit = "KM/S"; cr = 58; cg = 175; cb = 169; break;
+	}
+
+	t8_fill_rect(b, W, H, 0, 0, W, H, 18, 18, 14, 255);
+	t8_fill_rect(b, W, H, 0, 0, W, 4, cr, cg, cb, 255);
+	int sc = W >= 1100 ? 3 : (W >= 640 ? 2 : 1);
+	t8_text(b, W, H, 14, 14, title, sc, 239, 233, 220, 255);
+	t8_text(b, W, H, 14, 14 + 8 * sc + 8, "LIVE - NOAA SWPC  (2H, 1-MIN)", sc >= 3 ? 2 : 1, 150, 145, 132, 255);
+
+	float s[SERIES_MAX];
+	int n = series_get(ser, s, SERIES_MAX);
+	/* plot box */
+	int gx = 70, gy = 14 + 8 * sc + 8 + 8 * (sc >= 3 ? 2 : 1) + 14;
+	int gw = W - gx - 16, gh = H - gy - 40;
+	if (gw < 32 || gh < 24)
+		return;
+	t8_fill_rect(b, W, H, gx, gy, gw, gh, 10, 10, 8, 255);
+	/* frame + 3 gridlines */
+	for (int i = 0; i <= 3; i++) {
+		int yy = gy + gh * i / 3;
+		t8_hline(b, W, H, gx, yy, gw, 44, 43, 37, 255);
+	}
+	t8_vline(b, W, H, gx, gy, gh, 60, 58, 50, 255);
+
+	if (n >= 2) {
+		float mn = s[0], mx = s[0];
+		for (int i = 1; i < n; i++) {
+			if (s[i] < mn) mn = s[i];
+			if (s[i] > mx) mx = s[i];
+		}
+		float range = mx - mn;
+		int px = -1, py = 0;
+		for (int i = 0; i < n; i++) {
+			float nrm = range > 1e-6f ? (s[i] - mn) / range : 0.5f;
+			int cx = gx + (gw - 1) * i / (n - 1);
+			int cy = gy + gh - 1 - (int)(nrm * (float)(gh - 1));
+			if (px >= 0)
+				hud_line(b, W, H, px, py, cx, cy, cr, cg, cb, 255);
+			px = cx;
+			py = cy;
+		}
+		/* current value (big) + min/max axis labels */
+		char ln[64];
+		snprintf(ln, sizeof ln, "%.1f %s", (double)s[n - 1], unit);
+		t8_text(b, W, H, gx + 8, gy + 6, ln, sc, cr, cg, cb, 255);
+		snprintf(ln, sizeof ln, "%.0f", (double)mx);
+		t8_text(b, W, H, 6, gy - 4, ln, 1, 150, 145, 132, 255);
+		snprintf(ln, sizeof ln, "%.0f", (double)mn);
+		t8_text(b, W, H, 6, gy + gh - 10, ln, 1, 150, 145, 132, 255);
+		snprintf(ln, sizeof ln, "%d SAMPLES", n);
+		t8_text(b, W, H, gx, H - 8 * (sc >= 3 ? 2 : 1) - 12, ln, sc >= 3 ? 2 : 1, 150, 145, 132, 255);
+	} else {
+		t8_text(b, W, H, gx + 12, gy + gh / 2 - 4, "ACQUIRING SERIES...", sc >= 3 ? 2 : 1, 232, 163, 61, 255);
+	}
+
+	hud_blit(f, W, H);
 }
 
 static void fcv_video_render(void *data, gs_effect_t *effect)
 {
 	UNUSED_PARAMETER(effect);
 	fractisynth_console_data_t *f = data;
+	if (f->feed > 5.5f) { /* feed 6 = Solar Graph (realtime NOAA time-series) */
+		fcv_render_graph(f);
+		return;
+	}
 	if (f->feed > 4.5f) { /* feed 5 = Telemetry HUD (CPU-rendered data panel) */
 		fcv_render_hud(f);
 		return;
