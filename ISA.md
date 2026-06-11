@@ -3,11 +3,11 @@ project: SynthOBS
 task: Spec and develop SynthOBS + FractiSynth — golden-ratio OBS plugin driven by fail-closed live solar telemetry
 effort: E5
 phase: complete
-progress: 130/130
+progress: 142/142
 mode: ALGORITHM
 started: 2026-06-10
 updated: 2026-06-10
-iteration: 5
+iteration: 6
 ---
 
 # SynthOBS / FractiSynth — Ideal State Articulation
@@ -451,3 +451,44 @@ misread "loaded" + "0 effect failures" as success.**
 - OBS-effect-language gotchas now documented: (1) global `static const float3 = {..}`
   is zero at runtime → use locals; (2) `static const float3 = float3(..)` is a parse
   error → brace-init; (3) `#define M (a/b)` arithmetic macro is a parse error → literal.
+
+## Iteration 6 — Published + GUI dock panel + full console configurability (2026-06-10)
+
+User: "I started it and see it! However there is no GUI panel (just that source visual)
+and there is no configurability." → publish to private repo, then add a real GUI panel
+and configurability, aesthetically + scientifically.
+
+### Criteria (iteration 6)
+- [x] ISC-123: published to **private github.com/docxology/SynthOBS** (standalone repo, 62
+  files, LICENSE, .gitignore excludes .obs-sdk/.venv/build/output; no secrets/machine-paths).
+- [x] ISC-124: **frontend GUI dock now BUILDS + LOADS** — fetched obs-deps Qt **6.8.3**
+  (matches OBS 32.1.2 runtime) into `.obs-sdk/qt-6.8`; build.sh auto-uses it; dock compiles
+  (`-Wno-error=implicit-function-declaration` for Qt's ARM `__yield`), links OBS's runtime
+  Qt, loads, logs `frontend dock registered`, no crash (`.ips` 8→8). Enable via Docks menu.
+- [x] ISC-125: the dock is a **rich live telemetry panel** — lock-ring gauge + φ-spiral +
+  numeric readout (SWO phase vector, F10.7 flux, sunspots, wind, lock strength, phase bias,
+  holographic verdict CONSTRUCTIVE/DESTRUCTIVE/MIXED, K_EGS). C accessor extended
+  (flux/sunspots/verdict). [Functionally verified: compiles/loads/registers/no-crash; pixel
+  render not screenshot-captured — docks have no websocket path + OBS opens on another Space.]
+- [x] ISC-126: **console source fully configurable** — Operator Theme (Observatory/
+  Laboratory/Expedition palettes), Overlay Intensity, Animation Speed, Interference Fringe
+  Density, 6 element toggles (ring/fringes/spiral/grid/hex/core). 10 new shader uniforms +
+  OBS properties + locale. VISUALLY VERIFIED via websocket scene-shot: Observatory vs
+  Expedition (solar gold + hex lattice) render distinctly.
+- [x] ISC-127: Anti: configurability never breaks the source render or crashes OBS — 0
+  effect failures, OBS alive, console renders (55KB) across theme/toggle changes.
+
+### Iteration-6 verification
+- 892 tests / 94.72%, ruff clean, artifact-test C tokens preserved.
+- `build.sh` → "Qt6 6.8 matches OBS runtime 6.8 — dock compiled ✓"; otool: dock links
+  `@rpath/QtWidgets … current version 6.8.3`.
+- websocket scene-shots: /tmp/theme_obs.png (62KB teal), /tmp/theme_exp.png (123KB solar+hex).
+- Committed + pushed: docxology/SynthOBS 5c2c20c (dock + config + build + docs).
+
+### Decisions (iteration 6)
+- The Qt-6.8-vs-6.11 dock blocker (iter 4–5) is RESOLVED by bundling the matching obs-deps
+  Qt 6.8 into the gitignored .obs-sdk; build.sh auto-detects it. Mismatched-Qt builds still
+  version-gate-skip the dock so the core plugin always loads.
+- Dock pixels are the one thing not screenshot-verified this environment (no websocket dock
+  path; OBS on a separate macOS Space; pyobjc/Quartz window-enum didn't find it). Standard
+  QPainter + QColor against matching Qt → high confidence; honest residual SYNTHOBS-DOCKSHOT.
