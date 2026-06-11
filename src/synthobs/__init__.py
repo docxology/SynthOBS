@@ -61,6 +61,18 @@ from .layout import (
     recursive_subdivision,
 )
 from .swo import SolarWavefieldOscillator, phase_vector
+from .history import Sample, TelemetryHistory
+from .provenance import (
+    ProvenanceError,
+    TelemetryRecord,
+    build_payload,
+    canonical_bytes,
+    embed_lsb,
+    extract_lsb,
+    provenance_digest,
+    short_signature,
+    verify_payload,
+)
 from .telemetry import (
     DEFAULT_MAX_AGE_S,
     NOAA_SOLAR_WIND_URL,
@@ -149,4 +161,17 @@ __all__ = [
     # engine
     "SynthEngine",
     "EngineState",
+    # history / waveform
+    "Sample",
+    "TelemetryHistory",
+    # provenance / steganography
+    "ProvenanceError",
+    "TelemetryRecord",
+    "canonical_bytes",
+    "provenance_digest",
+    "short_signature",
+    "build_payload",
+    "embed_lsb",
+    "extract_lsb",
+    "verify_payload",
 ]

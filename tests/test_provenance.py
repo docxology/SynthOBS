@@ -300,6 +300,38 @@ def test_bool_is_rejected_for_int_fields() -> None:
         TelemetryRecord(**{**base, "sunspots": True})  # type: ignore[arg-type]
 
 
+def test_canonical_bytes_rejects_non_record() -> None:
+    with pytest.raises(ProvenanceError, match="requires a TelemetryRecord"):
+        canonical_bytes(b"not a record")  # type: ignore[arg-type]
+
+
+def test_verify_payload_rejects_non_bytes() -> None:
+    with pytest.raises(ProvenanceError, match="must be bytes"):
+        verify_payload(12345)  # type: ignore[arg-type]
+
+
+def test_verify_payload_accepts_bytearray() -> None:
+    rec = _record()
+    recovered = verify_payload(bytearray(build_payload(rec)))
+    assert short_signature(recovered) == short_signature(rec)
+
+
+def test_extract_buffer_too_small_for_header_raises() -> None:
+    # 1x1 RGBA => 1 blue LSB, cannot hold the 16-bit length prefix.
+    with pytest.raises(ProvenanceError, match="length prefix"):
+        extract_lsb(b"\x00\x00\x00\x00", 1, 1)
+
+
+def test_unpacked_invalid_record_fails_closed() -> None:
+    """A payload whose body decodes to an invalid record fails on verify."""
+    # Hand-build a body with flux = 0 (invalid), recompute a valid checksum so
+    # the tamper check passes and the record validation is what trips.
+    body = struct.pack("<f i f f f I", 0.0, 1, 400.0, 0.5, 0.1, 1_000)
+    checksum = hashlib.sha256(body).digest()[:CHECKSUM_SIZE]
+    with pytest.raises(ProvenanceError, match="flux must be > 0"):
+        verify_payload(body + checksum)
+
+
 def test_record_is_frozen() -> None:
     rec = _record()
     with pytest.raises(Exception):

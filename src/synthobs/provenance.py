@@ -159,7 +159,9 @@ def canonical_bytes(rec: TelemetryRecord) -> bytes:
     :data:`RECORD_SIZE` bytes.
     """
     if not isinstance(rec, TelemetryRecord):
-        raise ProvenanceError(f"canonical_bytes requires a TelemetryRecord, got {rec!r}")
+        raise ProvenanceError(
+            f"canonical_bytes requires a TelemetryRecord, got {rec!r}"
+        )
     return RECORD_STRUCT.pack(
         float(rec.flux),
         int(rec.sunspots),
@@ -173,9 +175,7 @@ def canonical_bytes(rec: TelemetryRecord) -> bytes:
 def _unpack_record(raw: bytes) -> TelemetryRecord:
     """Inverse of :func:`canonical_bytes`. Validates via the constructor."""
     if len(raw) != RECORD_SIZE:
-        raise ProvenanceError(
-            f"record must be {RECORD_SIZE} bytes, got {len(raw)}"
-        )
+        raise ProvenanceError(f"record must be {RECORD_SIZE} bytes, got {len(raw)}")
     flux, sunspots, wind, lock, phase, observed = RECORD_STRUCT.unpack(raw)
     return TelemetryRecord(
         flux=flux,
@@ -213,9 +213,7 @@ def _blue_capacity(width: int, height: int) -> int:
     return width * height
 
 
-def embed_lsb(
-    rgba: bytearray, width: int, height: int, payload: bytes
-) -> None:
+def embed_lsb(rgba: bytearray, width: int, height: int, payload: bytes) -> None:
     """Embed a length-prefixed payload into the blue-channel LSBs, in place.
 
     The buffer is row-major RGBA, 4 bytes per pixel; the blue byte is at
@@ -302,7 +300,9 @@ def extract_lsb(rgba: bytes, width: int, height: int) -> bytes:
         raise ProvenanceError(
             f"declared payload length {length} exceeds buffer capacity"
         )
-    payload = _read_blue_bits(rgba, LENGTH_PREFIX_SIZE, length * 8)
+    # The length prefix occupies LENGTH_PREFIX_SIZE*8 bits = that many pixels
+    # (one bit per blue LSB), so the payload begins at that pixel offset.
+    payload = _read_blue_bits(rgba, LENGTH_PREFIX_SIZE * 8, length * 8)
     return payload
 
 
@@ -325,7 +325,5 @@ def verify_payload(payload: bytes) -> TelemetryRecord:
     stored = bytes(payload[RECORD_SIZE:])
     expected = hashlib.sha256(body).digest()[:CHECKSUM_SIZE]
     if stored != expected:
-        raise ProvenanceError(
-            "checksum mismatch — payload is corrupt or tampered"
-        )
+        raise ProvenanceError("checksum mismatch — payload is corrupt or tampered")
     return _unpack_record(body)
