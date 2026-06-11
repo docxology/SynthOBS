@@ -879,6 +879,183 @@ void fractisynth_get_state(struct fractisynth_dock_state *out)
 }
 
 /* ================================================================== */
+/*  VIDEO FILTER — fractisynth_inspector (zoom loupe / packet sniffer)  */
+/* ================================================================== */
+/*
+ * A "frame within the frame": passes the source through and overlays a magnified
+ * inset of a chosen sub-region (the loupe) plus a box marking what is inspected —
+ * zoom into the stream like a packet sniffer. Uses fractisynth_inspector.effect.
+ */
+typedef struct fractisynth_inspector_data {
+	obs_source_t *context;
+	float zoom;
+	float region_x, region_y;
+	float inset_size;
+	int inset_corner; /* 0 TL, 1 TR, 2 BL, 3 BR */
+	float show_grid, show_cross, show_box;
+	gs_effect_t *effect;
+	gs_eparam_t *p_zoom, *p_region, *p_inset_pos, *p_inset_size, *p_uv_size;
+	gs_eparam_t *p_show_grid, *p_show_cross, *p_show_box, *p_lock_strength;
+} fractisynth_inspector_data_t;
+
+static const char *fpi_get_name(void *u)
+{
+	UNUSED_PARAMETER(u);
+	return obs_module_text("FractiSynthInspector");
+}
+
+static void fpi_update(void *data, obs_data_t *s)
+{
+	fractisynth_inspector_data_t *f = data;
+	f->zoom = (float)obs_data_get_double(s, "zoom");
+	f->region_x = (float)obs_data_get_double(s, "region_x");
+	f->region_y = (float)obs_data_get_double(s, "region_y");
+	f->inset_size = (float)obs_data_get_double(s, "inset_size");
+	f->inset_corner = (int)obs_data_get_int(s, "inset_corner");
+	f->show_grid = obs_data_get_bool(s, "show_grid") ? 1.0f : 0.0f;
+	f->show_cross = obs_data_get_bool(s, "show_cross") ? 1.0f : 0.0f;
+	f->show_box = obs_data_get_bool(s, "show_box") ? 1.0f : 0.0f;
+}
+
+static void *fpi_create(obs_data_t *settings, obs_source_t *context)
+{
+	fractisynth_inspector_data_t *f = bzalloc(sizeof(*f));
+	f->context = context;
+	char *path = obs_module_file("fractisynth_inspector.effect");
+	if (path) {
+		obs_enter_graphics();
+		char *err = NULL;
+		f->effect = gs_effect_create_from_file(path, &err);
+		obs_leave_graphics();
+		if (!f->effect)
+			blog(LOG_WARNING, "[fractisynth] inspector effect load failed: %s",
+			     err ? err : "(unknown)");
+		bfree(err);
+		bfree(path);
+	}
+	if (f->effect) {
+		f->p_zoom = gs_effect_get_param_by_name(f->effect, "zoom");
+		f->p_region = gs_effect_get_param_by_name(f->effect, "region");
+		f->p_inset_pos = gs_effect_get_param_by_name(f->effect, "inset_pos");
+		f->p_inset_size = gs_effect_get_param_by_name(f->effect, "inset_size");
+		f->p_uv_size = gs_effect_get_param_by_name(f->effect, "uv_size");
+		f->p_show_grid = gs_effect_get_param_by_name(f->effect, "show_grid");
+		f->p_show_cross = gs_effect_get_param_by_name(f->effect, "show_cross");
+		f->p_show_box = gs_effect_get_param_by_name(f->effect, "show_box");
+		f->p_lock_strength = gs_effect_get_param_by_name(f->effect, "lock_strength");
+	}
+	fpi_update(f, settings);
+	return f;
+}
+
+static void fpi_destroy(void *data)
+{
+	fractisynth_inspector_data_t *f = data;
+	if (f->effect) {
+		obs_enter_graphics();
+		gs_effect_destroy(f->effect);
+		obs_leave_graphics();
+	}
+	bfree(f);
+}
+
+static void fpi_defaults(obs_data_t *s)
+{
+	obs_data_set_default_double(s, "zoom", 4.0);
+	obs_data_set_default_double(s, "region_x", 0.5);
+	obs_data_set_default_double(s, "region_y", 0.5);
+	obs_data_set_default_double(s, "inset_size", 0.33);
+	obs_data_set_default_int(s, "inset_corner", 3);
+	obs_data_set_default_bool(s, "show_grid", true);
+	obs_data_set_default_bool(s, "show_cross", true);
+	obs_data_set_default_bool(s, "show_box", true);
+}
+
+static obs_properties_t *fpi_properties(void *data)
+{
+	UNUSED_PARAMETER(data);
+	obs_properties_t *p = obs_properties_create();
+	obs_properties_add_float_slider(p, "zoom", obs_module_text("InspectorZoom"), 1.5, 16.0, 0.5);
+	obs_properties_add_float_slider(p, "region_x", obs_module_text("InspectorRegionX"), 0.0, 1.0, 0.01);
+	obs_properties_add_float_slider(p, "region_y", obs_module_text("InspectorRegionY"), 0.0, 1.0, 0.01);
+	obs_properties_add_float_slider(p, "inset_size", obs_module_text("InspectorInsetSize"), 0.15, 0.6, 0.01);
+	obs_property_t *corner = obs_properties_add_list(p, "inset_corner",
+		obs_module_text("InspectorCorner"), OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
+	obs_property_list_add_int(corner, obs_module_text("CornerTL"), 0);
+	obs_property_list_add_int(corner, obs_module_text("CornerTR"), 1);
+	obs_property_list_add_int(corner, obs_module_text("CornerBL"), 2);
+	obs_property_list_add_int(corner, obs_module_text("CornerBR"), 3);
+	obs_properties_add_bool(p, "show_box", obs_module_text("InspectorShowBox"));
+	obs_properties_add_bool(p, "show_grid", obs_module_text("InspectorShowGrid"));
+	obs_properties_add_bool(p, "show_cross", obs_module_text("InspectorShowCross"));
+	return p;
+}
+
+static void fpi_video_render(void *data, gs_effect_t *effect)
+{
+	fractisynth_inspector_data_t *f = data;
+	if (!f->effect) {
+		obs_source_skip_video_filter(f->context);
+		return;
+	}
+	obs_source_t *target = obs_filter_get_target(f->context);
+	uint32_t w = target ? obs_source_get_base_width(target) : 0;
+	uint32_t h = target ? obs_source_get_base_height(target) : 0;
+	if (!obs_source_process_filter_begin(f->context, GS_RGBA, OBS_ALLOW_DIRECT_RENDERING)) {
+		obs_source_skip_video_filter(f->context);
+		return;
+	}
+	float aspect = h > 0 ? (float)w / (float)h : 1.0f;
+	float sz = f->inset_size, szh = sz * aspect, m = 0.03f;
+	float ix = (f->inset_corner == 1 || f->inset_corner == 3) ? (1.0f - sz - m) : m;
+	float iy = (f->inset_corner == 2 || f->inset_corner == 3) ? (1.0f - szh - m) : m;
+	float lock = 0.0f, wind = 0.0f;
+	gateway_read(&lock, &wind);
+	if (f->p_zoom)
+		gs_effect_set_float(f->p_zoom, f->zoom);
+	if (f->p_region) {
+		struct vec2 r;
+		vec2_set(&r, f->region_x, f->region_y);
+		gs_effect_set_vec2(f->p_region, &r);
+	}
+	if (f->p_inset_pos) {
+		struct vec2 ip;
+		vec2_set(&ip, ix, iy);
+		gs_effect_set_vec2(f->p_inset_pos, &ip);
+	}
+	if (f->p_inset_size)
+		gs_effect_set_float(f->p_inset_size, sz);
+	if (f->p_uv_size) {
+		struct vec2 s;
+		vec2_set(&s, (float)w, (float)h);
+		gs_effect_set_vec2(f->p_uv_size, &s);
+	}
+	if (f->p_show_grid)
+		gs_effect_set_float(f->p_show_grid, f->show_grid);
+	if (f->p_show_cross)
+		gs_effect_set_float(f->p_show_cross, f->show_cross);
+	if (f->p_show_box)
+		gs_effect_set_float(f->p_show_box, f->show_box);
+	if (f->p_lock_strength)
+		gs_effect_set_float(f->p_lock_strength, lock);
+	obs_source_process_filter_end(f->context, f->effect, w, h);
+	UNUSED_PARAMETER(effect);
+}
+
+static struct obs_source_info fractisynth_inspector_filter = {
+	.id = "fractisynth_inspector",
+	.type = OBS_SOURCE_TYPE_FILTER,
+	.output_flags = OBS_SOURCE_VIDEO,
+	.get_name = fpi_get_name,
+	.create = fpi_create,
+	.destroy = fpi_destroy,
+	.update = fpi_update,
+	.get_defaults = fpi_defaults,
+	.get_properties = fpi_properties,
+	.video_render = fpi_video_render,
+};
+
+/* ================================================================== */
 /*  INPUT SOURCE — fractisynth_console (the addable, draggable pane)    */
 /* ================================================================== */
 /*
@@ -1206,6 +1383,7 @@ bool obs_module_load(void)
 {
 	obs_register_source(&fractisynth_video_filter);
 	obs_register_source(&fractisynth_audio_filter);
+	obs_register_source(&fractisynth_inspector_filter);
 	obs_register_source(&fractisynth_console_source);
 #ifdef HAVE_CURL
 	/* curl_global_init is NOT thread-safe — call it once here, on the OBS

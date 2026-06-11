@@ -1,0 +1,102 @@
+/*
+ * FractiSynth Zoom Inspector — a "frame within the frame" / packet-sniffer loupe.
+ *
+ * A video FILTER for any source: it passes the source through and overlays a
+ * magnified inset of a chosen sub-region (the loupe), plus a box on the source
+ * marking what is being inspected — zoom into the stream like a packet sniffer
+ * inspecting a flow. The loupe is framed in the φ / robin's-egg aesthetic with an
+ * optional golden grid and crosshair, and a live lock-strength accent.
+ */
+
+uniform float4x4 ViewProj;
+uniform texture2d image;
+
+uniform float zoom;          /* magnification factor */
+uniform float2 region;       /* centre of the inspected region (0..1) */
+uniform float2 inset_pos;    /* top-left of the loupe inset (0..1) */
+uniform float inset_size;    /* loupe width as a fraction of the frame */
+uniform float2 uv_size;      /* source size in pixels */
+uniform float show_grid;
+uniform float show_cross;
+uniform float show_box;
+uniform float lock_strength; /* live gateway lock → accent intensity */
+
+#define INV_PHI 0.61803398875
+
+sampler_state samp { Filter = Linear; AddressU = Clamp; AddressV = Clamp; };
+
+struct VertData { float4 pos : POSITION; float2 uv : TEXCOORD0; };
+
+VertData VSDefault(VertData v_in)
+{
+	VertData o;
+	o.pos = mul(float4(v_in.pos.xyz, 1.0), ViewProj);
+	o.uv = v_in.uv;
+	return o;
+}
+
+float box_edge(float2 p, float2 lo, float2 hi, float w)
+{
+	float inside = step(lo.x, p.x) * step(p.x, hi.x) * step(lo.y, p.y) * step(p.y, hi.y);
+	float innerx = step(lo.x + w, p.x) * step(p.x, hi.x - w);
+	float innery = step(lo.y + w, p.y) * step(p.y, hi.y - w);
+	return inside * (1.0 - innerx * innery); /* 1 on the border ring */
+}
+
+float4 PSInspector(VertData v_in) : TARGET
+{
+	float2 uv = v_in.uv;
+	float4 base = image.Sample(samp, uv);
+
+	float aspect = uv_size.x / max(uv_size.y, 1.0);
+	float3 ROBIN = float3(0.227, 0.686, 0.663);
+	float3 MARI = float3(0.910, 0.639, 0.239);
+	float lw = 2.0 / uv_size.x;
+
+	/* loupe inset rect (square in pixels: height = width * aspect in uv) */
+	float2 lo = inset_pos;
+	float2 hi = inset_pos + float2(inset_size, inset_size * aspect);
+
+	/* source-region box: what the loupe is magnifying (size 1/zoom around region) */
+	if (show_box > 0.5) {
+		float2 hsz = float2(0.5 / zoom, 0.5 / zoom * aspect);
+		float e = box_edge(uv, region - hsz, region + hsz, lw);
+		base.rgb = lerp(base.rgb, MARI, e);
+	}
+
+	/* inside the loupe? */
+	if (uv.x >= lo.x && uv.x <= hi.x && uv.y >= lo.y && uv.y <= hi.y) {
+		float2 rel = (uv - lo) / (hi - lo);            /* 0..1 within the loupe */
+		float2 src = region + (rel - 0.5) / zoom;       /* magnified source coord */
+		float3 mag = image.Sample(samp, saturate(src)).rgb;
+
+		/* golden grid inside the loupe */
+		if (show_grid > 0.5) {
+			float g = step(abs(rel.x - INV_PHI), lw * 6.0)
+				+ step(abs(rel.y - INV_PHI), lw * 6.0)
+				+ step(abs(rel.x - (1.0 - INV_PHI)), lw * 6.0)
+				+ step(abs(rel.y - (1.0 - INV_PHI)), lw * 6.0);
+			mag = lerp(mag, ROBIN, saturate(g) * 0.35);
+		}
+		/* crosshair on the region centre */
+		if (show_cross > 0.5) {
+			float c = step(abs(rel.x - 0.5), lw * 3.0) + step(abs(rel.y - 0.5), lw * 3.0);
+			mag = lerp(mag, MARI, saturate(c) * 0.6);
+		}
+		/* loupe border, brightening with the live lock */
+		float border = box_edge(uv, lo, hi, lw * 3.0);
+		mag = lerp(mag, lerp(MARI, ROBIN, clamp(lock_strength, 0.0, 1.0)), border);
+		return float4(mag, 1.0);
+	}
+
+	return base;
+}
+
+technique Draw
+{
+	pass
+	{
+		vertex_shader = VSDefault(v_in);
+		pixel_shader  = PSInspector(v_in);
+	}
+}

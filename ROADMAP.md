@@ -9,14 +9,14 @@
 
 Status legend: ✅ shipped · 🚧 in progress · 📋 planned
 
-## Phase A — Trippier + more informative visuals  🚧
+## Phase A — Trippier + more informative visuals  ✅(core)
 - ✅ Live EGS Gateway console (grid, lock ring, φ-spiral, fringes, hex, core)
 - ✅ Themes (Observatory / Laboratory / Expedition) + element toggles + intensity
-- 🚧 **Synthetic Feed modes** — multiple generative visualizations selectable on
+- ✅ **Synthetic Feed modes** — multiple generative visualizations selectable on
   the console source (Wavefield / Hex Tunnel / Interference Field / Spectral
   Rings / Spiral Drift), each driven by live telemetry. ("synthetic streams on
   demand" + the trippy factor.)
-- 🚧 Chromatic shimmer + optional hue-cycle, telemetry-reactive glow/motion.
+- ✅ Chromatic shimmer + optional hue-cycle, telemetry-reactive glow/motion.
 - 📋 In-shader telemetry HUD (numeric flux/wind/lock burned into the overlay so
   the visual is self-documenting on a recorded stream).
 
@@ -25,8 +25,8 @@ Status legend: ✅ shipped · 🚧 in progress · 📋 planned
   per-row visibility, gauge style, decimal precision, pause/freeze.
 - 📋 Dock theme follows the source theme.
 
-## Phase C — Overlay inspector: "frame within the frame" / packet-sniffer  📋
-- 📋 A **Zoom Inspector** video filter: magnify a configurable sub-region of the
+## Phase C — Overlay inspector: "frame within the frame" / packet-sniffer  ✅
+- ✅ A **Zoom Inspector** video filter: magnify a configurable sub-region of the
   source into an inset loupe, with the φ-grid + crosshair + per-region readout —
   zoom into the stream like a packet sniffer inspecting a flow.
 - 📋 Follow-mouse or fixed-region modes; pixel/region telemetry annotation.
