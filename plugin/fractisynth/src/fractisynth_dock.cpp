@@ -77,25 +77,67 @@ public:
 	explicit FractiSynthDock(QWidget *parent = nullptr) : QWidget(parent)
 	{
 		setObjectName(QStringLiteral("FractiSynthDock"));
-		setMinimumSize(232, 372);
-		setCursor(Qt::PointingHandCursor);
-		setToolTip(QStringLiteral("Click to cycle display: Full · Compact · Gauge"));
+		setMinimumSize(232, 392);
+		setMouseTracking(true);
 		startTimer(120); /* ~8 Hz; timerEvent needs no moc */
 	}
 
 protected:
-	int m_mode = 0; /* 0 Full · 1 Compact · 2 Gauge-only — cycled by click (moc-free) */
+	int m_mode = 0;       /* 0 Full · 1 Compact · 2 Gauge-only */
+	bool m_freeze = false; /* hold the last snapshot */
+	int m_hover = -1;     /* hovered button index (0-2 mode, 3 freeze) */
+	QRectF m_btn[4];      /* button hit-rects, laid out in paintEvent */
+	fractisynth_dock_state m_cached{};
+	bool m_have_cached = false;
 
 	void timerEvent(QTimerEvent *) override { update(); }
 
-	/* Click anywhere cycles the display density — the dock's in-place config. */
+	int hit(const QPointF &pt) const
+	{
+		for (int i = 0; i < 4; ++i)
+			if (m_btn[i].contains(pt))
+				return i;
+		return -1;
+	}
+
+	/* Real buttons: 3 display-mode buttons + a Freeze toggle — the dock as an
+	 * interactive config pane (moc-free; paintEvent lays out the hit-rects). */
 	void mousePressEvent(QMouseEvent *e) override
 	{
 		if (e->button() == Qt::LeftButton) {
-			m_mode = (m_mode + 1) % 3;
+			int b = hit(e->position());
+			if (b >= 0 && b <= 2)
+				m_mode = b;
+			else if (b == 3)
+				m_freeze = !m_freeze;
 			update();
 		}
 		QWidget::mousePressEvent(e);
+	}
+
+	void mouseMoveEvent(QMouseEvent *e) override
+	{
+		int h = hit(e->position());
+		if (h != m_hover) {
+			m_hover = h;
+			setCursor(h >= 0 ? Qt::PointingHandCursor : Qt::ArrowCursor);
+			update();
+		}
+		QWidget::mouseMoveEvent(e);
+	}
+
+	/* draw one button; returns nothing — rect already stored in m_btn[idx] */
+	void button(QPainter &p, int idx, const QString &label, bool on)
+	{
+		QRectF r = m_btn[idx];
+		QColor fill = on ? ROBIN : QColor(48, 47, 40);
+		if (m_hover == idx)
+			fill = fill.lighter(125);
+		p.setPen(Qt::NoPen);
+		p.setBrush(fill);
+		p.drawRoundedRect(r, 4, 4);
+		p.setPen(on ? CHARCOAL : LINEN);
+		p.drawText(r, Qt::AlignCenter, label);
 	}
 
 	/* one "label .... value" row, value right-aligned + coloured */
@@ -113,7 +155,13 @@ protected:
 	void paintEvent(QPaintEvent *) override
 	{
 		fractisynth_dock_state st;
-		fractisynth_get_state(&st);
+		if (m_freeze && m_have_cached) {
+			st = m_cached; /* hold the snapshot */
+		} else {
+			fractisynth_get_state(&st);
+			m_cached = st;
+			m_have_cached = true;
+		}
 
 		QPainter p(this);
 		p.setRenderHint(QPainter::Antialiasing, true);
@@ -216,11 +264,19 @@ protected:
 		}
 		/* m_mode == 2 (Gauge-only): no rows — just the gauge + lock%. */
 
-		/* mode hint */
-		const char *mn = m_mode == 0 ? "full" : m_mode == 1 ? "compact" : "gauge";
-		p.setPen(BONE);
-		p.drawText(QRectF(12, height() - 18, w - 24, 14),
-			   Qt::AlignRight | Qt::AlignVCenter, fs("\xe2\x97\x89 %s \xc2\xb7 click to cycle", mn));
+		/* ---- interactive button row (the dock's config pane) ---- */
+		const double bh = 22, by = height() - bh - 8, gap = 5;
+		const double bw = (w - 24 - 3 * gap) / 4.0;
+		for (int i = 0; i < 4; ++i)
+			m_btn[i] = QRectF(12 + i * (bw + gap), by, bw, bh);
+		QFont bf = p.font();
+		bf.setPointSizeF(bf.pointSizeF() - 1.0);
+		p.setFont(bf);
+		button(p, 0, fs("Full"), m_mode == 0);
+		button(p, 1, fs("Compact"), m_mode == 1);
+		button(p, 2, fs("Gauge"), m_mode == 2);
+		button(p, 3, m_freeze ? fs("\xe2\x96\xb6 Live") : fs("\xe2\x9d\x9a Hold"), m_freeze);
+		p.setFont(body);
 
 		p.setPen(QColor(58, 175, 169, 110));
 		double gx = 12 + (w - 24) * 0.618;
