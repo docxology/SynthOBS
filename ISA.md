@@ -6,8 +6,8 @@ phase: complete
 progress: 150/150
 mode: ALGORITHM
 started: 2026-06-10
-updated: 2026-06-10
-iteration: 7
+updated: 2026-06-12
+iteration: 10
 ---
 
 # SynthOBS / FractiSynth — Ideal State Articulation
@@ -599,3 +599,74 @@ into the user's OBS plugin directory.
   registration warnings are expected in that no-install mode. obs-websocket screenshot
   capture was not exposed because the current OBS profile has the websocket server
   disabled; no OBS plugin-directory install was performed.
+
+## Iteration 10 — Live-functional verification + cross-vendor fail-closed hardening (2026-06-12)
+
+User: "comprehensively validate and improve and develop the real functional SynthOBS"
+(`/workflows`, E5). Three-verb sweep: validate every surface, fix what's real, develop
+the discipline forward.
+
+### What this iteration proved/closed
+- **SYNTHOBS-VISUAL-1 CLOSED (open since iter-2).** Enabled obs-websocket (was disabled —
+  the exact blocker the iter-9 note named) and drove a real OBS 32.1.2 process via
+  `scripts/obs_ws_probe.py` (v5 auth + GetSourceScreenshot of the SCENE). Captured every
+  feed rendering with live NOAA data: Wavefield / Hex Tunnel / Interference / Spectral /
+  Spiral, the Telemetry HUD (FLUX 164 SFU / WIND 587.7 km/s / LOCK / GATE CONSTRUCTIVE /
+  PROVENANCE), the Solar Graph (live Kp), and the `fractisynth_video` + `fractisynth_inspector`
+  loupe filters on a real color source. Gate honored: `.ips` crash-count + OBS-alive.
+- **Build reproducibility:** clean `rm -rf build && ./build.sh` from scratch → compiles
+  fractisynth.c + dock, Mach-O arm64, signed.
+
+### Criteria (iteration 10)
+- [x] ISC-145: live websocket scene screenshots show each feed mode rendering non-black with
+  live telemetry (≥330k b64 chars; visually confirmed rings/spiral/hex/HUD/graph).
+- [x] ISC-146: fail-closed boundary leak — telemetry parsers used `x <= 0.0`, which accepts
+  NaN/Inf (NaN compares False; json.loads accepts NaN/Infinity). Added `math.isfinite`
+  guards to `telemetry_from_payload`, `parse_noaa_f107_flux`, `parse_noaa_solar_wind`
+  (+ density→None).
+- [x] ISC-147: `interaction.resolve_target_action` now fails closed on a non-finite click
+  coordinate (was: ValueError crash / poisoned NaN marker).
+- [x] ISC-148: obspython `/calibrate` adapter honors the engine's fail-closed bool instead
+  of formatting a possibly-None phase_vector (SYNTHOBS-CONSOLE-1).
+- [x] ISC-149: C HUD provenance is gated on `swo_calibrated && gateway_locked && flux>0`
+  (a readiness gate, intentionally stricter than the Python constructor) and prints an
+  explicit `PROVENANCE -- ACQUIRING` marker pre-lock — fail visible-but-marked, never
+  invisible (PARITY-OBS-1).
+- [x] ISC-150: inspector shader hardened — `lw = 2.0/max(uv_size.x,1.0)` (no +Inf flood on
+  a 0-width target) + loupe inset clamped to the frame (INSP-DIV-1, INSP-LOUPE-CLIP-1).
+- [x] ISC-151: **Forge cross-vendor caught two leaks of the SAME class this pass missed** —
+  the series parsers. `parse_noaa_plasma_series` gated only speed (NaN/Inf density/temp rode
+  into the sparkline); `parse_noaa_xray_flux` accepted `+Inf` (`+Inf > 0` is True). Fixed in
+  Python AND the C mirrors (`parse_plasma_series`/`parse_xray_series`). (H1/H2)
+- [x] ISC-152: **Forge also caught the new fuzz harness was green-by-construction** — its
+  JSON payloads used `%r` → lowercase `nan`/`inf` which json.loads rejects at PARSE time, not
+  via the guard under test. Rebuilt to pass parsed objects + assert the refusal REASON names
+  finiteness + added the load-bearing +Inf/NaN-density cells + negative controls.
+- [x] ISC-153: `tests/test_fail_closed_fuzz.py` — one extensible battery sweeps all 9
+  external-ingestion boundaries × {NaN, +Inf, -Inf}; adding a boundary is one `Boundary(...)`.
+- [x] ISC-154: Anti: no regression — full suite green, coverage up, C plugin rebuilds clean
+  and live-reloads with 0 crash reports, HUD + Solar Graph still render.
+
+### Iteration-10 verification
+- Python gate: `1075 passed` (+51 over iter-9's 1024), `98.11%` coverage (up from 97.86%);
+  `interaction.py` 100%, `telemetry.py` 96.99%. `ruff check` clean.
+- Cross-vendor: Advisor (Inference.ts) ran at the commitment boundary — flagged the
+  provenance gate wording (readiness vs `flux>0` parity) and the one-shot-vs-CI nature of the
+  live check; both addressed. Forge (GPT-5.4, read-only, 280s) ran on the fix diff and
+  independently reproduced the set + caught H1/H2 + the green-by-construction harness defect —
+  all fixed, then re-verified green. SYNTHOBS-FORGE-GATEWAY-1 (cross-vendor C audit) now CLOSED.
+- Live OBS: `2026-06-12 11-12-34.txt` + later reload → `[fractisynth] loaded`, dock registered,
+  all sources instantiated; 0 `.ips` in the reload window; HUD shows `PROVENANCE ed1dc4b2
+  LSB-EMBEDDED` (locked) and the Solar Graph shows live `KP 2.00`.
+
+### Decisions (iteration 10)
+- **The live-screenshot check is a MANUAL gate, not a CI criterion** (Advisor point): it needs
+  a live OBS process + the websocket server enabled. `scripts/obs_ws_probe.py` makes it
+  repeatable, but it is not wired into the test suite. Recorded honestly, not claimed as a
+  standing regression guard. Follow-up `SYNTHOBS-OBS-CI`: headless-OBS smoke if/when available.
+- **obs-websocket `server_enabled` was flipped false→true** in the user's OBS profile to enable
+  capture (reversible; password was already set). Left enabled; noted for the user.
+- The dominant lesson: the project's #1 principle (fail closed) had NaN/Inf holes across all
+  three layers because guards used `x <= 0.0` not `math.isfinite`; the 1024-test suite was blind
+  because no test injected NaN/Inf. `provenance.py` was the lone gold standard (isfinite + >0).
+  The fuzz harness generalizes that standard to the whole boundary surface.

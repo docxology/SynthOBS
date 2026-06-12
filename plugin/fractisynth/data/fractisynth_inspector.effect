@@ -51,11 +51,16 @@ float4 PSInspector(VertData v_in) : TARGET
 	float aspect = uv_size.x / max(uv_size.y, 1.0);
 	float3 ROBIN = float3(0.227, 0.686, 0.663);
 	float3 MARI = float3(0.910, 0.639, 0.239);
-	float lw = 2.0 / uv_size.x;
+	/* max(...,1.0): a not-yet-sized target can report base width 0 → uv_size.x=0 →
+	 * lw=+Inf → step(small,Inf)=1 everywhere → the loupe floods with grid tint.
+	 * Clamp so a single transient 0-size frame degrades gracefully, not catastrophically. */
+	float lw = 2.0 / max(uv_size.x, 1.0);
 
-	/* loupe inset rect (square in pixels: height = width * aspect in uv) */
+	/* loupe inset rect (square in pixels: height = width * aspect in uv).
+	 * Clamp the far corner to the frame so a large inset_size on a wide aspect
+	 * keeps the magnified loupe fully on-screen instead of running off the bottom. */
 	float2 lo = inset_pos;
-	float2 hi = inset_pos + float2(inset_size, inset_size * aspect);
+	float2 hi = min(inset_pos + float2(inset_size, inset_size * aspect), float2(1.0, 1.0));
 
 	/* source-region box: what the loupe is magnifying (size 1/zoom around region) */
 	if (show_box > 0.5) {

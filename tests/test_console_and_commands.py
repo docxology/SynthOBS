@@ -157,3 +157,33 @@ def test_unparseable_quotes_fail_closed() -> None:
 def test_transducer_ratio_must_be_numeric() -> None:
     with pytest.raises(CommandError, match="ratio must be a float"):
         parse("/transducer bind cam --ratio=not-a-number")
+
+
+# --- obspython adapter fail-closed regression (SYNTHOBS-CONSOLE-1) ------------
+def _load_console_module():
+    """Import the plugin's obspython adapter by path (it lives outside the package)."""
+    import importlib.util
+    from pathlib import Path
+
+    script = Path(__file__).resolve().parents[1] / "plugin" / "synthobs" / "synthobs_console.py"
+    spec = importlib.util.spec_from_file_location("synthobs_console_under_test", script)
+    assert spec and spec.loader
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_console_calibrate_happy_path_reports_vector() -> None:
+    mod = _load_console_module()
+    out = mod.apply_command("/swo calibrate --flux=130 --spots=3")
+    assert out.startswith("SWO calibrated: phase_vector=")
+
+
+def test_console_calibrate_overflow_fails_closed_not_crash() -> None:
+    # A finite-but-extreme flux passes the grammar parser, but flux*phi overflows to
+    # inf, so the SWO refuses it (update→False, phase_vector→None). The adapter must
+    # honor that bool and return a held message, NOT crash formatting None as :.4f.
+    mod = _load_console_module()
+    out = mod.apply_command("/swo calibrate --flux=1.5e308 --spots=1")
+    assert "held" in out.lower()
+    assert "refused" in out.lower()

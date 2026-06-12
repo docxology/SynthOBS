@@ -7,6 +7,7 @@ drops in the remaining canvas. Invalid input fails closed to ``TargetAction.NONE
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from enum import Enum, IntEnum
 
@@ -87,6 +88,13 @@ def resolve_target_action(
     - left 7% below the tabs is a layer-toggle rail;
     - the remaining area drops a normalized marker.
     """
+
+    # Fail closed on a non-finite click coordinate FIRST: every comparison against
+    # NaN is False, so a NaN x/y would slip past the bounds guard below and either
+    # raise ValueError in int(x/width*len(Feed)) or emit a MARKER carrying a poisoned
+    # NaN coordinate. Mirrors the math.isfinite guards in swo/gateway/history.
+    if not (math.isfinite(x) and math.isfinite(y)):
+        return _none()
 
     if (
         button != "left"

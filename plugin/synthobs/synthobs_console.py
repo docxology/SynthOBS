@@ -81,8 +81,15 @@ def apply_command(line: str) -> str:
             source=f"manual:{cmd.target or 'override'}",
             observed_at=datetime.now(timezone.utc),
         )
-        ENGINE.update(telemetry)
-        return f"SWO calibrated: phase_vector={ENGINE.phase_vector:.4f}"
+        # Honor the engine's authoritative fail-closed bool. A finite-but-extreme
+        # flux (e.g. flux·φ overflowing to inf) passes the grammar parser but is
+        # correctly REFUSED by the SWO (update→False, phase_vector stays None);
+        # formatting None as :.4f would crash the OBS command handler.
+        ok = ENGINE.update(telemetry)
+        vector = ENGINE.phase_vector
+        if ok and vector is not None:
+            return f"SWO calibrated: phase_vector={vector:.4f}"
+        return "SWO held: telemetry refused (non-finite vector) — last verified vector retained"
     if isinstance(cmd, DashboardCommand):
         plan = dashboard_plan(cmd.name)
         if cmd.action == "build" and _IN_OBS:

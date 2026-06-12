@@ -69,6 +69,14 @@ def test_marker_drop_uses_normalized_canvas_coordinates() -> None:
         (10, 10, 0, 100, "left"),
         (10, 10, 100, 0, "left"),
         (10, 10, 100, 100, "right"),
+        # non-finite coordinates: every comparison against NaN is False, so these
+        # would slip past the bounds guard and either raise in int(x/w*len(Feed))
+        # (tab row) or emit a MARKER carrying a poisoned NaN — both must fail closed.
+        (float("nan"), 10, 100, 100, "left"),
+        (10, float("nan"), 100, 100, "left"),
+        (float("inf"), 10, 100, 100, "left"),
+        (10, float("inf"), 100, 100, "left"),
+        (float("nan"), float("nan"), 100, 100, "left"),
     ],
 )
 def test_invalid_or_non_left_clicks_fail_closed(
@@ -79,6 +87,20 @@ def test_invalid_or_non_left_clicks_fail_closed(
     assert hit.feed is None
     assert hit.layer_index is None
     assert hit.marker is None
+
+
+def test_nan_click_in_marker_region_does_not_poison_marker() -> None:
+    # A NaN landing in the marker area (below tabs, right of the rail) must NOT
+    # return a MARKER whose normalized coordinate is NaN — it must fail closed.
+    import math
+
+    hit = resolve_target_action(float("nan"), float("nan"), 1000, 800, layer_count=0)
+    assert hit.action is TargetAction.NONE
+    assert hit.marker is None
+    # and a finite marker still works (the guard didn't over-reject)
+    ok = resolve_target_action(750, 500, 1000, 800, layer_count=0)
+    assert ok.action is TargetAction.MARKER
+    assert ok.marker is not None and all(math.isfinite(c) for c in ok.marker)
 
 
 def test_dashboard_plan_is_deterministic_and_normalized() -> None:

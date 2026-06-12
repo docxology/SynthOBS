@@ -64,3 +64,37 @@ Status legend: ✅ shipped · 🚧 in progress · 📋 planned
 - ✅ Telemetry HUD waveforms now plot the real NOAA series (wind/density), not held values.
 - ✅ More metrics: GOES X-ray flux (log-transformed) and planetary Kp index.
 - ✅ Time-axis labels: -2H for plasma, -6H for X-ray, dynamic minute horizon for Kp, all ending at NOW.
+
+## Phase G — Live-functional verification + fail-closed hardening  ✅ (2026-06-12)
+- ✅ **Live in-scene verification (closes the long-standing SYNTHOBS-VISUAL-1 residual).**
+  Drove a real OBS 32.1.2 process over obs-websocket and screenshotted every feed
+  rendering with live NOAA data: Wavefield / Hex Tunnel / Interference / Spectral /
+  Spiral, the Telemetry HUD (FLUX/WIND/LOCK/GATE/PROVENANCE), the Solar Graph (live
+  Kp), and the `fractisynth_video` + `fractisynth_inspector` (loupe) filters on a real
+  color source. Probe: `scripts/obs_ws_probe.py`. Gate: `.ips` crash-count + OBS-alive,
+  not the load log alone.
+- ✅ **Fail-closed boundary hardening (cross-vendor-audited).** A `<= 0.0` guard
+  silently accepts `NaN`/`Inf` (NaN comparisons are always False; `json.loads` accepts
+  the `NaN`/`Infinity` literals). Fixed the four boundary leaks the green suite missed:
+  telemetry parsers (flux/speed/density), the NaN click-coordinate path
+  (`interaction.resolve_target_action`), the obspython `/calibrate` adapter (now honors
+  the engine's fail-closed bool instead of formatting a `None` vector), and the C HUD
+  provenance block (now gated on `swo_calibrated && gateway_locked` to match Python's
+  `flux>0` precondition — prints `PROVENANCE -- ACQUIRING` pre-lock).
+- ✅ **Inspector shader hardening:** `lw = 2.0 / max(uv_size.x, 1.0)` (no +Inf flood on
+  a 0-width target) and the loupe inset clamped to the frame on wide aspects.
+- ✅ **Fail-closed fuzz harness** (`tests/test_fail_closed_fuzz.py`): one extensible
+  battery sweeps every external-ingestion boundary with `NaN`/`±Inf`; adding a boundary
+  is one `Boundary(...)` entry. +43 regression tests; suite now 1067 passing / 97.88%.
+
+## Phase H — Forward candidates (kill-gated; principal to direct)  📋
+- 📋 Audio-reactive feeds — bind the φ soft-limiter's RMS/peak to the console shader
+  uniforms so the visuals breathe with the stream audio. *Kill-gate:* prototype the
+  audio-tap on one feed and live-screenshot a visible difference before wiring all feeds.
+- 📋 Provenance-verify tool — extract + verify the LSB-embedded HUD signature.
+  *Kill-gate:* first confirm the stego strip survives OBS compositing/websocket rescale
+  on a real captured frame (it likely does NOT at native row-0 — may need a render-target
+  readback path, so this is gated, not assumed).
+- 📋 Scene "fit-to-canvas" helper for the HUD/Graph sources (they render at base size).
+- 📋 Cross-platform live verification — the websocket probe is OS-agnostic; wire it into
+  a Linux/Windows OBS CI smoke once a headless OBS target exists.

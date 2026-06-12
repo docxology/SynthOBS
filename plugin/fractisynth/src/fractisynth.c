@@ -543,7 +543,10 @@ static int parse_plasma_series(const char *json, float *density, float *speed, f
 				v[t] = strtof(q, NULL); /* "null"/empty -> 0 */
 			q = qe + 1;
 		}
-		if (ok && v[2] > 0.0f) { /* require a real speed */
+		/* require a real speed AND finite density/temp: strtof("nan"/"inf") rides
+		 * past a bare >0 gate (NaN<=0 and Inf<=0 are both false) and corrupts the
+		 * sparkline / Solar Graph. Mirrors Python parse_noaa_plasma_series. */
+		if (ok && v[2] > 0.0f && isfinite(v[1]) && isfinite(v[2]) && isfinite(v[3])) {
 			density[n] = v[1];
 			speed[n] = v[2];
 			temp[n] = v[3];
@@ -579,7 +582,7 @@ static int parse_xray_series(const char *json, float *out, int max)
 			while (*q && (*q == ':' || *q == ' ' || *q == '"'))
 				q++;
 			float v = strtof(q, NULL);
-			if (v > 0.0f)
+			if (isfinite(v) && v > 0.0f) /* +Inf > 0 is true — require finiteness */
 				out[n++] = v;
 		}
 		p = oend + 1;
@@ -1924,35 +1927,49 @@ static void fcv_render_hud(fractisynth_console_data_t *f)
 
 	hud_marker(f, b, W, H);
 
-	/* steganographic provenance: canonical 24B (<f i f f f I>) -> SHA-256 -> payload */
-	uint8_t canon[24];
-	float ff = st.flux, wf = st.solar_wind_kms, lf = st.lock_strength, pf = st.wind_phase;
-	int32_t sp = st.sunspots;
-	uint32_t obs = (uint32_t)time(NULL);
-	memcpy(canon + 0, &ff, 4);
-	memcpy(canon + 4, &sp, 4);
-	memcpy(canon + 8, &wf, 4);
-	memcpy(canon + 12, &lf, 4);
-	memcpy(canon + 16, &pf, 4);
-	memcpy(canon + 20, &obs, 4);
-	uint8_t dig[32];
-	sha256_hash(canon, 24, dig);
-	uint8_t stream[2 + 28];
-	stream[0] = 28 & 0xFF;
-	stream[1] = (28 >> 8) & 0xFF;
-	memcpy(stream + 2, canon, 24);
-	memcpy(stream + 26, dig, 4); /* payload checksum = SHA-256[:4] */
-	char sig[12];
-	snprintf(sig, sizeof sig, "%02x%02x%02x%02x", dig[0], dig[1], dig[2], dig[3]);
-	snprintf(ln, sizeof ln, "PROVENANCE  %s  LSB-EMBEDDED", sig);
-	t8_text(b, W, H, x, H - 8 * sc - 14, ln, sc, 120, 200, 180, 255);
-	/* embed LAST (MSB-first per byte, one bit per pixel's blue LSB, row 0) */
-	int total_bits = (int)sizeof(stream) * 8;
-	for (int i = 0; i < total_bits; i++) {
-		int bit = (stream[i >> 3] >> (7 - (i & 7))) & 1;
-		size_t bp = (size_t)i * 4 + 2;
-		if (bp < need)
-			b[bp] = (uint8_t)((b[bp] & 0xFE) | bit);
+	/* steganographic provenance: canonical 24B (<f i f f f I>) -> SHA-256 -> payload.
+	 * Fail closed via a READINESS gate: a signature is only computed/embedded once the
+	 * SWO is calibrated AND the gateway is locked AND flux>0. This is INTENTIONALLY
+	 * STRICTER than the Python TelemetryRecord constructor (which would happily sign a
+	 * record with zeroed wind/lock as long as flux>0): before a gateway lock the C
+	 * snapshot zeroes wind/lock/phase (see fcv snapshot ~line 1131), so signing then
+	 * would embed reader-side sentinel zeros, not real telemetry — we refuse instead.
+	 * Crucially this does NOT silently drop the element: when not ready we print an
+	 * explicit PROVENANCE -- ACQUIRING marker and embed nothing, so "no data" and
+	 * "acquiring" stay visibly distinct (fail visible-but-marked, never invisible). */
+	if (st.swo_calibrated && st.gateway_locked && st.flux > 0.0f) {
+		uint8_t canon[24];
+		float ff = st.flux, wf = st.solar_wind_kms, lf = st.lock_strength, pf = st.wind_phase;
+		int32_t sp = st.sunspots;
+		uint32_t obs = (uint32_t)time(NULL);
+		memcpy(canon + 0, &ff, 4);
+		memcpy(canon + 4, &sp, 4);
+		memcpy(canon + 8, &wf, 4);
+		memcpy(canon + 12, &lf, 4);
+		memcpy(canon + 16, &pf, 4);
+		memcpy(canon + 20, &obs, 4);
+		uint8_t dig[32];
+		sha256_hash(canon, 24, dig);
+		uint8_t stream[2 + 28];
+		stream[0] = 28 & 0xFF;
+		stream[1] = (28 >> 8) & 0xFF;
+		memcpy(stream + 2, canon, 24);
+		memcpy(stream + 26, dig, 4); /* payload checksum = SHA-256[:4] */
+		char sig[12];
+		snprintf(sig, sizeof sig, "%02x%02x%02x%02x", dig[0], dig[1], dig[2], dig[3]);
+		snprintf(ln, sizeof ln, "PROVENANCE  %s  LSB-EMBEDDED", sig);
+		t8_text(b, W, H, x, H - 8 * sc - 14, ln, sc, 120, 200, 180, 255);
+		/* embed LAST (MSB-first per byte, one bit per pixel's blue LSB, row 0) */
+		int total_bits = (int)sizeof(stream) * 8;
+		for (int i = 0; i < total_bits; i++) {
+			int bit = (stream[i >> 3] >> (7 - (i & 7))) & 1;
+			size_t bp = (size_t)i * 4 + 2;
+			if (bp < need)
+				b[bp] = (uint8_t)((b[bp] & 0xFE) | bit);
+		}
+	} else {
+		snprintf(ln, sizeof ln, "PROVENANCE  --  ACQUIRING");
+		t8_text(b, W, H, x, H - 8 * sc - 14, ln, sc, 232, 163, 61, 255);
 	}
 
 	hud_blit(f, W, H);

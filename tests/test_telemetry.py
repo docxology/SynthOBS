@@ -172,3 +172,49 @@ def test_parse_noaa_f107_fails_closed(bad: str) -> None:
 def test_parse_noaa_f107_missing_or_nonnumeric_flux_fails_closed(data: list[dict]) -> None:
     with pytest.raises(TelemetryUnavailable):
         parse_noaa_f107_flux(data)
+
+
+# --- non-finite (NaN/Inf) fail-closed regression (boundary leak the bare `<= 0.0`
+#     guards missed; NaN/Inf are JSON-legal and slip past `x <= 0.0`) --------------
+_NONFINITE = ["NaN", "Infinity", "-Infinity"]
+
+
+@pytest.mark.parametrize("tok", _NONFINITE)
+def test_telemetry_from_payload_rejects_nonfinite_flux(tok: str) -> None:
+    # Build the JSON by hand so the literal NaN/Infinity reaches json.loads, which
+    # accepts them by default — the exact path a malformed NOAA feed would take.
+    raw = '{"flux": %s, "sunspots": 3, "time_tag": "2026-06-10T11:30:00Z"}' % tok
+    with pytest.raises(TelemetryUnavailable):
+        telemetry_from_payload(raw, now=_now())
+
+
+@pytest.mark.parametrize("tok", _NONFINITE)
+def test_parse_noaa_f107_rejects_nonfinite_flux(tok: str) -> None:
+    raw = '[{"time_tag": "2026-06-10T00:00:00", "flux": %s}]' % tok
+    with pytest.raises(TelemetryUnavailable):
+        parse_noaa_f107_flux(raw)
+
+
+@pytest.mark.parametrize("tok", _NONFINITE)
+def test_parse_noaa_solar_wind_rejects_nonfinite_speed(tok: str) -> None:
+    from synthobs.telemetry import parse_noaa_solar_wind
+
+    raw = (
+        '[["time_tag","density","speed","temperature"],'
+        '["2026-06-10T11:59:00", 5.0, %s, 1.0e5]]' % tok
+    )
+    with pytest.raises(TelemetryUnavailable):
+        parse_noaa_solar_wind(raw, now=_now())
+
+
+@pytest.mark.parametrize("tok", _NONFINITE)
+def test_parse_noaa_solar_wind_nonfinite_density_held_to_none(tok: str) -> None:
+    from synthobs.telemetry import parse_noaa_solar_wind
+
+    raw = (
+        '[["time_tag","density","speed","temperature"],'
+        '["2026-06-10T11:59:00", %s, 420.0, 1.0e5]]' % tok
+    )
+    wind = parse_noaa_solar_wind(raw, now=_now())
+    assert wind.speed_kms == 420.0
+    assert wind.density is None  # non-finite optional field fails closed to held/None

@@ -21,6 +21,7 @@ NOAA SWPC reference endpoints (consumed by the C telemetry thread):
 from __future__ import annotations
 
 import json
+import math
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
@@ -150,8 +151,8 @@ def parse_noaa_f107_flux(data: Any) -> tuple[float, datetime]:
         flux = float(latest["flux"])
     except (TypeError, ValueError) as exc:
         raise TelemetryUnavailable(f"F10.7 flux not numeric: {latest!r}") from exc
-    if flux <= 0.0:
-        raise TelemetryUnavailable(f"F10.7 flux must be positive, got {flux}")
+    if not math.isfinite(flux) or flux <= 0.0:
+        raise TelemetryUnavailable(f"F10.7 flux must be finite and positive, got {flux}")
     observed = _parse_time_tag(latest.get("time_tag"))
     return flux, observed
 
@@ -190,9 +191,11 @@ def telemetry_from_payload(
     except (TypeError, ValueError) as exc:
         raise TelemetryUnavailable(f"telemetry flux/sunspots not numeric: {payload!r}") from exc
 
-    # Fail-closed enforcement — block stale, default, or zeroed indicators.
-    if flux <= 0.0:
-        raise TelemetryUnavailable(f"flux must be positive, got {flux}")
+    # Fail-closed enforcement — block stale, default, zeroed, or non-finite indicators.
+    # NaN/Inf are JSON-legal (json.loads accepts NaN/Infinity) and silently pass a bare
+    # `<= 0.0` gate, so the finiteness check is load-bearing, not decorative.
+    if not math.isfinite(flux) or flux <= 0.0:
+        raise TelemetryUnavailable(f"flux must be finite and positive, got {flux}")
     if sunspots <= 0:
         raise TelemetryUnavailable(f"sunspots must be positive, got {sunspots}")
 
@@ -268,14 +271,18 @@ def parse_noaa_solar_wind(
         speed = float(last[speed_col])
     except (TypeError, ValueError) as exc:
         raise TelemetryUnavailable(f"solar-wind speed not numeric: {last!r}") from exc
-    if speed <= 0.0:
-        raise TelemetryUnavailable(f"solar-wind speed must be positive, got {speed}")
+    if not math.isfinite(speed) or speed <= 0.0:
+        raise TelemetryUnavailable(f"solar-wind speed must be finite and positive, got {speed}")
 
     density: float | None = None
     if density_col is not None and len(last) > density_col:
         try:
             density = float(last[density_col])
         except (TypeError, ValueError):
+            density = None
+        # density is optional, so a non-finite reading fails closed to None (held),
+        # never propagated as a "verified" NaN/Inf.
+        if density is not None and not math.isfinite(density):
             density = None
 
     observed = _parse_time_tag(last[time_col] if len(last) > time_col else None)
@@ -366,7 +373,11 @@ def parse_noaa_plasma_series(data: Any) -> tuple[list[float], list[float], list[
             d, s, t = float(row[1]), float(row[2]), float(row[3])
         except (TypeError, ValueError):
             continue
-        if s > 0.0:
+        # Drop the whole row unless every plotted field is finite AND speed positive:
+        # a bare `s > 0.0` lets a NaN/Inf density or temperature ride along into the
+        # series and corrupt the HUD sparkline / Solar Graph (NaN<=0 and Inf<=0 both
+        # False, so the old guard never rejected them).
+        if math.isfinite(d) and s > 0.0 and math.isfinite(s) and math.isfinite(t):
             density.append(d)
             speed.append(s)
             temp.append(t)
@@ -397,7 +408,9 @@ def parse_noaa_xray_flux(data: Any, band: str = "0.1-0.8nm") -> list[float]:
             v = float(r["flux"])
         except (TypeError, ValueError, KeyError):
             continue
-        if v > 0.0:
+        # `+Inf > 0.0` is True, so a bare positivity gate admits +Infinity into the
+        # log-scaled X-ray graph; require finiteness explicitly.
+        if math.isfinite(v) and v > 0.0:
             out.append(v)
     if not out:
         raise TelemetryUnavailable(f"xray series has no rows for band {band!r}")
