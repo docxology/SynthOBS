@@ -8,6 +8,8 @@ that grammar — a clean, deterministic syntax (blueprint §7):
     /mode --observatory | --lab | --ship
     /transducer bind <source> --ratio=1.618034
     /swo calibrate --flux=130 --spots=3 --target=AR4465
+    /dashboard plan --name=Awareness
+    /dashboard build --name=Awareness
 
 Unknown verbs and invalid values fail closed (raise :class:`CommandError`) — the
 terminal never silently no-ops.
@@ -25,6 +27,7 @@ __all__ = [
     "ModeCommand",
     "BindCommand",
     "CalibrateCommand",
+    "DashboardCommand",
     "CommandError",
     "parse",
 ]
@@ -57,6 +60,12 @@ class CalibrateCommand(Command):
     flux: float = 0.0
     spots: int = 0
     target: str | None = None
+
+
+@dataclass(frozen=True)
+class DashboardCommand(Command):
+    action: str = "plan"  # "plan" | "build"
+    name: str = ""
 
 
 _MODE_FLAGS = {
@@ -132,10 +141,20 @@ def _parse_swo(raw: str, positionals: list[str], flags: dict[str, str]) -> Calib
     return CalibrateCommand(raw=raw, flux=flux, spots=spots, target=target)
 
 
+def _parse_dashboard(raw: str, positionals: list[str], flags: dict[str, str]) -> DashboardCommand:
+    if not positionals or positionals[0] not in {"plan", "build"}:
+        raise CommandError("/dashboard expects 'plan --name=<scene>' or 'build --name=<scene>'")
+    name = flags.get("--name", "").strip()
+    if not name:
+        raise CommandError("/dashboard requires --name=<scene>")
+    return DashboardCommand(raw=raw, action=positionals[0], name=name)
+
+
 _VERBS = {
     "/mode": _parse_mode,
     "/transducer": _parse_transducer,
     "/swo": _parse_swo,
+    "/dashboard": _parse_dashboard,
 }
 
 

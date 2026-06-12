@@ -11,26 +11,32 @@ flowchart LR
     F107["F10.7 flux<br/>f107_cm_flux.json"] --> AMP
     SPOT["Active regions<br/>solar_regions.json (latest date)"] --> AMP
     WIND["Solar-wind speed<br/>plasma-2-hour.json"] --> PHASE
+    XRAY["GOES X-ray<br/>xrays-6-hour.json"] --> GRAPH
+    KP["Planetary Kp<br/>planetary_k_index_1m.json"] --> GRAPH
     AMP["Amplitude plane<br/>φ·flux/spots → phase_vector"]
     PHASE["EGS gateway phase plane<br/>K_EGS·wind → phase_bias / lock_strength"]
+    GRAPH["Solar Graph series<br/>wind · density · temperature · X-ray · Kp"]
     AMP --> OUT["one locked snapshot<br/>swo_read()"]
     PHASE --> OUT
 ```
 
 ## The data source — NOAA SWPC
 
-Three public JSON feeds from the NOAA Space Weather Prediction Center:
+Five public JSON feeds from the NOAA Space Weather Prediction Center:
 
 | Quantity                   | Endpoint                                                          | Drives                  |
 | -------------------------- | ---------------------------------------------------------------- | ----------------------- |
 | F10.7 cm solar radio flux  | `https://services.swpc.noaa.gov/json/f107_cm_flux.json`          | SWO amplitude plane     |
 | Active solar regions       | `https://services.swpc.noaa.gov/json/solar_regions.json`         | SWO amplitude plane     |
-| Solar-wind plasma (speed)  | `https://services.swpc.noaa.gov/products/solar-wind/plasma-2-hour.json` | EGS gateway phase plane |
+| Solar-wind plasma          | `https://services.swpc.noaa.gov/products/solar-wind/plasma-2-hour.json` | EGS gateway phase plane + wind/density/temperature graph series |
+| GOES X-ray flux            | `https://services.swpc.noaa.gov/json/goes/primary/xrays-6-hour.json` | Solar Graph X-ray metric |
+| Planetary K-index          | `https://services.swpc.noaa.gov/json/planetary_k_index_1m.json`  | Solar Graph Kp metric   |
 
-The native C plugin polls all **three** every **60 seconds** from a background libcurl
+The native C plugin polls all **five** every **60 seconds** from a background libcurl
 thread. The Python engine fetches on demand. Flux + active-region count drive the SWO
 amplitude vector; solar-wind speed drives the EGS gateway phase lock (see
-[egs-gateway.md](egs-gateway.md)).
+[egs-gateway.md](egs-gateway.md)); wind/density/temperature, X-ray, and Kp populate
+the Solar Graph feed.
 
 > **Active-region count, done right.** `solar_regions.json` carries one record per
 > numbered region per day across ~a month. The count that drives the phase vector is the
@@ -144,6 +150,8 @@ background libcurl thread (`telemetry_thread_fn`) runs this loop on a
 │                                              last vector"              │
 │  fetch wind ─────▶ wind>0 ? ─yes─▶ synchronize_gateway_lock()          │
 │                            └─ no ─▶ hold last gateway lock             │
+│  fetch series ───▶ valid rows ? ─yes─▶ store wind/density/temp/X-ray/Kp │
+│                            └─ no ─▶ keep last graph series             │
 └───────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -172,7 +180,7 @@ end-to-end — captured in the OBS log:
 That is the entire pipeline — live HTTP → parse → fail-closed gate → φ·(flux/spots) →
 phase vector — executing natively inside OBS. See [build-and-install.md](build-and-install.md).
 
-> **Note on the C-side sunspot count.** The dependency-free C parser counts NOAA
-> `"Region"` records as a coarse proxy; it is deliberately *not* claimed to be
-> byte-identical to the Python engine's count. A production build should link a real
-> JSON parser (jansson). The fail-closed behavior is identical either way.
+> **Note on the C-side sunspot count.** The dependency-free C parser performs the same
+> two-pass latest-date count as the Python engine: find the maximum `observed_date`, then
+> count only records on that date. A production build can still switch to a real JSON
+> parser for maintainability; the tested fail-closed behavior is already mirrored.

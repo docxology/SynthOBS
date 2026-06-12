@@ -30,34 +30,39 @@ cd projects/working/SynthOBS
 PYTHONPATH="$PWD/src" python -m pytest tests/ -q
 ```
 
-Current state: **889 passed**, **94.70 % coverage** (≥ 90 % gate), ruff clean.
+Current state: **1024 passed**, **97.86 % coverage** (≥ 90 % gate).
 
 ```bash
 # with coverage gate
-PYTHONPATH="$PWD/src" python -m pytest tests/ \
-  --cov=src/synthobs --cov-report=term-missing --cov-fail-under=90
+uv run pytest tests/ --cov=synthobs --cov-fail-under=90
 ```
 
 ## Test layout
 
 The suite is split by layer — geometry, telemetry, signal, console, orchestration,
-the cross-layer gateway, and the native artifacts. Each row's ISC range is the one
-annotated in that file's own test bodies.
+the cross-layer gateway, interaction targets, dashboard planning, documentation
+contracts, provenance, history, and the native artifacts. Each row's ISC range is
+the one annotated in that file's own test bodies where an ISC range applies.
 
 The **Tests** column is the *collected* count (parametrized cases expand — e.g.
-`test_constants_and_layout.py` fans 15 functions across the φ-geometry grid into 737
-cases), so the column sums to the full 889-test suite.
+`test_constants_and_layout.py` fans geometry invariants across the φ grid into 738
+cases), so the column sums to the full 1024-test suite.
 
 | File                                     | Tests | ISCs         | Covers                                                                                                  |
 | ---------------------------------------- | ----: | ------------ | ------------------------------------------------------------------------------------------------------- |
-| `tests/test_constants_and_layout.py`     |   737 | 1–2, 3–10    | φ constants single-source + Goldilocks split, recursive subdivision, spiral, viewport tiling            |
-| `tests/test_telemetry.py`                |    21 | 11–18        | fail-closed NOAA F10.7 client — every failure mode raises `TelemetryUnavailable`                        |
-| `tests/test_swo_and_dsp.py`              |    44 | 19–32        | oscillator phase formula + Hold State; φ soft limiter, scale matrix, calibrated dims                    |
-| `tests/test_console_and_commands.py`     |    37 | 33–48        | 3 modes × 7 buttons + the `/mode` `/transducer` `/swo` grammar, fail-closed parsing                     |
-| `tests/test_engine.py`                   |     9 | 49–54        | calibrate / hold, layout, pre-calibration modulation refusal                                            |
-| `tests/test_gateway_and_interference.py` |    28 | 91–110       | EGS gateway key K_EGS, `lock_strength = \|cos(phase_bias)\|`, holographic verdict, live solar-wind feed |
-| `tests/test_plugin_artifacts.py`         |    13 | 55–64, 93–94 | native C plugin static structure + obspython bridge, both literal pins (φ and K_EGS)                    |
-| **Total**                                | **889** |            |                                                                                                         |
+| `tests/test_constants_and_layout.py`     |   738 | 1–2, 3–10    | φ constants single-source + Goldilocks split, recursive subdivision, spiral, viewport tiling            |
+| `tests/test_telemetry.py`                |    24 | 11–18        | fail-closed NOAA F10.7 client — every failure mode raises `TelemetryUnavailable`                        |
+| `tests/test_swo_and_dsp.py`              |    46 | 19–32        | oscillator phase formula + Hold State; φ soft limiter, scale matrix, calibrated dims                    |
+| `tests/test_console_and_commands.py`     |    40 | 33–48        | 3 modes × 7 buttons + `/mode`, `/transducer`, `/swo`, `/dashboard`, fail-closed parsing                 |
+| `tests/test_engine.py`                   |    10 | 49–54        | calibrate / hold, layout, pre-calibration modulation refusal                                            |
+| `tests/test_gateway_and_interference.py` |    40 | 91–110       | EGS gateway key K_EGS, `lock_strength = \|cos(phase_bias)\|`, holographic verdict, live solar-wind feed |
+| `tests/test_solar_series.py`             |    15 | —            | NOAA plasma, GOES X-ray, and Kp time-series parsers for Solar Graph metrics                            |
+| `tests/test_history.py`                  |    32 | —            | bounded telemetry history, eviction, normalization, and latest-sample behavior                          |
+| `tests/test_provenance.py`               |    40 | —            | telemetry record packing, SHA checksum, LSB embed/extract, tamper evidence, fail-closed validation      |
+| `tests/test_interaction_and_layers.py`   |    18 | —            | seven feed targets, layer rail, marker drop, dashboard plans, dashboard command dry-runs                |
+| `tests/test_plugin_artifacts.py`         |    18 | 55–64, 93–94 | native C plugin/source static structure, X-ray/Kp wiring, graph axes, inspector, dock, obspython bridge, φ/K_EGS pins |
+| `tests/test_docs_contracts.py`           |     3 | —            | markdown links, generated figure manifest, and stale status-baseline guards                             |
+| **Total**                                | **1024** |          |                                                                                                         |
 
 ## The no-mocks policy
 
@@ -76,10 +81,16 @@ data and real computation. The patterns:
   `swo_phase_vector()` read into `system_phase_vector`, and — critically — that the φ literal
   `#define EGS_PHI 1.61803398875f` matches the Python `PHI` to within `1e-9` (ISC-60), the
   K_EGS literal `#define EGS_GATEWAY_KEY 2.53942700f` matches `EGS_GATEWAY_KEY` (ISC-93), and the
-  fail-closed guard `if (current_flux <= 0.0f || active_spots <= 0)` is present (ISC-61).
+  fail-closed guard `if (current_flux <= 0.0f || active_spots <= 0)` is present (ISC-61),
+  the console exposes all 7 feed cells, marker and layer uniforms are wired, Solar Graph
+  X-ray/Kp series and metric-aware time axes are pinned, and the native dock/inspector
+  controls are statically guarded.
 - **The obspython bridge** — compiled with `py_compile`, imported (its `obspython`
   guard keeps it importable), and driven through `apply_command` end-to-end into the
-  real engine.
+  real engine, including `/dashboard plan` dry-run summaries outside OBS.
+- **Documentation contracts** — local markdown links must resolve, the manuscript's
+  figure references must match `scripts.generate_figures.FIGURE_FILES`, and current
+  status docs cannot retain stale test-count or coverage baselines.
 
 ## The φ pin between layers
 

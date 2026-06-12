@@ -10,6 +10,7 @@ Figures:
   2. golden_spiral.png      — the φ spiral used by TRANS_WIPE_SEQUENCE.
   3. swo_calibration.png    — phase_vector response to live-style telemetry sweeps.
   4. phi_soft_limiter.png   — the φ-scaled audio knee vs. hard clipping.
+  5. gateway_lock.png       — K_EGS solar-wind phase-lock response.
 """
 
 from __future__ import annotations
@@ -47,6 +48,14 @@ LINEN = "#efe9dc"
 BONE = "#d8d2c4"
 ROBIN = "#3aafa9"  # robin's-egg / turquoise — phase-locked status
 MARIGOLD = "#e8a33d"  # telemetry markers
+
+FIGURE_FILES = (
+    "goldilocks_layout.png",
+    "golden_spiral.png",
+    "swo_calibration.png",
+    "phi_soft_limiter.png",
+    "gateway_lock.png",
+)
 
 
 def _outdir() -> Path:

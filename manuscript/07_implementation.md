@@ -21,9 +21,9 @@ flowchart TB
 
 | Path | Role |
 | --- | --- |
-| `src/synthobs/` | Tested Python engine — constants, layout, telemetry, SWO, DSP, console, commands, engine. The verified source of truth. |
-| `plugin/fractisynth/` | Native `libobs` C plugin — two filters, shared SWO, libcurl telemetry thread, CMake build. |
-| `plugin/synthobs/` | `obspython` console script — Goldilocks layout + 3-mode console + command line, driving the engine inside OBS. |
+| `src/synthobs/` | Tested Python engine — constants, layout, telemetry, SWO, DSP, console, commands, interaction targets, dashboard layers, engine. The verified source of truth. |
+| `plugin/fractisynth/` | Native `libobs` C plugin — filters, draggable console source, dock, shared SWO, libcurl telemetry thread, CMake build. |
+| `plugin/synthobs/` | `obspython` console script — Goldilocks layout + 3-mode console + command line + dashboard helper, driving the engine inside OBS. |
 | `scripts/` | Thin orchestrators (figure generation) importing the engine. |
 | `manuscript/` | This Technical Design Blueprint. |
 | `tests/` | Zero-mock test suite, ≥ 90% coverage on `src/`. |
@@ -89,10 +89,11 @@ uv run pytest projects/working/SynthOBS/tests/ \
 uv run python projects/working/SynthOBS/scripts/generate_figures.py
 
 # Build the native FractiSynth plugin (requires libobs dev headers + libcurl)
-cd plugin/fractisynth && cmake -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build
+plugin/fractisynth/build.sh
 
-# Install: drop the built module into your OBS plugins directory, and load
-# plugin/synthobs/synthobs_console.py via OBS → Tools → Scripts.
+# OBS script commands include:
+# /dashboard plan --name=Awareness
+# /dashboard build --name=Awareness
 ```
 
 ## Verification Status
@@ -100,12 +101,13 @@ cd plugin/fractisynth && cmake -B build -DCMAKE_BUILD_TYPE=Release && cmake --bu
 Every geometric, telemetry, and DSP claim in this blueprint is exercised by the
 zero-mock test suite over the reference engine — including the three pinned laws
 @eq:swo-phase-vector, @eq:gateway-lock, and @eq:phi-soft-limit and their fail-closed
-boundaries. The native C plugin is authored to `obs-studio` plugin conventions and
-shares the φ literal, the SWO and gateway formulas, and the fail-closed rule with the
-engine; its on-target compilation against `libobs` is a documented follow-up
-(`SYNTHOBS-CBUILD-1`), since a `libobs` toolchain is required to build it. The Python
-engine therefore remains authoritative: the C plugin mirrors arithmetic the engine
-has already proven, never the reverse.
+boundaries. The current gate is 1024 Python tests at 97.86% coverage, five generated
+figures, and the native `plugin/fractisynth/build.sh` build. The native C plugin shares
+the φ literal, the SWO and gateway formulas, the full seven-feed target geometry, Solar
+Graph X-ray/Kp metrics, metric-aware graph horizons, Zoom Inspector target modes, dock
+theme/precision controls, and the fail-closed rule with the engine. The Python engine
+therefore remains authoritative: the C plugin mirrors arithmetic and interaction policy
+the engine has already proven, never the reverse.
 
 *A fair-exchange clause is in effect for this architectural expansion. Adjustments,
 refinements, or partial revisions to the delivery scale can be handled through

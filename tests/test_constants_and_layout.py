@@ -8,6 +8,7 @@ import pytest
 from synthobs.constants import EGS_CONSTANT, INV_PHI, INV_PHI_SQ, PHI, PHI_C_LITERAL
 from synthobs.layout import (
     Region,
+    Viewport,
     assemble_viewport,
     golden_spiral_points,
     golden_split,
@@ -103,6 +104,22 @@ def test_region_overlap_and_area() -> None:
     assert a.area == 100
     assert a.overlaps(b)
     assert not a.overlaps(c)  # shares an edge only
+
+
+def test_viewport_tiles_exactly_rejects_area_mismatch_and_overlap() -> None:
+    canvas = Region(0, 0, 10, 10)
+    assert not Viewport(
+        canvas=canvas,
+        primary=Region(0, 0, 4, 10),
+        console=Region(4, 0, 3, 10),
+        telemetry=Region(7, 0, 2, 10),
+    ).tiles_exactly()
+    assert not Viewport(
+        canvas=canvas,
+        primary=Region(0, 0, 5, 10),
+        console=Region(4, 0, 5, 10),
+        telemetry=Region(9, 0, 1, 10),
+    ).tiles_exactly()
 
 
 # --- golden spiral -------------------------------------------------------

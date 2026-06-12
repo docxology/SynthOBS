@@ -71,6 +71,18 @@ OBS_MODULE_USE_DEFAULT_LOCALE("fractisynth", "en-US")
 #define NOAA_KP_URL "https://services.swpc.noaa.gov/json/planetary_k_index_1m.json"
 #define TELEMETRY_POLL_SECONDS 60
 #define M_TWO_PI 6.28318530717958647692f
+#define FCV_FEED_COUNT 7
+#define FCV_TAB_CELLS 7.0f
+#define FCV_TAB_HEIGHT_FRAC 0.09f
+#define FCV_LAYER_RAIL_WIDTH_FRAC 0.07f
+#define FCV_MARKER_LIFETIME 4.0f
+
+enum fcv_target_action {
+	TargetActionNone = 0,
+	TargetActionFeed = 1,
+	TargetActionLayerToggle = 2,
+	TargetActionMarker = 3,
+};
 
 /* ------------------------------------------------------------------ */
 /*  Solar Wavefield Oscillator — shared, mutex-guarded calibration core */
@@ -90,6 +102,7 @@ typedef struct fractisynth_swo {
 
 static fractisynth_swo_t g_swo = {0.0f, 0, 1.0f, false, 0.0f, 0.0f, 0.0f, false};
 static pthread_mutex_t g_swo_mutex = PTHREAD_MUTEX_INITIALIZER;
+static atomic_int g_console_theme = 0; /* exported to the Qt dock; default Observatory */
 
 /* ------------------------------------------------------------------ */
 /*  Telemetry history ring buffer (mirrors src/synthobs/history.py)    */
@@ -1133,8 +1146,14 @@ void fractisynth_get_state(struct fractisynth_dock_state *out)
 	pthread_mutex_unlock(&g_swo_mutex);
 }
 
+int fractisynth_get_console_theme(void)
+{
+	int theme = atomic_load(&g_console_theme);
+	return (theme >= 0 && theme <= 2) ? theme : 0;
+}
+
 /* Exported for the frontend dock: copy a live NOAA series (0 wind, 1 density,
- * 2 temperature) in chronological order. Returns the sample count. */
+ * 2 temperature, 3 X-ray, 4 Kp) in chronological order. Returns the sample count. */
 int fractisynth_get_series(int metric, float *out, int max)
 {
 	return series_get(metric, out, max);
@@ -1152,13 +1171,95 @@ typedef struct fractisynth_inspector_data {
 	obs_source_t *context;
 	float zoom;
 	float region_x, region_y;
+	int inspector_mode; /* 0 fixed region, 1 follow mouse */
+	float mouse_x, mouse_y;
+	bool have_mouse;
 	float inset_size;
 	int inset_corner; /* 0 TL, 1 TR, 2 BL, 3 BR */
-	float show_grid, show_cross, show_box;
+	float show_grid, show_cross, show_box, show_annotation;
 	gs_effect_t *effect;
 	gs_eparam_t *p_zoom, *p_region, *p_inset_pos, *p_inset_size, *p_uv_size;
 	gs_eparam_t *p_show_grid, *p_show_cross, *p_show_box, *p_lock_strength;
+	uint8_t *ann_buf;
+	size_t ann_cap;
+	gs_texture_t *ann_tex;
+	int ann_w, ann_h;
 } fractisynth_inspector_data_t;
+
+static uint8_t *fpi_ann_buf_ensure(fractisynth_inspector_data_t *f, int W, int H)
+{
+	if (W <= 0 || H <= 0)
+		return NULL;
+	size_t need = (size_t)W * (size_t)H * 4;
+	if (need > f->ann_cap) {
+		uint8_t *nb = brealloc(f->ann_buf, need);
+		if (!nb)
+			return NULL;
+		f->ann_buf = nb;
+		f->ann_cap = need;
+	}
+	memset(f->ann_buf, 0, need);
+	return f->ann_buf;
+}
+
+static void fpi_blit_annotation(fractisynth_inspector_data_t *f, int W, int H,
+				float rx, float ry)
+{
+	if (f->show_annotation < 0.5f)
+		return;
+	uint8_t *b = fpi_ann_buf_ensure(f, W, H);
+	if (!b)
+		return;
+
+	int px = (int)(rx * (float)W + 0.5f);
+	int py = (int)(ry * (float)H + 0.5f);
+	if (px < 0) px = 0;
+	if (py < 0) py = 0;
+	if (px >= W) px = W - 1;
+	if (py >= H) py = H - 1;
+
+	int scale = W >= 1000 ? 2 : 1;
+	int box_w = W - 24;
+	if (box_w > 760)
+		box_w = 760;
+	int box_h = 18 * scale + 14;
+	int x = 12;
+	int y = H - box_h - 12;
+	if (y < 8)
+		y = 8;
+
+	t8_fill_rect(b, W, H, x, y, box_w, box_h, 16, 16, 12, 220);
+	t8_fill_rect(b, W, H, x, y, box_w, 2, 58, 175, 169, 245);
+
+	char ln[160];
+	snprintf(ln, sizeof ln, "INSPECTOR %s  UV %.3f %.3f  PX %d %d  Z %.1fX",
+		 f->inspector_mode == 1 ? "FOLLOW" : "FIXED", (double)rx, (double)ry,
+		 px, py, (double)f->zoom);
+	t8_text(b, W, H, x + 8, y + 7, ln, scale, 239, 233, 220, 255);
+
+	const uint8_t *data = b;
+	if (!f->ann_tex || f->ann_w != W || f->ann_h != H) {
+		if (f->ann_tex)
+			gs_texture_destroy(f->ann_tex);
+		f->ann_tex = gs_texture_create((uint32_t)W, (uint32_t)H, GS_RGBA, 1, &data,
+					       GS_DYNAMIC);
+		f->ann_w = W;
+		f->ann_h = H;
+	} else {
+		gs_texture_set_image(f->ann_tex, b, (uint32_t)(W * 4), false);
+	}
+	if (!f->ann_tex)
+		return;
+
+	const bool prev_srgb = gs_framebuffer_srgb_enabled();
+	gs_enable_framebuffer_srgb(false);
+	gs_effect_t *def = obs_get_base_effect(OBS_EFFECT_DEFAULT);
+	gs_eparam_t *img = gs_effect_get_param_by_name(def, "image");
+	gs_effect_set_texture(img, f->ann_tex);
+	while (gs_effect_loop(def, "Draw"))
+		gs_draw_sprite(f->ann_tex, 0, (uint32_t)W, (uint32_t)H);
+	gs_enable_framebuffer_srgb(prev_srgb);
+}
 
 static const char *fpi_get_name(void *u)
 {
@@ -1172,11 +1273,13 @@ static void fpi_update(void *data, obs_data_t *s)
 	f->zoom = (float)obs_data_get_double(s, "zoom");
 	f->region_x = (float)obs_data_get_double(s, "region_x");
 	f->region_y = (float)obs_data_get_double(s, "region_y");
+	f->inspector_mode = (int)obs_data_get_int(s, "inspector_mode");
 	f->inset_size = (float)obs_data_get_double(s, "inset_size");
 	f->inset_corner = (int)obs_data_get_int(s, "inset_corner");
 	f->show_grid = obs_data_get_bool(s, "show_grid") ? 1.0f : 0.0f;
 	f->show_cross = obs_data_get_bool(s, "show_cross") ? 1.0f : 0.0f;
 	f->show_box = obs_data_get_bool(s, "show_box") ? 1.0f : 0.0f;
+	f->show_annotation = obs_data_get_bool(s, "show_annotation") ? 1.0f : 0.0f;
 }
 
 static void *fpi_create(obs_data_t *settings, obs_source_t *context)
@@ -1216,8 +1319,12 @@ static void fpi_destroy(void *data)
 	if (f->effect) {
 		obs_enter_graphics();
 		gs_effect_destroy(f->effect);
+		if (f->ann_tex)
+			gs_texture_destroy(f->ann_tex);
 		obs_leave_graphics();
 	}
+	if (f->ann_buf)
+		bfree(f->ann_buf);
 	bfree(f);
 }
 
@@ -1226,17 +1333,23 @@ static void fpi_defaults(obs_data_t *s)
 	obs_data_set_default_double(s, "zoom", 4.0);
 	obs_data_set_default_double(s, "region_x", 0.5);
 	obs_data_set_default_double(s, "region_y", 0.5);
+	obs_data_set_default_int(s, "inspector_mode", 0);
 	obs_data_set_default_double(s, "inset_size", 0.33);
 	obs_data_set_default_int(s, "inset_corner", 3);
 	obs_data_set_default_bool(s, "show_grid", true);
 	obs_data_set_default_bool(s, "show_cross", true);
 	obs_data_set_default_bool(s, "show_box", true);
+	obs_data_set_default_bool(s, "show_annotation", true);
 }
 
 static obs_properties_t *fpi_properties(void *data)
 {
 	UNUSED_PARAMETER(data);
 	obs_properties_t *p = obs_properties_create();
+	obs_property_t *mode = obs_properties_add_list(p, "inspector_mode",
+		obs_module_text("InspectorMode"), OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
+	obs_property_list_add_int(mode, obs_module_text("InspectorModeFixed"), 0);
+	obs_property_list_add_int(mode, obs_module_text("InspectorModeFollowMouse"), 1);
 	obs_properties_add_float_slider(p, "zoom", obs_module_text("InspectorZoom"), 1.5, 16.0, 0.5);
 	obs_properties_add_float_slider(p, "region_x", obs_module_text("InspectorRegionX"), 0.0, 1.0, 0.01);
 	obs_properties_add_float_slider(p, "region_y", obs_module_text("InspectorRegionY"), 0.0, 1.0, 0.01);
@@ -1250,7 +1363,31 @@ static obs_properties_t *fpi_properties(void *data)
 	obs_properties_add_bool(p, "show_box", obs_module_text("InspectorShowBox"));
 	obs_properties_add_bool(p, "show_grid", obs_module_text("InspectorShowGrid"));
 	obs_properties_add_bool(p, "show_cross", obs_module_text("InspectorShowCross"));
+	obs_properties_add_bool(p, "show_annotation", obs_module_text("InspectorShowAnnotation"));
 	return p;
+}
+
+static void fpi_mouse_move(void *data, const struct obs_mouse_event *event, bool mouse_leave)
+{
+	fractisynth_inspector_data_t *f = data;
+	if (!event || mouse_leave) {
+		f->have_mouse = false;
+		return;
+	}
+	obs_source_t *target = obs_filter_get_target(f->context);
+	uint32_t w = target ? obs_source_get_base_width(target) : 0;
+	uint32_t h = target ? obs_source_get_base_height(target) : 0;
+	if (!w || !h)
+		return;
+	float x = (float)event->x / (float)w;
+	float y = (float)event->y / (float)h;
+	if (x < 0.0f) x = 0.0f;
+	if (y < 0.0f) y = 0.0f;
+	if (x > 1.0f) x = 1.0f;
+	if (y > 1.0f) y = 1.0f;
+	f->mouse_x = x;
+	f->mouse_y = y;
+	f->have_mouse = true;
 }
 
 static void fpi_video_render(void *data, gs_effect_t *effect)
@@ -1271,13 +1408,15 @@ static void fpi_video_render(void *data, gs_effect_t *effect)
 	float sz = f->inset_size, szh = sz * aspect, m = 0.03f;
 	float ix = (f->inset_corner == 1 || f->inset_corner == 3) ? (1.0f - sz - m) : m;
 	float iy = (f->inset_corner == 2 || f->inset_corner == 3) ? (1.0f - szh - m) : m;
+	float rx = (f->inspector_mode == 1 && f->have_mouse) ? f->mouse_x : f->region_x;
+	float ry = (f->inspector_mode == 1 && f->have_mouse) ? f->mouse_y : f->region_y;
 	float lock = 0.0f, wind = 0.0f;
 	gateway_read(&lock, &wind);
 	if (f->p_zoom)
 		gs_effect_set_float(f->p_zoom, f->zoom);
 	if (f->p_region) {
 		struct vec2 r;
-		vec2_set(&r, f->region_x, f->region_y);
+		vec2_set(&r, rx, ry);
 		gs_effect_set_vec2(f->p_region, &r);
 	}
 	if (f->p_inset_pos) {
@@ -1301,13 +1440,14 @@ static void fpi_video_render(void *data, gs_effect_t *effect)
 	if (f->p_lock_strength)
 		gs_effect_set_float(f->p_lock_strength, lock);
 	obs_source_process_filter_end(f->context, f->effect, w, h);
+	fpi_blit_annotation(f, (int)w, (int)h, rx, ry);
 	UNUSED_PARAMETER(effect);
 }
 
 static struct obs_source_info fractisynth_inspector_filter = {
 	.id = "fractisynth_inspector",
 	.type = OBS_SOURCE_TYPE_FILTER,
-	.output_flags = OBS_SOURCE_VIDEO,
+	.output_flags = OBS_SOURCE_VIDEO | OBS_SOURCE_INTERACTION,
 	.get_name = fpi_get_name,
 	.create = fpi_create,
 	.destroy = fpi_destroy,
@@ -1315,6 +1455,7 @@ static struct obs_source_info fractisynth_inspector_filter = {
 	.get_defaults = fpi_defaults,
 	.get_properties = fpi_properties,
 	.video_render = fpi_video_render,
+	.mouse_move = fpi_mouse_move,
 };
 
 /* ================================================================== */
@@ -1336,7 +1477,7 @@ typedef struct fractisynth_console_data {
 
 	/* user configuration */
 	float feed;           /* 0 Wavefield, 1 Hex Tunnel, 2 Interference Field, 3 Spectral Rings, 4 Spiral Drift, 5 Telemetry HUD, 6 Solar Graph */
-	float graph_metric;   /* Solar Graph: 0 wind speed, 1 density, 2 temperature */
+	float graph_metric;   /* Solar Graph: 0 wind, 1 density, 2 temperature, 3 X-ray, 4 Kp */
 	float chroma;         /* chromatic-shimmer intensity */
 	float hue_cycle;      /* hue rotation amount over time (trippy) */
 	float theme;          /* 0=Observatory, 1=Laboratory, 2=Expedition palette */
@@ -1350,6 +1491,8 @@ typedef struct fractisynth_console_data {
 	float show_hex;
 	float show_dot;
 	float show_tabs;      /* clickable feed-selector tab strip (interactive) */
+	float layer_visible_mask; /* 7-bit visibility mask; old scenes default to all on */
+	float marker_x, marker_y, marker_age; /* normalized marker drop, age in seconds */
 
 	gs_effect_t *effect;
 	gs_eparam_t *p_swo_phase;
@@ -1372,6 +1515,8 @@ typedef struct fractisynth_console_data {
 	gs_eparam_t *p_show_hex;
 	gs_eparam_t *p_show_dot;
 	gs_eparam_t *p_show_tabs;
+	gs_eparam_t *p_layer_visible_mask;
+	gs_eparam_t *p_marker_x, *p_marker_y, *p_marker_age;
 
 	/* Telemetry HUD feed (feed 5): CPU-rendered metadata + waveforms + provenance */
 	uint8_t *hud_buf;     /* RGBA scratch (W*H*4), reused across frames */
@@ -1400,6 +1545,7 @@ static void fcv_update(void *data, obs_data_t *settings)
 	f->chroma = (float)obs_data_get_double(settings, "chroma");
 	f->hue_cycle = (float)obs_data_get_double(settings, "hue_cycle");
 	f->theme = (float)obs_data_get_int(settings, "theme");
+	atomic_store(&g_console_theme, (int)f->theme);
 	f->anim_speed = (float)obs_data_get_double(settings, "anim_speed");
 	f->intensity = (float)obs_data_get_double(settings, "intensity");
 	f->fringe_density = (float)obs_data_get_double(settings, "fringe_density");
@@ -1410,6 +1556,8 @@ static void fcv_update(void *data, obs_data_t *settings)
 	f->show_hex = obs_data_get_bool(settings, "show_hex") ? 1.0f : 0.0f;
 	f->show_dot = obs_data_get_bool(settings, "show_dot") ? 1.0f : 0.0f;
 	f->show_tabs = obs_data_get_bool(settings, "show_tabs") ? 1.0f : 0.0f;
+	double mask = obs_data_get_double(settings, "layer_visible_mask");
+	f->layer_visible_mask = mask > 0.0 ? (float)mask : (float)((1 << FCV_FEED_COUNT) - 1);
 }
 
 static void *fcv_create(obs_data_t *settings, obs_source_t *context)
@@ -1447,10 +1595,14 @@ static void *fcv_create(obs_data_t *settings, obs_source_t *context)
 		f->p_show_spiral = gs_effect_get_param_by_name(f->effect, "show_spiral");
 		f->p_show_fringes = gs_effect_get_param_by_name(f->effect, "show_fringes");
 		f->p_show_grid = gs_effect_get_param_by_name(f->effect, "show_grid");
-		f->p_show_hex = gs_effect_get_param_by_name(f->effect, "show_hex");
-		f->p_show_dot = gs_effect_get_param_by_name(f->effect, "show_dot");
-		f->p_show_tabs = gs_effect_get_param_by_name(f->effect, "show_tabs");
-	}
+			f->p_show_hex = gs_effect_get_param_by_name(f->effect, "show_hex");
+			f->p_show_dot = gs_effect_get_param_by_name(f->effect, "show_dot");
+			f->p_show_tabs = gs_effect_get_param_by_name(f->effect, "show_tabs");
+			f->p_layer_visible_mask = gs_effect_get_param_by_name(f->effect, "layer_visible_mask");
+			f->p_marker_x = gs_effect_get_param_by_name(f->effect, "marker_x");
+			f->p_marker_y = gs_effect_get_param_by_name(f->effect, "marker_y");
+			f->p_marker_age = gs_effect_get_param_by_name(f->effect, "marker_age");
+		}
 
 	fcv_update(f, settings);
 	return f;
@@ -1476,6 +1628,11 @@ static void fcv_video_tick(void *data, float seconds)
 {
 	fractisynth_console_data_t *f = data;
 	f->elapsed += seconds;
+	if (f->marker_age > 0.0f) {
+		f->marker_age += seconds;
+		if (f->marker_age > FCV_MARKER_LIFETIME)
+			f->marker_age = 0.0f;
+	}
 
 	/* Telemetry HUD: sample the live (held) SWO into the waveform history at
 	 * ~2 Hz so the sparklines fill quickly and update live. Values between the
@@ -1512,6 +1669,7 @@ static void fcv_defaults(obs_data_t *settings)
 	obs_data_set_default_bool(settings, "show_hex", false);
 	obs_data_set_default_bool(settings, "show_dot", true);
 	obs_data_set_default_bool(settings, "show_tabs", true);
+	obs_data_set_default_double(settings, "layer_visible_mask", (double)((1 << FCV_FEED_COUNT) - 1));
 }
 
 static obs_properties_t *fcv_properties(void *data)
@@ -1561,7 +1719,7 @@ static obs_properties_t *fcv_properties(void *data)
 	obs_properties_add_bool(props, "show_grid", obs_module_text("ShowGrid"));
 	obs_properties_add_bool(props, "show_hex", obs_module_text("ShowHex"));
 	obs_properties_add_bool(props, "show_dot", obs_module_text("ShowDot"));
-	obs_properties_add_bool(props, "show_tabs", obs_module_text("ShowTabs"));
+	obs_properties_add_bool(props, "show_tabs", obs_module_text("ShowTargets"));
 
 	obs_properties_add_int(props, "width", obs_module_text("ConsoleWidth"), 320, 3840, 2);
 	obs_properties_add_int(props, "height", obs_module_text("ConsoleHeight"), 180, 2160, 2);
@@ -1673,6 +1831,24 @@ static void hud_blit(fractisynth_console_data_t *f, int W, int H)
 	gs_enable_framebuffer_srgb(prev_srgb);
 }
 
+static void hud_marker(fractisynth_console_data_t *f, uint8_t *b, int W, int H)
+{
+	if (f->marker_age <= 0.0f || f->marker_age > FCV_MARKER_LIFETIME)
+		return;
+	float fade = 1.0f - f->marker_age / FCV_MARKER_LIFETIME;
+	if (fade < 0.0f)
+		fade = 0.0f;
+	int x = (int)(f->marker_x * (float)W);
+	int y = (int)(f->marker_y * (float)H);
+	int r = W < H ? W / 42 : H / 42;
+	if (r < 6)
+		r = 6;
+	uint8_t a = (uint8_t)(255.0f * fade);
+	hud_line(b, W, H, x - r, y, x + r, y, 232, 163, 61, a);
+	hud_line(b, W, H, x, y - r, x, y + r, 232, 163, 61, a);
+	t8_putpx(b, W, H, x, y, 58, 175, 169, 255);
+}
+
 static void fcv_render_hud(fractisynth_console_data_t *f)
 {
 	int W = (int)f->width, H = (int)f->height;
@@ -1746,6 +1922,8 @@ static void fcv_render_hud(fractisynth_console_data_t *f)
 		}
 	}
 
+	hud_marker(f, b, W, H);
+
 	/* steganographic provenance: canonical 24B (<f i f f f I>) -> SHA-256 -> payload */
 	uint8_t canon[24];
 	float ff = st.flux, wf = st.solar_wind_kms, lf = st.lock_strength, pf = st.wind_phase;
@@ -1792,14 +1970,14 @@ static void fcv_render_graph(fractisynth_console_data_t *f)
 
 	int metric = (int)(f->graph_metric + 0.5f);
 	int ser, logscale = 0;
-	const char *title, *unit, *sub;
+	const char *title, *unit, *sub, *axis_left;
 	uint8_t cr, cg, cb;
 	switch (metric) {
-	case 1: ser = SER_DENS; title = "SOLAR WIND DENSITY"; unit = "P/CM3"; sub = "LIVE NOAA SWPC - 2H 1-MIN"; cr = 232; cg = 163; cb = 61; break;
-	case 2: ser = SER_TEMP; title = "SOLAR WIND TEMPERATURE"; unit = "K"; sub = "LIVE NOAA SWPC - 2H 1-MIN"; cr = 232; cg = 49; cb = 58; break;
-	case 3: ser = SER_XRAY; title = "GOES X-RAY FLUX 0.1-0.8NM"; unit = "W/M2"; sub = "LIVE NOAA SWPC - 6H 1-MIN - LOG"; logscale = 1; cr = 200; cg = 120; cb = 232; break;
-	case 4: ser = SER_KP; title = "PLANETARY K-INDEX (KP)"; unit = ""; sub = "LIVE NOAA SWPC - 1-MIN EST"; cr = 120; cg = 200; cb = 120; break;
-	default: ser = SER_WIND; title = "SOLAR WIND SPEED"; unit = "KM/S"; sub = "LIVE NOAA SWPC - 2H 1-MIN"; cr = 58; cg = 175; cb = 169; break;
+	case 1: ser = SER_DENS; title = "SOLAR WIND DENSITY"; unit = "P/CM3"; sub = "LIVE NOAA SWPC - 2H 1-MIN"; axis_left = "-2H"; cr = 232; cg = 163; cb = 61; break;
+	case 2: ser = SER_TEMP; title = "SOLAR WIND TEMPERATURE"; unit = "K"; sub = "LIVE NOAA SWPC - 2H 1-MIN"; axis_left = "-2H"; cr = 232; cg = 49; cb = 58; break;
+	case 3: ser = SER_XRAY; title = "GOES X-RAY FLUX 0.1-0.8NM"; unit = "W/M2"; sub = "LIVE NOAA SWPC - 6H 1-MIN - LOG"; axis_left = "-6H"; logscale = 1; cr = 200; cg = 120; cb = 232; break;
+	case 4: ser = SER_KP; title = "PLANETARY K-INDEX (KP)"; unit = ""; sub = "LIVE NOAA SWPC - 1-MIN EST"; axis_left = "-KP MIN"; cr = 120; cg = 200; cb = 120; break;
+	default: ser = SER_WIND; title = "SOLAR WIND SPEED"; unit = "KM/S"; sub = "LIVE NOAA SWPC - 2H 1-MIN"; axis_left = "-2H"; cr = 58; cg = 175; cb = 169; break;
 	}
 
 	t8_fill_rect(b, W, H, 0, 0, W, H, 18, 18, 14, 255);
@@ -1841,7 +2019,7 @@ static void fcv_render_graph(fractisynth_console_data_t *f)
 			px = cx;
 			py = cy;
 		}
-		char ln[64];
+		char ln[64], left_axis[24];
 		/* current value (big) */
 		if (logscale)
 			snprintf(ln, sizeof ln, "%.2e %s", (double)s[n - 1], unit);
@@ -1857,8 +2035,12 @@ static void fcv_render_graph(fractisynth_console_data_t *f)
 		if (logscale) snprintf(ln, sizeof ln, "%.0e", (double)mn);
 		else snprintf(ln, sizeof ln, "%.0f", (double)mn);
 		t8_text(b, W, H, 4, gy + gh - 10, ln, 1, 150, 145, 132, 255);
-		/* time axis: oldest (left) -> now (right) + sample count */
-		t8_text(b, W, H, gx, gy + gh + 6, "OLDEST", ssc, 110, 106, 96, 255);
+		/* time axis: metric-aware horizon (left) -> now (right) + sample count */
+		if (metric == 4)
+			snprintf(left_axis, sizeof left_axis, "-%d MIN", n > 1 ? n - 1 : n);
+		else
+			snprintf(left_axis, sizeof left_axis, "%s", axis_left);
+		t8_text(b, W, H, gx, gy + gh + 6, left_axis, ssc, 110, 106, 96, 255);
 		t8_text(b, W, H, gx + gw - t8_text_w("NOW", ssc), gy + gh + 6, "NOW", ssc, cr, cg, cb, 255);
 		snprintf(ln, sizeof ln, "%d SAMPLES", n);
 		t8_text(b, W, H, gx + (gw - t8_text_w(ln, 1)) / 2, gy + gh + 6, ln, 1, 110, 106, 96, 255);
@@ -1866,6 +2048,7 @@ static void fcv_render_graph(fractisynth_console_data_t *f)
 		t8_text(b, W, H, gx + 12, gy + gh / 2 - 4, "ACQUIRING SERIES...", ssc, 232, 163, 61, 255);
 	}
 
+	hud_marker(f, b, W, H);
 	hud_blit(f, W, H);
 }
 
@@ -1934,6 +2117,14 @@ static void fcv_video_render(void *data, gs_effect_t *effect)
 		gs_effect_set_float(f->p_show_dot, f->show_dot);
 	if (f->p_show_tabs)
 		gs_effect_set_float(f->p_show_tabs, f->show_tabs);
+	if (f->p_layer_visible_mask)
+		gs_effect_set_float(f->p_layer_visible_mask, f->layer_visible_mask);
+	if (f->p_marker_x)
+		gs_effect_set_float(f->p_marker_x, f->marker_x);
+	if (f->p_marker_y)
+		gs_effect_set_float(f->p_marker_y, f->marker_y);
+	if (f->p_marker_age)
+		gs_effect_set_float(f->p_marker_age, f->marker_age);
 
 	/* Draw the procedural console via the custom effect (OBS color_source
 	 * technique pattern). Guard the technique lookup and keep render state balanced. */
@@ -1957,11 +2148,11 @@ static void fcv_video_render(void *data, gs_effect_t *effect)
 }
 
 /*
- * Interactive feed selection: when the tab strip is shown, a left-click in the
- * top ~9% of the source maps the x-position to one of the 5 synthetic feeds and
- * switches to it live (the "clickable on-screen menu targets"). Interaction is
- * delivered via OBS's Interact window / interactive projector. Fail-safe: clicks
- * outside the strip, with tabs hidden, or non-left buttons are ignored.
+	 * Interactive target selection: when targets are shown, a left-click in the top
+	 * ~9% maps to one of seven feeds, the left rail toggles feed-layer visibility,
+	 * and the remaining canvas drops a transient marker. Interaction is delivered via
+	 * OBS's Interact window / interactive projector. Fail-safe: invalid clicks or
+	 * hidden targets are ignored.
  */
 static void fcv_mouse_click(void *data, const struct obs_mouse_event *event, int32_t type,
 			    bool mouse_up, uint32_t click_count)
@@ -1972,16 +2163,42 @@ static void fcv_mouse_click(void *data, const struct obs_mouse_event *event, int
 		return;
 	if (f->width == 0 || f->height == 0)
 		return;
-	if ((float)event->y > (float)f->height * 0.09f)
-		return; /* only the tab strip is clickable */
-	int cell = (int)((float)event->x / (float)f->width * 5.0f);
-	if (cell < 0)
-		cell = 0;
-	if (cell > 4)
-		cell = 4;
+	float x = (float)event->x, y = (float)event->y;
+	if (x < 0.0f || y < 0.0f || x >= (float)f->width || y >= (float)f->height)
+		return;
+
 	obs_data_t *s = obs_source_get_settings(f->context);
-	obs_data_set_int(s, "feed", cell);
-	obs_source_update(f->context, s);
+	if (y < (float)f->height * FCV_TAB_HEIGHT_FRAC) {
+		enum fcv_target_action action = TargetActionFeed;
+		UNUSED_PARAMETER(action);
+		int cell = (int)(x / (float)f->width * FCV_TAB_CELLS);
+		if (cell < 0)
+			cell = 0;
+		if (cell >= FCV_FEED_COUNT)
+			cell = FCV_FEED_COUNT - 1;
+		obs_data_set_int(s, "feed", cell);
+		obs_source_update(f->context, s);
+	} else if (x < (float)f->width * FCV_LAYER_RAIL_WIDTH_FRAC) {
+		enum fcv_target_action action = TargetActionLayerToggle;
+		UNUSED_PARAMETER(action);
+		float usable = (float)f->height * (1.0f - FCV_TAB_HEIGHT_FRAC);
+		int idx = (int)((y - (float)f->height * FCV_TAB_HEIGHT_FRAC) / usable * (float)FCV_FEED_COUNT);
+		if (idx < 0)
+			idx = 0;
+		if (idx >= FCV_FEED_COUNT)
+			idx = FCV_FEED_COUNT - 1;
+		int mask = (int)(f->layer_visible_mask + 0.5f);
+		mask ^= (1 << idx);
+		f->layer_visible_mask = (float)mask;
+		obs_data_set_double(s, "layer_visible_mask", (double)f->layer_visible_mask);
+		obs_source_update(f->context, s);
+	} else {
+		enum fcv_target_action action = TargetActionMarker;
+		UNUSED_PARAMETER(action);
+		f->marker_x = x / (float)f->width;
+		f->marker_y = y / (float)f->height;
+		f->marker_age = 0.001f;
+	}
 	obs_data_release(s);
 }
 

@@ -7,7 +7,7 @@ verb or an invalid value raises `CommandError`; the terminal never silently no-o
 
 Parser: [`src/synthobs/commands.py`](../src/synthobs/commands.py), entry point `parse(line)`.
 
-## The three verbs
+## The four verbs
 
 ```text
 ┌──────────────┬──────────────────────────────────────────────────────────────┐
@@ -16,6 +16,7 @@ Parser: [`src/synthobs/commands.py`](../src/synthobs/commands.py), entry point `
 │ /mode        │ --observatory | --lab | --ship                                │
 │ /transducer  │ bind <source> --ratio=<float>                                 │
 │ /swo         │ calibrate --flux=<float> --spots=<int> [--target=<id>]         │
+│ /dashboard   │ plan --name=<scene> | build --name=<scene>                    │
 └──────────────┴──────────────────────────────────────────────────────────────┘
 ```
 
@@ -29,7 +30,7 @@ flowchart TD
     B -- yes --> E["raise CommandError"]
     B -- no --> C["shlex.split(line.strip())"]
     C -- unbalanced quotes --> E
-    C -- tokens --> D{verb in<br/>/mode /transducer /swo?}
+    C -- tokens --> D{verb in<br/>/mode /transducer /swo /dashboard?}
     D -- no --> E
     D -- yes --> F["_split_flags(rest)<br/>positionals + --key=value flags"]
     F --> G["_parse_mode / _parse_transducer / _parse_swo"]
@@ -78,6 +79,24 @@ Manually calibrates the oscillator (the same fail-closed rules as live telemetry
 The `--flux>0` and `--spots>0` checks mirror the SWO Hold State exactly — you cannot
 hand the grammar a reading the oscillator would itself reject.
 
+### `/dashboard plan|build` → `DashboardCommand`
+
+Creates or previews the deterministic SynthOBS awareness dashboard plan. Both actions
+require a non-empty scene name.
+
+| Input                                    | Result                                                   |
+| ---------------------------------------- | -------------------------------------------------------- |
+| `/dashboard plan --name=Awareness`       | `DashboardCommand(action="plan", name="Awareness")`      |
+| `/dashboard build --name=Awareness`      | `DashboardCommand(action="build", name="Awareness")`     |
+| `/dashboard`                             | **`CommandError`**                                       |
+| `/dashboard inspect --name=Awareness`    | **`CommandError`**                                       |
+| `/dashboard plan`                        | **`CommandError`**                                       |
+
+The obspython bridge consumes the parsed command through `dashboard_plan(name)`. Outside
+OBS, both actions return deterministic dry-run summaries for tests. Inside OBS, `build`
+creates the planned `fractisynth_console` layers and registers next/previous layer
+hotkeys.
+
 ## Error handling
 
 Every malformed input raises `CommandError`, which carries a human-readable message:
@@ -92,7 +111,8 @@ except CommandError as exc:
 ```
 
 Empty or whitespace-only lines, unbalanced quotes, unknown verbs, missing arguments,
-non-numeric numeric flags, and out-of-range values are all `CommandError`. There is no
+non-numeric numeric flags, empty dashboard names, and out-of-range values are all
+`CommandError`. There is no
 input that produces a partial or silent result.
 
 ## Inside OBS
@@ -113,11 +133,11 @@ on `CommandError` (never a crash):
          │
   ┌──────┼───────────────┐
   ▼      ▼               ▼
-ModeCommand  BindCommand  CalibrateCommand
-  │            │               │
-  ▼            ▼               ▼
-"mode → …"  "transducer    "SWO calibrated:
-            bound … @       phase_vector=…"
+ModeCommand  BindCommand  CalibrateCommand  DashboardCommand
+  │            │               │                │
+  ▼            ▼               ▼                ▼
+"mode → …"  "transducer    "SWO calibrated:  "dashboard …:
+            bound … @       phase_vector=…"   7 layers …"
             ratio …"
 ```
 

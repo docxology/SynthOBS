@@ -8,6 +8,8 @@
  *   feed 2  Interference Field— two rotating K_EGS wave systems → holographic moiré
  *   feed 3  Spectral Rings    — outward rainbow bands pulsing with flux/lock
  *   feed 4  Spiral Drift      — drifting golden-spiral arms, density by lock
+ *   feed 5  Telemetry HUD     — CPU-rendered in fractisynth.c
+ *   feed 6  Solar Graph       — CPU-rendered in fractisynth.c
  * Post: optional hue-cycle (trippy) + chromatic shimmer (radial RGB split).
  *
  * NOTE: OBS does NOT initialise global `static const float3`; all palette colours
@@ -23,7 +25,7 @@ uniform float egs_key;
 uniform float elapsed;
 uniform float2 uv_size;
 
-uniform float feed;          /* 0..4 synthetic feed selector */
+uniform float feed;          /* 0..6 feed selector */
 uniform float chroma;        /* chromatic shimmer intensity  */
 uniform float hue_cycle;     /* hue rotation amount over time */
 uniform float theme;         /* 0 Observatory, 1 Laboratory, 2 Expedition */
@@ -36,7 +38,11 @@ uniform float show_fringes;
 uniform float show_grid;
 uniform float show_hex;
 uniform float show_dot;
-uniform float show_tabs;     /* clickable feed-selector tab strip (interactive) */
+uniform float show_tabs;     /* clickable target strip/rail (interactive) */
+uniform float layer_visible_mask;
+uniform float marker_x;
+uniform float marker_y;
+uniform float marker_age;
 
 #define PHI 1.61803398875
 #define INV_PHI 0.61803398875
@@ -73,6 +79,13 @@ Palette get_palette()
 }
 
 float soft_line(float d, float w) { return 1.0 - smoothstep(0.0, w, abs(d)); }
+
+float feed_enabled(float f)
+{
+	float idx = floor(f + 0.5);
+	float bit = floor(layer_visible_mask / pow(2.0, idx));
+	return step(1.0, fmod(bit, 2.0));
+}
 
 float hex_edge(float2 p)
 {
@@ -194,6 +207,7 @@ float3 feed_color(float2 uv)
 	if (feed < 1.5) return feed_hex_tunnel(uv, t, lock, pn, inten, aspect);
 	if (feed < 2.5) return feed_interference(uv, t, lock, pn, inten, aspect);
 	if (feed < 3.5) return feed_spectral(uv, t, lock, pn, inten, aspect);
+	if (feed > 4.5) return get_palette().bg * 0.35; /* CPU-rendered feeds bypass shader */
 	return feed_spiral_drift(uv, t, lock, pn, inten, aspect);
 }
 
@@ -211,15 +225,30 @@ float4 PSConsole(VertData v_in) : TARGET
 	if (hue_cycle > 0.001)
 		col = hue_rotate(col, hue_cycle * elapsed * 0.25);
 
-	/* clickable feed-selector tab strip across the top (5 cells; active = ring) */
+	Palette p = get_palette();
+	col = lerp(p.bg * 0.2, col, feed_enabled(feed));
+
+	if (marker_age > 0.0 && marker_age < 4.0) {
+		float fade = 1.0 - marker_age / 4.0;
+		float2 d = uv - float2(marker_x, marker_y);
+		float line = soft_line(d.x, 2.5 / uv_size.x) * step(abs(d.y), 0.035)
+			+ soft_line(d.y, 2.5 / uv_size.y) * step(abs(d.x), 0.035);
+		float ring = soft_line(length(d) - 0.030, 2.0 / uv_size.x);
+		col = lerp(col, p.mari, saturate(line + ring) * fade);
+	}
+
+	/* clickable feed-selector tab strip across the top (7 cells; active = ring) */
 	if (show_tabs > 0.5 && uv.y < 0.055) {
-		Palette p = get_palette();
-		float fcell = uv.x * 5.0;
+		float fcell = uv.x * 7.0;
 		float is_on = step(abs(floor(fcell) - feed), 0.5);
 		float3 tab = lerp(p.bg * 1.7, p.ring, is_on * 0.85);
 		float seam = step(frac(fcell), 0.012) + step(0.988, frac(fcell));
 		tab = lerp(tab, p.mari, saturate(seam));
 		col = lerp(tab, col, smoothstep(0.05, 0.055, uv.y)); /* hairline bottom edge */
+	}
+	if (show_tabs > 0.5 && uv.x < 0.030 && uv.y >= 0.090) {
+		float rail = frac((uv.y - 0.090) / 0.910 * 7.0);
+		col = lerp(col, p.mari, (step(rail, 0.05) + step(0.95, rail)) * 0.45);
 	}
 	return float4(saturate(col), 1.0);
 }

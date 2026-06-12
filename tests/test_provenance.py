@@ -236,6 +236,13 @@ def test_embed_nonpositive_dimensions_raise() -> None:
         embed_lsb(bytearray(), 0, 10, b"x")
 
 
+def test_embed_rejects_payload_larger_than_uint16_prefix() -> None:
+    width, height = 1024, 1024
+    rgba = _blank_buffer(width, height)
+    with pytest.raises(ProvenanceError, match="uint16 length prefix"):
+        embed_lsb(rgba, width, height, b"x" * 0x1_0000)
+
+
 def test_extract_wrong_buffer_length_raises() -> None:
     with pytest.raises(ProvenanceError, match="expected"):
         extract_lsb(b"\x00" * 10, 16, 16)
@@ -265,6 +272,7 @@ def test_extract_declared_length_overflow_raises() -> None:
         ({"flux": float("nan")}, "finite"),
         ({"flux": float("inf")}, "finite"),
         ({"sunspots": -1}, "sunspots must be >= 0"),
+        ({"sunspots": 0x80000000}, "int32 range"),
         ({"lock_strength": 1.5}, r"lock_strength must be in \[0, 1\]"),
         ({"lock_strength": -0.1}, r"lock_strength must be in \[0, 1\]"),
         ({"solar_wind_kms": float("nan")}, "finite"),
@@ -298,6 +306,8 @@ def test_bool_is_rejected_for_int_fields() -> None:
     )
     with pytest.raises(ProvenanceError, match="sunspots must be an int"):
         TelemetryRecord(**{**base, "sunspots": True})  # type: ignore[arg-type]
+    with pytest.raises(ProvenanceError, match="observed_unix must be an int"):
+        TelemetryRecord(**{**base, "observed_unix": True})  # type: ignore[arg-type]
 
 
 def test_canonical_bytes_rejects_non_record() -> None:

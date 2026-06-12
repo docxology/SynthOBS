@@ -35,6 +35,16 @@ def test_update_unavailable_holds() -> None:  # ISC-50
     assert eng.state().holding is True
 
 
+def test_update_invalid_telemetry_holds_last_good_vector() -> None:
+    eng = SynthEngine()
+    eng.update(_telemetry(flux=150.0, spots=3))
+    held = eng.phase_vector
+
+    assert eng.update(_telemetry(flux=0.0, spots=3, source="invalid")) is False
+    assert eng.phase_vector == held
+    assert eng.state().holding is True
+
+
 def test_layout_fractions() -> None:  # ISC-51
     eng = SynthEngine()
     vp = eng.layout(1920, 1080)

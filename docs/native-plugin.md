@@ -6,7 +6,8 @@ tested Python engine — and it is **verified to load and run live in OBS 32.1.2
 page documents its structure, the two filters, the telemetry thread, and the lifecycle.
 
 Source: [`plugin/fractisynth/src/fractisynth.c`](../plugin/fractisynth/src/fractisynth.c)
-(≈600 lines). Effect: `data/fractisynth.effect`. Build: `CMakeLists.txt` + `build.sh`.
+(≈2100 lines). Effects: `data/fractisynth.effect` and
+`data/fractisynth_console.effect`. Build: `CMakeLists.txt` + `build.sh`.
 
 ## What it registers
 
@@ -25,9 +26,15 @@ The **console source** (`fcv_*` callbacks) draws a full-screen quad through its 
 procedural shader `fractisynth_console.effect` (no input image — `gs_draw_sprite(NULL,
 …)`), feeding it the live `swo_phase` / `lock_strength` / `wind_phase` / `egs_key`
 uniforms via the mutex-guarded `swo_read()` + `gateway_read()`. It is what makes SynthOBS
-appear in the Sources "+" menu. The **dock** is a moc-free, text-free Qt `QWidget`
+appear in the Sources "+" menu. Its interaction handler mirrors
+`synthobs.interaction.resolve_target_action`: the top strip has seven feed cells, the
+left rail toggles layer visibility bits, and the remaining canvas drops a transient
+marker that fades without altering telemetry state. The **dock** is a moc-free,
+QPainter Qt `QWidget`
 ([build-and-install.md](build-and-install.md#the-optional-frontend-dock)) reading the same
-state through the C accessor `fractisynth_get_state()`.
+state through the C accessor `fractisynth_get_state()`. It now also reads the active
+console theme through `fractisynth_get_console_theme()`, cycles Ring / Bar / Needle
+gauge styles, and cycles 0 / 1 / 2 decimal precision without mutating telemetry state.
 
 The φ literal is pinned: `#define EGS_PHI 1.61803398875f`, asserted equal to the Python
 `PHI` to ≥9 significant digits by `test_plugin_artifacts.py` (ISC-60).
@@ -101,10 +108,11 @@ typedef struct fractisynth_swo {
 
 ## The telemetry thread (hardened)
 
-A background libcurl thread polls the two NOAA SWPC endpoints every 60 s and locks the
-oscillator. Built without libcurl (`-DHAVE_CURL` off), the oscillator simply runs on its
-default vector and a warning is logged. See [telemetry.md](telemetry.md) for the feeds
-and the fail-closed contract.
+A background libcurl thread polls the NOAA SWPC flux, active-region, solar-wind plasma,
+GOES X-ray, and Kp endpoints every 60 s and locks the oscillator plus the Solar Graph
+series store. Built without libcurl (`-DHAVE_CURL` off), the oscillator simply runs on
+its default vector and a warning is logged. See [telemetry.md](telemetry.md) for the
+feeds and the fail-closed contract.
 
 The thread is built to never hang OBS shutdown — these protections were added after an
 adversarial (cross-vendor) review of the exact paths a live smoke-load cannot exercise:
@@ -137,13 +145,37 @@ obs_module_unload()
   └─ curl_global_cleanup()                        // once, here (HAVE_CURL)
 ```
 
+## Console feeds and targets
+
+Inside OBS the console source exposes seven feeds:
+
+| Feed id | Name | Renderer |
+| ---: | --- | --- |
+| 0 | Wavefield | shader |
+| 1 | Hex Tunnel | shader |
+| 2 | Interference | shader |
+| 3 | Spectral Rings | shader |
+| 4 | Spiral Drift | shader |
+| 5 | Telemetry HUD | CPU renderer with metadata, waveforms, provenance, and marker overlay |
+| 6 | Solar Graph | CPU renderer for wind speed, density, temperature, GOES X-ray flux, and Kp |
+
+The OBS property key `show_tabs` is preserved for saved-scene compatibility, but its
+label is now **Show Clickable Targets** because it controls the seven feed cells, the
+layer-toggle rail, and marker-drop affordances.
+
+The **Zoom Inspector** filter supports fixed-region and follow-mouse modes. In follow
+mode, OBS interaction mouse events drive the inspected normalized region; until a mouse
+event arrives, the filter falls back to `region_x` / `region_y`. Its optional annotation
+strip renders the current mode, normalized UV, source pixel coordinate, and zoom through
+the same deterministic bitmap text path as the Telemetry HUD.
+
 ## Relationship to the Python engine
 
 The C plugin is a *mirror*, not the source of truth. The φ literal, the SWO formula
 (`φ · flux/spots`), the fail-closed rule, and the soft-limiter curve are identical to
 [`src/synthobs`](../src/synthobs), and the pin between them is a **test** — drift is a
 failure, not a silent divergence. When in doubt about intended behavior, the Python
-engine and its 859-test suite are authoritative; the C plugin makes that behavior run
+engine and its 1024-test suite are authoritative; the C plugin makes that behavior run
 natively inside OBS.
 
 ## OBS effect-language gotchas (hard-won)

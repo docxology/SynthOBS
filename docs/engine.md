@@ -24,6 +24,8 @@ flowchart TD
     D[dsp<br/>φ soft-limit · video dims]
     CO[console<br/>3 modes · 7 buttons]
     CM[commands<br/>terminal grammar]
+    I[interaction<br/>7 feed targets · layer rail · marker]
+    LP[layers<br/>dashboard plan]
     E[engine<br/>SynthEngine orchestrator]
 
     C --> L
@@ -37,11 +39,13 @@ flowchart TD
     D --> E
     CO --> E
     CO --> CM
+    I --> LP
+    LP --> CM
 
     classDef core fill:#0f172a,stroke:#0f172a,color:#fff
     classDef io fill:#7c2d12,stroke:#0f172a,color:#fff
     classDef orch fill:#0f766e,stroke:#0f172a,color:#fff
-    class C,L,G,D core
+    class C,L,G,D,I,LP core
     class T io
     class E,S,CO,CM orch
 ```
@@ -293,7 +297,46 @@ parse(line: str) -> Command
 | `ModeCommand`             | `raw`, `target: Mode = Mode.OBSERVATORY`                 |
 | `BindCommand`             | `raw`, `source: str = ""`, `ratio: float = 0.0`          |
 | `CalibrateCommand`        | `raw`, `flux: float = 0.0`, `spots: int = 0`, `target: str \| None = None` |
+| `DashboardCommand`        | `raw`, `action: str = "plan" \| "build"`, `name: str = ""` |
 | `CommandError(ValueError)`| raised on empty line, unknown verb, or invalid/out-of-range args |
+
+---
+
+## `interaction` — clickable target geometry
+
+```python
+class Feed(IntEnum):        # WAVEFIELD..SOLAR_GRAPH, values 0..6
+class GraphMetric(IntEnum): # WIND_SPEED, WIND_DENSITY, WIND_TEMPERATURE, XRAY_FLUX, KP_INDEX
+class TargetAction(str, Enum): # NONE, FEED, LAYER_TOGGLE, MARKER
+resolve_target_action(x, y, width, height, *, button="left", show_targets=True, layer_count=0) -> TargetHit
+```
+
+The geometry mirrors the native `fractisynth_console` source exactly: the top 9% of the
+canvas is seven feed cells; the left 7% below that strip is a layer-toggle rail; the
+remaining canvas drops a normalized marker. Invalid coordinates, non-left buttons,
+hidden targets, or non-positive canvas dimensions return `TargetAction.NONE`.
+
+| Type | Fields |
+| --- | --- |
+| `TargetHit` | `action: TargetAction`, `feed: Feed \| None`, `layer_index: int \| None`, `marker: tuple[float, float] \| None` |
+
+---
+
+## `layers` — deterministic dashboard planning
+
+```python
+dashboard_plan(scene_name: str) -> DashboardPlan
+```
+
+`dashboard_plan` returns a seven-layer OBS scene plan with normalized bounds:
+Wavefield, Telemetry HUD, and Solar Graph layers for wind speed, wind density, wind
+temperature, GOES X-ray flux, and Kp index. It raises `ValueError` for an empty scene
+name, so the command grammar and obspython bridge fail closed before touching OBS state.
+
+| Type | Fields |
+| --- | --- |
+| `DashboardLayer` | `name`, `feed: Feed`, `graph_metric: GraphMetric \| None`, `bounds: tuple[float, float, float, float]`, `visible: bool` |
+| `DashboardPlan` | `scene_name: str`, `layers: tuple[DashboardLayer, ...]` |
 
 ---
 

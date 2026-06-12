@@ -145,11 +145,13 @@ QT_PREFIX=/path/to/qt-6.8.x ./build.sh --install
 #   ==> Qt 6.11 ≠ OBS runtime Qt 6.8 — SKIPPING dock to protect the plugin
 ```
 
-The dock is **moc-free** (overrides only `paintEvent`/`timerEvent`) and **text-free**
-(pure `QPainter` geometry — arcs, lines, fills — all stable since Qt 4), reading the live
-state through the mutex-guarded C accessor `fractisynth_get_state()`. When built and
-loaded it logs `[fractisynth] frontend dock registered` and appears under **Docks →
-SynthOBS Gateway**. The console *source* ([usage.md](usage.md#0-the-φ-wavefield-console-source-the-addable-draggable-pane))
+The dock is **moc-free** (overrides only `paintEvent`/`timerEvent`) and uses stable
+`QPainter` drawing for arcs, lines, fills, and compact control labels. It reads live
+state through `fractisynth_get_state()`, follows the active console theme through
+`fractisynth_get_console_theme()`, and exposes in-dock mode, freeze, gauge-style, and
+decimal-precision controls. When built and loaded it logs `[fractisynth] frontend dock
+registered` and appears under **Docks → SynthOBS Gateway**. The console *source*
+([usage.md](usage.md#0-the-φ-wavefield-console-source-the-addable-draggable-pane))
 gives the same live visuals as an in-canvas pane with no Qt build required.
 
 ## Using it after install
@@ -162,7 +164,7 @@ Restart OBS. SynthOBS appears as **a source you can add**, **two filters**, an o
 | **SynthOBS — φ Wavefield Console** | source | `FractiSynthConsole` | generated, draggable live gateway-console pane |
 | **FractiSynth — φ Video Calibration** | filter | `FractiSynthVideo` | calibrates a source's harmonic box against φ |
 | **FractiSynth — φ Harmonic Limiter**  | filter | `FractiSynthAudio` | recursive 1/φ soft limiter (`tanhf`, never hard-clipped) |
-| **SynthOBS Gateway** | dock | — | live gateway gauge (optional Qt-matched build) |
+| **SynthOBS Gateway** | dock | — | live gateway gauge with freeze, style, precision, and theme-follow controls (optional Qt-matched build) |
 
 ## Uninstall
 

@@ -73,6 +73,10 @@ def test_validate_passes(console: Console) -> None:
     console.validate()  # raises on any structural violation
 
 
+def test_common_buttons_accessor(console: Console) -> None:
+    assert console.common_buttons() == COMMON_BUTTONS
+
+
 # --- command grammar -----------------------------------------------------
 @pytest.mark.parametrize(
     "line,mode",
@@ -143,3 +147,13 @@ def test_unknown_or_empty_fails_closed(line: str) -> None:  # ISC-46
 def test_invalid_args_fail_closed(line: str) -> None:  # ISC-46, ISC-47
     with pytest.raises(CommandError):
         parse(line)
+
+
+def test_unparseable_quotes_fail_closed() -> None:
+    with pytest.raises(CommandError, match="unparseable"):
+        parse('/mode "unterminated')
+
+
+def test_transducer_ratio_must_be_numeric() -> None:
+    with pytest.raises(CommandError, match="ratio must be a float"):
+        parse("/transducer bind cam --ratio=not-a-number")

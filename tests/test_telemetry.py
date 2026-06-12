@@ -112,6 +112,33 @@ def test_connection_failure_fails_closed() -> None:
         fetch_live_telemetry("http://127.0.0.1:1/swo", timeout=0.5, now=_now())
 
 
+def test_custom_opener_non_200_fails_closed() -> None:
+    class Response:
+        status = 204
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> None:
+            return None
+
+        def getcode(self) -> int:
+            return self.status
+
+        def read(self) -> bytes:
+            return b""
+
+    def opener(url: str, *, timeout: float) -> Response:
+        assert url == "https://example.invalid/swo"
+        assert timeout == 1.0
+        return Response()
+
+    with pytest.raises(TelemetryUnavailable, match="non-200"):
+        fetch_live_telemetry(
+            "https://example.invalid/swo", timeout=1.0, now=_now(), opener=opener
+        )
+
+
 # --- NOAA F10.7 array parser --------------------------------------------
 def test_parse_noaa_f107_latest() -> None:
     data = [
@@ -133,3 +160,15 @@ def test_parse_noaa_f107_as_text() -> None:
 def test_parse_noaa_f107_fails_closed(bad: str) -> None:
     with pytest.raises(TelemetryUnavailable):
         parse_noaa_f107_flux(bad)
+
+
+@pytest.mark.parametrize(
+    "data",
+    [
+        [{"time_tag": "2026-06-10T00:00:00"}],
+        [{"time_tag": "2026-06-10T00:00:00", "flux": "x"}],
+    ],
+)
+def test_parse_noaa_f107_missing_or_nonnumeric_flux_fails_closed(data: list[dict]) -> None:
+    with pytest.raises(TelemetryUnavailable):
+        parse_noaa_f107_flux(data)

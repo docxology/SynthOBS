@@ -17,7 +17,7 @@ plugin is the production transducer, and the obspython script is the bridge.
         │ LAYER 1 — Python engine      │ mirror│ LAYER 2 — native libobs      │
         │ src/synthobs/                │◀─────▶│ plugin                       │
         │ source of truth              │ ISC-60│ plugin/fractisynth/src/      │
-        │ 889 tests, no mocks          │       │ fractisynth.c (loads in OBS) │
+        │ 1024 tests, no mocks         │       │ fractisynth.c (loads in OBS) │
         └──────────────────────────────┘       └──────────────────────────────┘
                           ▲                               ▲
             drives the    │                               │   registers the two
@@ -32,7 +32,7 @@ plugin is the production transducer, and the obspython script is the bridge.
 ## Layer 1 — the Python engine (`src/synthobs/`)
 
 The engine is the **source of truth**. It has zero OBS dependency and zero network
-dependency in its core, which is exactly what makes it testable without mocks. Eleven
+dependency in its core, which is exactly what makes it testable without mocks. Thirteen
 modules, each one responsibility:
 
 | Module            | Responsibility                                                                                              |
@@ -46,6 +46,8 @@ modules, each one responsibility:
 | `dsp.py`          | φ-calibrated video dimensions, the spatial scale matrix, the φ-knee soft limiter.                           |
 | `console.py`      | The three operator modes and the 7-button console with its safety button per mode.                          |
 | `commands.py`     | The terminal grammar parser (`parse`). Fails closed (`CommandError`) on unknown verbs / bad values.          |
+| `interaction.py`  | Seven feed-tab targets, layer-toggle rail geometry, and marker-drop resolution.                             |
+| `layers.py`       | Deterministic OBS dashboard/layer plans for Wavefield, Telemetry HUD, and Solar Graph metrics.              |
 | `engine.py`       | `SynthEngine` — orchestrates calibration, layout, and modulation; refuses to modulate before calibration.    |
 | `__init__.py`     | Public package surface.                                                                                      |
 

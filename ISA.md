@@ -370,7 +370,7 @@ visualizations + auto-number every formalism; deep-QA package/docs/paper (`/work
 - [x] ISC-102: a procedural `fractisynth_console.effect` paints the live console (Goldilocks guides, K_EGS fringes, φ-spiral, gateway lock ring, H-α tint, phase dot).
 - [x] ISC-103: the source instantiates in OBS 32.1.2 — log `source: 'FS Wavefield Console' (fractisynth_console)`.
 - [x] ISC-104: BOTH shaders compile in OBS (filter + console) — `effect-load failures: 0` with both instantiated. (First real shader test; fixed 2 OBS-effect-parser bugs: `static const float3 = {…}` brace-init, `#define` literal not expression.)
-- [x] ISC-105: a native frontend dock (`fractisynth_dock.cpp`, moc-free + text-free QWidget) is authored and registers via `obs_module_post_load` → `obs_frontend_add_dock_by_id`.
+- [x] ISC-105: a native frontend dock (`fractisynth_dock.cpp`, moc-free QPainter QWidget) is authored and registers via `obs_module_post_load` → `obs_frontend_add_dock_by_id`.
 - [x] ISC-106: the dock build is **version-gated** — compiled only when `QT_PREFIX` Qt major.minor == OBS runtime Qt; on mismatch it auto-skips. Verified: with brew Qt 6.11 ≠ OBS 6.8 it skips and the plugin still loads (`[fractisynth] loaded`).
 - [x] ISC-107: Anti: the dock can NEVER break the core plugin. Proven the hard way — an un-gated 6.11 build made the whole module fail to dlopen (`_qt_version_tag_6_11` / `QAnyStringView` / `doSetPen`); the version gate now prevents this.
 - [x] ISC-108: every display formalism in the manuscript carries a pandoc-crossref `{#eq:…}` label (29 across 8 sections) and `@eq:`/`@fig:` references resolve — formalisms auto-number in the PDF.
@@ -386,7 +386,7 @@ visualizations + auto-number every formalism; deep-QA package/docs/paper (`/work
 - ISC-110/111: `892 passed`, 94.72% ≥ 90%, ruff clean; gateway/interference fail-closed regression tests added.
 
 ### Decisions (iteration 4)
-- **Frontend dock is environment-blocked, not abandoned.** A Qt6 dock must compile against OBS's exact Qt minor (6.8.x); only Homebrew Qt 6.11 is installed here, and building against it makes the *whole* module fail to dlopen (newer `QAnyStringView`/`doSetPen`/version-tag symbols absent from the 6.8 runtime — confirmed by three successive load failures). The dock code is complete, moc-free, text-free, and correct; `build.sh` version-gates it so it can never break the plugin and auto-enables under matching Qt 6.8 (`QT_PREFIX=<obs-deps qt6>`). Follow-up `SYNTHOBS-DOCK-QT68`: build once against obs-deps Qt 6.8 to ship the dock binary. The **console source fully satisfies the user's "draggable pane / source I can add"** and is live-verified.
+- **Frontend dock is environment-blocked, not abandoned.** A Qt6 dock must compile against OBS's exact Qt minor (6.8.x); only Homebrew Qt 6.11 is installed here, and building against it makes the *whole* module fail to dlopen (newer `QAnyStringView`/`doSetPen`/version-tag symbols absent from the 6.8 runtime — confirmed by three successive load failures). The dock code is complete, moc-free, QPainter-based, and correct; `build.sh` version-gates it so it can never break the plugin and auto-enables under matching Qt 6.8 (`QT_PREFIX=<obs-deps qt6>`). Follow-up `SYNTHOBS-DOCK-QT68`: build once against obs-deps Qt 6.8 to ship the dock binary. The **console source fully satisfies the user's "draggable pane / source I can add"** and is live-verified.
 - Did NOT chase an ~80 MB obs-deps Qt download of a guessed version mid-session; the gated build + docs are the right durable answer.
 - A throwaway demo scene collection (`FractiSynthTest`) with the console source + φ filter pre-wired was left in the OBS scenes dir; the user's active collection was reset to `Untitled`.
 
@@ -527,3 +527,75 @@ and verified."
 - Dock pixels still not screenshot-captured here (OBS window not enumerable via Quartz; on a
   separate Space) — but it is now visible-by-default so the user sees it directly;
   SYNTHOBS-DOCKSHOT residual stands for automated capture only.
+
+## Iteration 8 — Full-feed interaction targets + dashboard helper + documentation contracts (2026-06-12)
+
+User: complete the comprehensive review plan: make the Python engine the source of truth
+for full-feed interaction targets and dashboard layers, mirror the behavior in native
+FractiSynth/obspython surfaces, and harden stale docs with tests.
+
+### Criteria (iteration 8)
+- [x] ISC-133: `src/synthobs/interaction.py` defines the seven feed identifiers
+  (Wavefield, Hex, Interference, Spectral, Spiral, Telemetry HUD, Solar Graph), five
+  Solar Graph metrics (wind speed, density, temperature, GOES X-ray flux, Kp), target
+  actions, target hits, and deterministic hit-testing for feed tabs, layer rail, and
+  marker drops.
+- [x] ISC-134: `src/synthobs/layers.py` defines deterministic `DashboardLayer` /
+  `DashboardPlan` records and `dashboard_plan(scene_name)` for Wavefield, Telemetry HUD,
+  and Solar Graph layers covering wind, density, temperature, X-ray, and Kp.
+- [x] ISC-135: command grammar adds `/dashboard plan --name=<scene>` and `/dashboard
+  build --name=<scene>` as a typed `DashboardCommand`, fail-closed on unknown actions or
+  empty names.
+- [x] ISC-136: obspython mirrors the helper: outside OBS it returns deterministic dry-run
+  summaries; inside OBS `build` creates planned `fractisynth_console` sources, configures
+  feed/metric settings, normalized bounds, and next/previous layer hotkeys.
+- [x] ISC-137: native FractiSynth console expands click mapping from five to seven feed
+  cells, adds layer-visible mask toggles and transient marker rendering, preserves the
+  backwards-compatible `show_tabs` settings key, and keeps `PHI` / `EGS_GATEWAY_KEY`
+  literal pins.
+- [x] ISC-138: Solar Graph X-ray and Kp support is first-class in parser wiring, native
+  graph metrics, locale strings, dashboard plan, and static tests.
+- [x] ISC-139: documentation contracts verify local markdown links, figure references
+  against `scripts.generate_figures.FIGURE_FILES`, and stale status baselines absent from
+  maintained current-status docs.
+
+### Iteration-8 verification
+- Current Python gate baseline: `1024 passed`, `97.86%` coverage on `src/synthobs`.
+- Figure manifest: 5 generated figures — `goldilocks_layout.png`, `golden_spiral.png`,
+  `swo_calibration.png`, `phi_soft_limiter.png`, `gateway_lock.png`.
+- Native build gate: `plugin/fractisynth/build.sh` is the acceptance build for this
+  iteration; generated build artifacts stay ignored.
+
+## Iteration 9 — Roadmap completion: dock polish, inspector modes, graph horizons (2026-06-12)
+
+User: proceed with the final roadmap-completion plan: finish the remaining dock,
+Zoom Inspector, Solar Graph, documentation, and verification gaps without installing
+into the user's OBS plugin directory.
+
+### Criteria (iteration 9)
+- [x] ISC-140: frontend dock cycles Ring / Bar / Needle gauge styles and 0 / 1 / 2
+  decimal precision in the moc-free button pane while preserving Hold/Live freeze.
+- [x] ISC-141: frontend dock follows the active console source theme through the
+  exported native `fractisynth_get_console_theme()` accessor and defaults to Observatory.
+- [x] ISC-142: Zoom Inspector adds Fixed Region / Follow Mouse target modes, interaction
+  mouse tracking, and a pixel/region/zoom annotation strip with fixed-region fallback.
+- [x] ISC-143: Solar Graph time horizons are explicit: `-2H` for plasma metrics,
+  `-6H` for X-ray, and a sample-count-derived minute horizon for Kp, each ending at `NOW`.
+- [x] ISC-144: native/static tests pin dock controls, theme following, inspector
+  mode/annotation locale, and graph-axis labels.
+
+### Iteration-9 verification
+- Python gate: `1024 passed`, `97.86%` coverage on `src/synthobs`.
+- Figure manifest: 5 generated figures — `goldilocks_layout.png`, `golden_spiral.png`,
+  `swo_calibration.png`, `phi_soft_limiter.png`, `gateway_lock.png`.
+- Native build: `plugin/fractisynth/build.sh` built and ad-hoc signed
+  `plugin/fractisynth/build/FractiSynth.plugin`; Qt 6.8 matched OBS runtime 6.8 and
+  the optional dock compiled.
+- No-install live OBS check: launched OBS with `OBS_PLUGINS_PATH` and
+  `OBS_PLUGINS_DATA_PATH` pointed at the local build directory. Crash reports stayed
+  `8 -> 8`; OBS stayed alive through scene load; log `2026-06-12 10-46-52.txt` showed
+  local FractiSynth load, dock registration, live SWO lock, and gateway lock. The
+  already-installed older FractiSynth copy also loaded, so duplicate source/dock
+  registration warnings are expected in that no-install mode. obs-websocket screenshot
+  capture was not exposed because the current OBS profile has the websocket server
+  disabled; no OBS plugin-directory install was performed.

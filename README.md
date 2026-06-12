@@ -25,7 +25,7 @@ fail-closed rule are pinned identical across all three.
 ## Layout
 
 ```
-src/synthobs/        tested engine (constants, layout, telemetry, swo, dsp, console, commands, engine)
+src/synthobs/        tested engine (constants, layout, telemetry, swo, dsp, console, commands, interaction, layers, engine)
 plugin/fractisynth/  native libobs C plugin (CMake + src/fractisynth.c + locale)
 plugin/synthobs/     obspython console script (synthobs_console.py)
 scripts/             thin orchestrators (generate_figures.py)
@@ -41,15 +41,22 @@ ISA.md               Ideal State Artifact — system of record
 uv run pytest projects/working/SynthOBS/tests/ --cov=synthobs --cov-report=term-missing
 ```
 
-848 tests, **94.85%** coverage, no mocks (HTTP exercised via `pytest-httpserver`,
+1024 tests, **97.86%** coverage, no mocks (HTTP exercised via `pytest-httpserver`,
 real numeric examples, fixed seeds).
 
 ## Regenerate figures
 
 ```bash
 uv run python projects/working/SynthOBS/scripts/generate_figures.py
-# → output/figures/{goldilocks_layout,golden_spiral,swo_calibration,phi_soft_limiter}.png
 ```
+
+Generated manifest:
+
+- `output/figures/goldilocks_layout.png`
+- `output/figures/golden_spiral.png`
+- `output/figures/swo_calibration.png`
+- `output/figures/phi_soft_limiter.png`
+- `output/figures/gateway_lock.png`
 
 ## Build the native plugin (FractiSynth)
 
@@ -71,7 +78,14 @@ The script exposes the global command line:
 /mode --observatory | --lab | --ship
 /transducer bind source_cam_01 --ratio=1.618034
 /swo calibrate --flux=130 --spots=3 --target=AR4465
+/dashboard plan --name=Awareness
+/dashboard build --name=Awareness
 ```
+
+The native console exposes seven clickable feed targets (Wavefield, Hex,
+Interference, Spectral, Spiral, Telemetry HUD, Solar Graph), a layer-toggle rail, and
+a marker-drop area. Solar Graph metrics cover wind speed, density, temperature,
+GOES X-ray flux, and Kp index.
 
 ## Design principles
 

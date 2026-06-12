@@ -57,6 +57,16 @@ def test_calibrate_bad_spots_holds(spots) -> None:  # ISC-21
     assert math.isfinite(swo.system_phase_vector)
 
 
+def test_calibrate_nonfinite_vector_holds() -> None:
+    swo = SolarWavefieldOscillator()
+    swo.calibrate(100.0, 2)
+    good = swo.system_phase_vector
+
+    assert swo.calibrate(float("inf"), 1) is False
+    assert swo.system_phase_vector == good
+    assert swo.is_calibrated is False
+
+
 def test_hold_state_after_good_then_bad() -> None:  # ISC-22
     swo = SolarWavefieldOscillator()
     swo.calibrate(150.0, 3)
@@ -86,6 +96,11 @@ def test_video_calibrated_dims(w, h) -> None:  # ISC-26
 def test_video_dims_reject_negative() -> None:
     with pytest.raises(ValueError):
         video_calibrated_dims(-1, 10)
+
+
+def test_video_dims_allow_zero_axes_without_collapsing_positive_axis() -> None:
+    assert video_calibrated_dims(0, 0) == (0, 0)
+    assert video_calibrated_dims(1, 0) == (1, 0)
 
 
 def test_spatial_scale_matrix() -> None:  # ISC-32

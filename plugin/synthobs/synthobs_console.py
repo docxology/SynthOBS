@@ -8,6 +8,8 @@ command line is exposed as a script text property that accepts the grammar:
     /mode --observatory | --lab | --ship
     /transducer bind <source> --ratio=1.618034
     /swo calibrate --flux=130 --spots=3 --target=AR4465
+    /dashboard plan --name=Awareness
+    /dashboard build --name=Awareness
 
 The engine (../../src/synthobs) is the source of truth; this script is a thin
 obspython adapter. ``obspython`` is only available inside OBS, so it is imported
@@ -27,9 +29,11 @@ if _SRC not in sys.path:
 
 from synthobs import (  # noqa: E402  (path set above)
     CommandError,
+    DashboardCommand,
     Mode,
     SynthEngine,
     assemble_viewport,
+    dashboard_plan,
     parse,
 )
 from synthobs.commands import BindCommand, CalibrateCommand, ModeCommand  # noqa: E402
@@ -44,6 +48,9 @@ except ImportError:  # importable everywhere else (tests, py_compile)
 
 # Single engine instance for the broadcast environment.
 ENGINE = SynthEngine(mode=Mode.OBSERVATORY)
+_DASHBOARD_HOTKEYS = []
+_DASHBOARD_ITEMS = []
+_DASHBOARD_ACTIVE = 0
 
 
 def apply_command(line: str) -> str:
@@ -76,6 +83,12 @@ def apply_command(line: str) -> str:
         )
         ENGINE.update(telemetry)
         return f"SWO calibrated: phase_vector={ENGINE.phase_vector:.4f}"
+    if isinstance(cmd, DashboardCommand):
+        plan = dashboard_plan(cmd.name)
+        if cmd.action == "build" and _IN_OBS:
+            _build_dashboard(plan)
+            return _dashboard_summary(plan, "built")
+        return _dashboard_summary(plan, cmd.action)
     return "ok"  # pragma: no cover - exhaustive above
 
 
@@ -84,7 +97,92 @@ def viewport_for_canvas(width: int, height: int):
     return assemble_viewport(width, height)
 
 
+def _dashboard_summary(plan, action: str) -> str:
+    labels = ", ".join(layer.name.split(" / ", 1)[-1] for layer in plan.layers)
+    return f"dashboard {action} {plan.scene_name}: {len(plan.layers)} layers: {labels}"
+
+
 # --- obspython adapter layer (only exercised inside OBS) ---------------------
+def _register_dashboard_hotkeys() -> None:  # pragma: no cover - needs OBS
+    if _DASHBOARD_HOTKEYS:
+        return
+
+    def _prev(pressed):
+        if pressed:
+            _cycle_dashboard_layer(-1)
+
+    def _next(pressed):
+        if pressed:
+            _cycle_dashboard_layer(1)
+
+    _DASHBOARD_HOTKEYS.append(
+        obs.obs_hotkey_register_frontend(
+            "synthobs.dashboard.prev_layer", "SynthOBS Dashboard: Previous Layer", _prev
+        )
+    )
+    _DASHBOARD_HOTKEYS.append(
+        obs.obs_hotkey_register_frontend(
+            "synthobs.dashboard.next_layer", "SynthOBS Dashboard: Next Layer", _next
+        )
+    )
+
+
+def _cycle_dashboard_layer(delta: int) -> None:  # pragma: no cover - needs OBS
+    global _DASHBOARD_ACTIVE
+    if not _DASHBOARD_ITEMS:
+        return
+    _DASHBOARD_ACTIVE = (_DASHBOARD_ACTIVE + delta) % len(_DASHBOARD_ITEMS)
+    for idx, item in enumerate(_DASHBOARD_ITEMS):
+        # Keep the wavefield base layer visible; cycle the overlays above it.
+        obs.obs_sceneitem_set_visible(item, idx == 0 or idx == _DASHBOARD_ACTIVE)
+
+
+def _scene_for_dashboard(name: str):  # pragma: no cover - needs OBS
+    scene_source = obs.obs_get_source_by_name(name)
+    if scene_source:
+        scene = obs.obs_scene_from_source(scene_source)
+        return scene, scene_source
+    scene = obs.obs_scene_create(name)
+    scene_source = obs.obs_scene_get_source(scene)
+    return scene, scene_source
+
+
+def _build_dashboard(plan) -> None:  # pragma: no cover - needs OBS
+    global _DASHBOARD_ACTIVE
+    _DASHBOARD_ITEMS.clear()
+    scene, scene_source = _scene_for_dashboard(plan.scene_name)
+    try:
+        for layer in plan.layers:
+            settings = obs.obs_data_create()
+            obs.obs_data_set_int(settings, "feed", int(layer.feed))
+            if layer.graph_metric is not None:
+                obs.obs_data_set_int(settings, "graph_metric", int(layer.graph_metric))
+            obs.obs_data_set_int(settings, "width", 1280)
+            obs.obs_data_set_int(settings, "height", 720)
+            source = obs.obs_source_create("fractisynth_console", layer.name, settings, None)
+            try:
+                item = obs.obs_scene_add(scene, source)
+                x, y, w, h = layer.bounds
+                pos = obs.vec2()
+                pos.x = x * 1920.0
+                pos.y = y * 1080.0
+                scale = obs.vec2()
+                scale.x = (w * 1920.0) / 1280.0
+                scale.y = (h * 1080.0) / 720.0
+                obs.obs_sceneitem_set_pos(item, pos)
+                obs.obs_sceneitem_set_scale(item, scale)
+                obs.obs_sceneitem_set_visible(item, layer.visible)
+                _DASHBOARD_ITEMS.append(item)
+            finally:
+                obs.obs_source_release(source)
+                obs.obs_data_release(settings)
+        _DASHBOARD_ACTIVE = 0
+        _register_dashboard_hotkeys()
+        obs.script_log(obs.LOG_INFO, f"[SynthOBS] built dashboard {plan.scene_name}")
+    finally:
+        obs.obs_source_release(scene_source)
+
+
 def _sync_scene_for_mode(mode: Mode) -> None:  # pragma: no cover - needs OBS
     """Map the active deck to an OBS scene of the same name, if one exists."""
     if not _IN_OBS:

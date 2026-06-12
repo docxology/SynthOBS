@@ -25,7 +25,7 @@ Select the source and click **Properties** for a full config panel:
 | Control | Effect |
 | --- | --- |
 | **Synthetic Feed** | which stream to render: *Wavefield Console*, *Hex Tunnel*, *Interference Field*, *Spectral Rings*, *Spiral Drift* (visual, telemetry-driven), *Telemetry HUD* (metadata + waveforms + provenance), *Solar Graph* (realtime NOAA time-series) |
-| **Graph Metric** (Solar Graph) | which real metric to graph: *Solar Wind Speed*, *Density*, *Temperature* — drop several Solar Graph sources set to different metrics for a multi-panel live dashboard |
+| **Graph Metric** (Solar Graph) | which real metric to graph: *Solar Wind Speed*, *Density*, *Temperature*, *GOES X-ray Flux (log)*, *Planetary K-index (Kp)* — drop several Solar Graph sources set to different metrics for a multi-panel live dashboard |
 | **Chromatic Shimmer** | radial RGB split (the trippy fringe), 0–1 |
 | **Hue Cycle** | rotate the whole palette over time, 0–1 |
 | **Operator Theme** | palette: *Observatory* (robin's-egg/marigold), *Laboratory* (cool blue), *Expedition* (solar marigold/ember) |
@@ -33,23 +33,28 @@ Select the source and click **Properties** for a full config panel:
 | **Animation Speed** | motion rate (0–3); 0 freezes |
 | **Interference Fringe Density** | spatial frequency of the holographic fringes (6–48) |
 | **Show …** toggles | Gateway Lock Ring · Holographic Fringes · φ Spiral · Goldilocks Grid · Honeycomb Hex Lattice · Phase-Vector Core |
-| **Show Clickable Feed Tabs** | paint a 5-cell tab strip across the top; the active feed is highlighted |
+| **Show Clickable Targets** (`show_tabs`) | paint the seven-feed tab strip, layer-toggle rail, and marker-drop target affordances; saved scenes using the older `show_tabs` key keep working |
 | **Console Width / Height** | render resolution (default 1280×720) |
 
-### Switching feeds by clicking (interactive)
+### Switching feeds, layers, and markers by clicking (interactive)
 
-With **Show Clickable Feed Tabs** on, the console source is interactive: **right-click
-the source → Interact** (or open an interactive projector), then click a cell in the top
-tab strip to switch the synthetic feed live — point-and-click "menu destinations" on the
-canvas. (OBS only delivers clicks to a source through its Interact window/projector, not
-the plain preview.)
+With **Show Clickable Targets** on, the console source is interactive: **right-click the
+source → Interact** (or open an interactive projector), then click the canvas targets.
+The top strip is split into seven feed cells — Wavefield, Hex, Interference, Spectral,
+Spiral, Telemetry HUD, Solar Graph. The left rail below the strip toggles planned layer
+visibility. The remaining canvas drops a transient marker at the clicked normalized
+position; it fades visually and does not mutate telemetry state. OBS only delivers
+clicks to a source through its Interact window/projector, not the plain preview.
 
 ### The Zoom Inspector filter — "frame within the frame"
 
 Add **Filters → + → "FractiSynth — Zoom Inspector (loupe)"** to *any* source to magnify a
 sub-region into an inset loupe — zoom into the stream like a packet sniffer. Properties:
-**Zoom** (1.5–16×), **Inspect Region X/Y**, **Loupe Size**, **Loupe Corner**, and toggles
-for the source-region box, the loupe's golden grid, and its crosshair. The loupe border
+**Inspector Target Mode** (*Fixed Region* or *Follow Mouse*), **Zoom** (1.5–16×),
+**Inspect Region X/Y**, **Loupe Size**, **Loupe Corner**, and toggles for the
+source-region box, the loupe's golden grid, its crosshair, and a pixel/region
+annotation strip. Follow Mouse uses OBS interaction events when available and falls
+back to the fixed region until a mouse position has been received. The loupe border
 brightens with the live gateway lock.
 
 ## The SynthOBS Gateway dock (a live telemetry panel)
@@ -59,8 +64,12 @@ remembers). It is a live panel in the OBS window chrome showing the **gateway lo
 gauge** plus a numeric readout: SWO phase vector, F10.7 flux, active sunspots, solar wind,
 lock strength, phase bias θ, the **holographic interference verdict** (CONSTRUCTIVE /
 DESTRUCTIVE / MIXED), and the gateway key K_EGS — all updating ~8×/s, fail-closed (shows
-"— hold" until live telemetry locks). **Click the dock** to cycle its density: *Full* →
-*Compact* → *Gauge-only* (so it can be a full readout or a minimal HUD).
+"— hold" until live telemetry locks). Its bottom controls have real buttons for
+*Full*, *Compact*, *Gauge*, *Hold/Live*, gauge style (*Ring*, *Bar*, *Needle*), and
+decimal precision (`0 dp`, `1 dp`, `2 dp`). Hold freezes the displayed snapshot while
+the underlying telemetry thread continues to fail closed independently. The dock palette
+follows the active console source theme and defaults to Observatory before any source
+has reported a theme.
 
 The dock is a native Qt6 panel and must be built against the **same Qt minor version OBS
 runs** (6.8.x). `build.sh` auto-uses a bundled obs-deps Qt 6.8 (dropped into
@@ -104,6 +113,8 @@ through `apply_command(line)`:
 /mode --ship
 /transducer bind source_cam_01 --ratio=1.618034
 /swo calibrate --flux=130 --spots=3 --target=AR4465
+/dashboard plan --name=Awareness
+/dashboard build --name=Awareness
 ```
 
 Each line is parsed, run through the engine, and echoed back as a status string — or as
@@ -117,6 +128,13 @@ apply_command("/swo calibrate --flux=130 --spots=3")
 apply_command("/warp --core")
 # → "ERROR: unknown command verb: '/warp' ..."
 ```
+
+`/dashboard plan --name=Awareness` returns a deterministic seven-layer plan: a full
+Wavefield background, a Telemetry HUD, and Solar Graph layers for wind speed, density,
+temperature, X-ray flux, and Kp. `/dashboard build --name=Awareness` returns the same
+dry-run summary outside OBS; inside OBS it creates the `fractisynth_console` sources,
+sets feed/metric values, positions them from normalized bounds, and registers
+next/previous layer hotkeys.
 
 ### Why it's safe to run outside OBS too
 

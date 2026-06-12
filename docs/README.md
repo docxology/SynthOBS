@@ -17,13 +17,13 @@ is the complete, standalone documentation for all three.
 | [golden-ratio.md](golden-ratio.md) | Follow the φ mathematics — the Goldilocks split, the soft limiter, the scale matrix |
 | [egs-gateway.md](egs-gateway.md) | The canonical FractiAI EGS Gateway: the gateway key K_EGS, solar-wind phase lock, lock strength |
 | [interference.md](interference.md) | Holographic interference logic (constructive AR14409 / destructive H-phase-flip) and RSI |
-| [engine.md](engine.md) | Use the Python engine: full API reference for all `src/synthobs` modules |
+| [engine.md](engine.md) | Use the Python engine: full API reference for all `src/synthobs` modules, including interaction targets and dashboard plans |
 | [telemetry.md](telemetry.md) | Fail-closed SWO + the live NOAA SWPC flux/sunspot/solar-wind feeds |
-| [command-grammar.md](command-grammar.md) | Drive the system from the terminal: `/mode`, `/transducer bind`, `/swo calibrate` |
+| [command-grammar.md](command-grammar.md) | Drive the system from the terminal: `/mode`, `/transducer bind`, `/swo calibrate`, `/dashboard plan/build` |
 | [native-plugin.md](native-plugin.md) | Understand the C plugin: the two OBS filters, the telemetry thread, the lifecycle |
 | [build-and-install.md](build-and-install.md) | Build, sign, and install the plugin into OBS — with the verified load evidence |
 | [usage.md](usage.md) | Actually use FractiSynth inside OBS: add the filters, run the console script |
-| [testing.md](testing.md) | Understand the 859-test, no-mocks, 94.85%-coverage suite and how to run it |
+| [testing.md](testing.md) | Understand the 1024-test, no-mocks, 97.86%-coverage suite and how to run it |
 
 ## The 60-second tour
 
@@ -41,17 +41,17 @@ is the complete, standalone documentation for all three.
    φ-knee audio soft limiter — in pure Python for testing, and natively in OBS via the
    C plugin. See [native-plugin.md](native-plugin.md).
 5. **Control.** Three operator modes (Observatory / Laboratory / Expedition), a button
-   console, and a terminal grammar — all fail-closed. See
+   console, seven clickable feed targets, layer toggles, marker drops, and a terminal grammar — all fail-closed. See
    [command-grammar.md](command-grammar.md).
 
 ## Status
 
 | Aspect | State |
 | --- | --- |
-| Python engine | **Source of truth.** 859 tests, 94.85 % coverage, no mocks. |
-| Native C plugin | **Loads live in OBS 32.1.2.** Built, ad-hoc signed, installed; libcurl telemetry thread hits live NOAA SWPC. See [build-and-install.md](build-and-install.md). |
-| obspython console | Imports guarded; drives the real engine via `apply_command`. |
-| Manuscript | 8-section brand-voice manuscript, 4 engine-generated figures, 17-page PDF. |
+| Python engine | **Source of truth.** 1024 tests, 97.86 % coverage, no mocks. |
+| Native C plugin | **Loads live in OBS 32.1.2.** Built, ad-hoc signed, installed; libcurl telemetry thread hits live NOAA SWPC. Seven feed targets, the layer rail, marker drops, X-ray/Kp graphing, graph axes, inspector modes, and dock controls are statically pinned. See [build-and-install.md](build-and-install.md). |
+| obspython console | Imports guarded; drives the real engine via `apply_command`, including deterministic dashboard plan/build dry-runs outside OBS. |
+| Manuscript | 8-section brand-voice manuscript, 5 engine-generated figures, 23-page PDF. |
 
 This is a **local-only research project**. It is intentionally not committed to the
 public template repository.

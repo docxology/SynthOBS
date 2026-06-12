@@ -23,26 +23,30 @@ Status legend: ✅ shipped · 🚧 in progress · 📋 planned
 
 ## Phase B — A more configurable dock  ✅
 - ✅ In-dock clickable display-mode cycle (moc-free mousePressEvent): Full · Compact · Gauge-only.
-- 📋 Further dock config: gauge style, decimal precision, pause/freeze.
-- 📋 Dock theme follows the source theme.
+- ✅ Dock freeze: Hold/Live toggle freezes the displayed snapshot without mutating telemetry state.
+- ✅ Further dock polish: Ring / Bar / Needle gauge styles and 0 / 1 / 2 decimal precision cycling.
+- ✅ Dock theme follows the active console source theme, defaulting to Observatory.
 
 ## Phase C — Overlay inspector: "frame within the frame" / packet-sniffer  ✅
 - ✅ A **Zoom Inspector** video filter: magnify a configurable sub-region of the
   source into an inset loupe, with the φ-grid + crosshair + per-region readout —
   zoom into the stream like a packet sniffer inspecting a flow.
-- 📋 Follow-mouse or fixed-region modes; pixel/region telemetry annotation.
+- ✅ Fixed-region or follow-mouse modes with pixel/region telemetry annotation.
 
 ## Phase D — On-demand synthetic feed layers  ✅(core)
 - ✅ The console source IS a synthetic feed; the feed selector (Phase A) makes it
   multi-stream, switchable live (incl. by click — Phase E).
-- 📋 A scene-collection helper that drops several synthetic feeds as stacked
-  layers with hotkeys to cross-fade between them on demand.
+- ✅ Python source-of-truth dashboard helper (`dashboard_plan`) and `/dashboard
+  plan|build --name=<scene>` command. Outside OBS it returns a deterministic dry-run;
+  inside OBS it creates the planned synthetic feed layers and registers next/previous
+  layer hotkeys.
 
 ## Phase E — Interactive on-screen targets / menu destinations  ✅(core)
 - ✅ Console source is **interactive** (OBS_SOURCE_INTERACTION + mouse_click): a
-  clickable 5-cell feed-tab strip painted across the top switches the synthetic
+  clickable 7-cell feed-tab strip painted across the top switches the synthetic
   feed on click (via OBS's Interact window / interactive projector).
-- 📋 Define target actions (feed switch, layer toggle, marker drop).
+- ✅ Target actions defined in `src/synthobs/interaction.py` and mirrored natively:
+  feed switch, layer toggle rail, and transient marker drop.
 
 ## Cross-cutting
 - Keep the Python engine the tested source of truth; mirror new math there.
@@ -58,4 +62,5 @@ Status legend: ✅ shipped · 🚧 in progress · 📋 planned
   sources set to different metrics → a multi-panel awareness dashboard, each with
   different real verified ongoing data.
 - ✅ Telemetry HUD waveforms now plot the real NOAA series (wind/density), not held values.
-- 📋 More metrics (GOES X-ray flux, Kp index), log-scale option, time-axis labels.
+- ✅ More metrics: GOES X-ray flux (log-transformed) and planetary Kp index.
+- ✅ Time-axis labels: -2H for plasma, -6H for X-ray, dynamic minute horizon for Kp, all ending at NOW.

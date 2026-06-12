@@ -13,13 +13,21 @@ from synthobs.constants import PHI
 
 PLUGIN = Path(__file__).resolve().parents[1] / "plugin"
 FRACTI_C = PLUGIN / "fractisynth" / "src" / "fractisynth.c"
+FRACTI_DOCK = PLUGIN / "fractisynth" / "src" / "fractisynth_dock.cpp"
 CMAKE = PLUGIN / "fractisynth" / "CMakeLists.txt"
 CONSOLE_PY = PLUGIN / "synthobs" / "synthobs_console.py"
+CONSOLE_EFFECT = PLUGIN / "fractisynth" / "data" / "fractisynth_console.effect"
+LOCALE = PLUGIN / "fractisynth" / "data" / "locale" / "en-US.ini"
 
 
 @pytest.fixture(scope="module")
 def c_source() -> str:
     return FRACTI_C.read_text(encoding="utf-8")
+
+
+@pytest.fixture(scope="module")
+def dock_source() -> str:
+    return FRACTI_DOCK.read_text(encoding="utf-8")
 
 
 # --- native plugin static structure -------------------------------------
@@ -75,6 +83,80 @@ def test_gateway_lock_and_solar_wind_present(c_source: str) -> None:  # ISC-94
     # the new shader-facing uniforms are wired
     assert 'gs_effect_get_param_by_name(f->effect, "egs_key")' in c_source
     assert 'gs_effect_get_param_by_name(f->effect, "lock_strength")' in c_source
+
+
+def test_console_interactive_targets_cover_all_feeds(c_source: str) -> None:
+    effect = CONSOLE_EFFECT.read_text(encoding="utf-8")
+    locale = LOCALE.read_text(encoding="utf-8")
+    assert "FCV_FEED_COUNT 7" in c_source
+    assert "FCV_TAB_CELLS 7.0f" in c_source
+    assert "TargetActionMarker" in c_source
+    assert "marker_x" in c_source and "marker_age" in c_source
+    assert "layer_visible_mask" in c_source
+    assert "OBS_SOURCE_INTERACTION" in c_source and ".mouse_click = fcv_mouse_click" in c_source
+    assert "float fcell = uv.x * 7.0" in effect
+    assert "marker_age" in effect and "layer_visible_mask" in effect
+    for key in (
+        "FeedWavefield",
+        "FeedHexTunnel",
+        "FeedInterference",
+        "FeedSpectral",
+        "FeedSpiralDrift",
+        "FeedTelemetryHUD",
+        "FeedSolarGraph",
+        "ShowTargets",
+    ):
+        assert key in locale
+
+
+def test_solar_graph_xray_kp_wiring_is_pinned(c_source: str) -> None:
+    locale = LOCALE.read_text(encoding="utf-8")
+    assert "SER_XRAY = 3" in c_source
+    assert "SER_KP = 4" in c_source
+    assert "NOAA_XRAY_URL" in c_source and "NOAA_KP_URL" in c_source
+    assert "parse_xray_series" in c_source and "parse_kp_series" in c_source
+    assert "GOES X-RAY FLUX 0.1-0.8NM" in c_source
+    assert "PLANETARY K-INDEX (KP)" in c_source
+    assert "MetricXray" in locale and "MetricKp" in locale
+
+
+def test_solar_graph_metric_time_axes_are_pinned(c_source: str) -> None:
+    assert 'axis_left = "-2H"' in c_source
+    assert 'axis_left = "-6H"' in c_source
+    assert '"-%d MIN"' in c_source
+    assert "metric-aware horizon" in c_source
+    assert '"OLDEST"' not in c_source
+
+
+def test_zoom_inspector_modes_annotation_and_locale(c_source: str) -> None:
+    locale = LOCALE.read_text(encoding="utf-8")
+    assert 'obs_properties_add_list(p, "inspector_mode"' in c_source
+    assert "InspectorModeFixed" in c_source and "InspectorModeFollowMouse" in c_source
+    assert 'obs_properties_add_bool(p, "show_annotation"' in c_source
+    assert ".mouse_move = fpi_mouse_move" in c_source
+    assert "OBS_SOURCE_VIDEO | OBS_SOURCE_INTERACTION" in c_source
+    assert "f->inspector_mode == 1 && f->have_mouse" in c_source
+    assert "INSPECTOR %s  UV" in c_source
+    for key in (
+        "InspectorMode",
+        "InspectorModeFixed",
+        "InspectorModeFollowMouse",
+        "InspectorShowAnnotation",
+    ):
+        assert key in locale
+
+
+def test_frontend_dock_polish_and_theme_following(dock_source: str, c_source: str) -> None:
+    assert "static atomic_int g_console_theme" in c_source
+    assert "int fractisynth_get_console_theme(void)" in c_source
+    assert "atomic_store(&g_console_theme" in c_source
+    assert "fractisynth_get_console_theme" in dock_source
+    assert "palette_for_theme" in dock_source
+    assert "m_gauge_style" in dock_source
+    assert "Ring" in dock_source and "Bar" in dock_source and "Needle" in dock_source
+    assert "m_precision" in dock_source
+    assert "%d dp" in dock_source
+    assert "m_freeze" in dock_source
 
 
 def test_module_load_registers(c_source: str) -> None:  # ISC-61

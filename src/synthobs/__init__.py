@@ -15,6 +15,7 @@ from .commands import (
     CalibrateCommand,
     Command,
     CommandError,
+    DashboardCommand,
     ModeCommand,
     parse,
 )
@@ -52,6 +53,8 @@ from .interference import (
     rsi_is_stable,
     rsi_step,
 )
+from .interaction import Feed, GraphMetric, TargetAction, TargetHit, resolve_target_action
+from .layers import DashboardLayer, DashboardPlan, dashboard_plan
 from .layout import (
     Region,
     Viewport,
@@ -156,8 +159,18 @@ __all__ = [
     "ModeCommand",
     "BindCommand",
     "CalibrateCommand",
+    "DashboardCommand",
     "CommandError",
     "parse",
+    # interaction / dashboard
+    "Feed",
+    "GraphMetric",
+    "TargetAction",
+    "TargetHit",
+    "resolve_target_action",
+    "DashboardLayer",
+    "DashboardPlan",
+    "dashboard_plan",
     # engine
     "SynthEngine",
     "EngineState",

@@ -215,13 +215,27 @@ def test_parse_solar_wind_uses_last_row() -> None:
     assert wind.speed_kms == pytest.approx(612.3)  # last row, not the 480 first row
 
 
+def test_parse_solar_wind_bad_density_is_optional() -> None:
+    feed = json.dumps(
+        [
+            ["time_tag", "density", "speed", "temperature"],
+            [datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"), "not-density", "500.0", "1.0e5"],
+        ]
+    )
+    wind = parse_noaa_solar_wind(feed)
+    assert wind.speed_kms == pytest.approx(500.0)
+    assert wind.density is None
+
+
 @pytest.mark.parametrize(
     "payload",
     [
         "not json",
         json.dumps([]),  # empty
         json.dumps([["time_tag", "density", "speed", "temperature"]]),  # header only
+        json.dumps(["time_tag", ["2026-06-10 00:00:00", "1", "2"]]),  # malformed header
         json.dumps([["time_tag", "density", "temperature"], ["t", "1", "2"]]),  # no speed col
+        json.dumps([["time_tag", "speed"], "not-row"]),  # malformed data row
         json.dumps([["time_tag", "density", "speed"], ["2026-06-10 00:00:00", "1", "x"]]),  # non-numeric
         json.dumps([["time_tag", "density", "speed"], ["2026-06-10 00:00:00", "1", "-5"]]),  # negative
     ],
@@ -235,6 +249,12 @@ def test_parse_solar_wind_rejects_stale() -> None:
     old = datetime.now(timezone.utc) - timedelta(hours=5)
     with pytest.raises(TelemetryUnavailable):
         parse_noaa_solar_wind(_wind_feed("500.0", when=old))
+
+
+def test_parse_solar_wind_rejects_future_timestamp() -> None:
+    future = datetime.now(timezone.utc) + timedelta(hours=5)
+    with pytest.raises(TelemetryUnavailable):
+        parse_noaa_solar_wind(_wind_feed("500.0", when=future))
 
 
 def test_fetch_live_solar_wind_against_local_server(httpserver) -> None:
