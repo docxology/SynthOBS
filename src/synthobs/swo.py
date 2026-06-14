@@ -9,9 +9,9 @@ faithful Python mirror of the blueprint's C ``synchronize_swo_calibration`` rout
     system_phase_vector = (current_flux / active_spots) · φ
 
 When active regions like AR4465/AR4464 shift or flare, the changing values alter the
-phase vector in real time. When telemetry is invalid (``flux <= 0`` or ``spots <= 0``)
-the oscillator refuses to recalibrate and **holds** its last verified vector — it
-never substitutes an average or a zero.
+phase vector in real time. When telemetry is invalid (non-finite ``flux``,
+``flux <= 0``, or ``spots <= 0``) the oscillator refuses to recalibrate and
+**holds** its last verified vector — it never substitutes an average or a zero.
 """
 
 from __future__ import annotations
@@ -81,11 +81,12 @@ class SolarWavefieldOscillator:
 
         Returns ``True`` and updates the vector on valid input; returns ``False``
         and leaves the last good vector untouched (Hold State) when
-        ``current_flux <= 0`` or ``active_spots <= 0``, or if the result is not
-        finite (ISC-19..24). Never raises, never divides by zero, never emits NaN.
+        non-finite ``current_flux``, ``current_flux <= 0``, or
+        ``active_spots <= 0`` (ISC-19..24). Never raises, never divides by zero,
+        never emits NaN.
         """
         # ENFORCEMENT: block any stale, default, or zeroed indicator (fail closed).
-        if current_flux <= 0.0 or active_spots <= 0:
+        if not math.isfinite(current_flux) or current_flux <= 0.0 or active_spots <= 0:
             self.is_calibrated = False
             return False
 

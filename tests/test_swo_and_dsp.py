@@ -7,6 +7,7 @@ import math
 import pytest
 from synthobs.constants import INV_PHI, PHI
 from synthobs.dsp import (
+    audio_envelope,
     is_monotone_non_decreasing,
     phi_soft_limit,
     phi_soft_limit_sample,
@@ -62,9 +63,10 @@ def test_calibrate_nonfinite_vector_holds() -> None:
     swo.calibrate(100.0, 2)
     good = swo.system_phase_vector
 
-    assert swo.calibrate(float("inf"), 1) is False
-    assert swo.system_phase_vector == good
-    assert swo.is_calibrated is False
+    for flux in (float("nan"), float("inf")):
+        assert swo.calibrate(flux, 1) is False
+        assert swo.system_phase_vector == good
+        assert swo.is_calibrated is False
 
 
 def test_hold_state_after_good_then_bad() -> None:  # ISC-22
@@ -108,8 +110,12 @@ def test_spatial_scale_matrix() -> None:  # ISC-32
     assert m[0][0] == pytest.approx(INV_PHI)
     assert m[1][1] == pytest.approx(INV_PHI)
     assert m[2][2] == 1.0
+
+
+@pytest.mark.parametrize("factor", [0.0, float("nan"), float("inf"), float("-inf")])
+def test_spatial_scale_matrix_rejects_bad_factor(factor: float) -> None:
     with pytest.raises(ValueError):
-        spatial_scale_matrix(0.0)
+        spatial_scale_matrix(factor)
 
 
 # --- audio soft limiter --------------------------------------------------
@@ -152,6 +158,39 @@ def test_soft_limit_sign_preserving() -> None:
     assert phi_soft_limit_sample(2.0, 1.0) > 0
 
 
-def test_soft_limit_bad_threshold() -> None:
+@pytest.mark.parametrize("threshold", [0.0, -1.0, float("nan"), float("inf"), float("-inf")])
+def test_soft_limit_bad_threshold(threshold: float) -> None:
     with pytest.raises(ValueError):
-        phi_soft_limit_sample(1.0, 0.0)
+        phi_soft_limit_sample(1.0, threshold)
+
+
+def test_audio_envelope_empty_and_silence_are_quiet() -> None:
+    assert audio_envelope([]).rms == 0.0
+    env = audio_envelope([0.0, 0.0, 0.0, 0.0])
+    assert env.sample_count == 4
+    assert env.rms == 0.0
+    assert env.peak == 0.0
+    assert env.reactivity == 0.0
+
+
+def test_audio_envelope_is_bounded_after_poisoned_samples() -> None:
+    env = audio_envelope([0.25, float("nan"), float("inf"), -float("inf"), 1e9])
+    assert env.sample_count == 5
+    assert 0.0 <= env.rms <= 1.0
+    assert 0.0 <= env.peak <= 1.0
+    assert 0.0 <= env.reactivity <= 1.0
+    assert all(math.isfinite(v) for v in (env.rms, env.peak, env.reactivity))
+
+
+def test_audio_envelope_reactivity_tracks_louder_buffers() -> None:
+    quiet = audio_envelope([0.05, -0.05, 0.05, -0.05])
+    loud = audio_envelope([0.80, -0.80, 0.90, -0.90])
+    assert loud.rms > quiet.rms
+    assert loud.peak > quiet.peak
+    assert loud.reactivity > quiet.reactivity
+
+
+@pytest.mark.parametrize("threshold", [0.0, -1.0, float("nan"), float("inf")])
+def test_audio_envelope_bad_threshold(threshold: float) -> None:
+    with pytest.raises(ValueError):
+        audio_envelope([0.1], threshold)

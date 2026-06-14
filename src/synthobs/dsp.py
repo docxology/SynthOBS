@@ -17,15 +17,28 @@ from __future__ import annotations
 
 import math
 from collections.abc import Iterable, Sequence
+from dataclasses import dataclass
 
 from .constants import INV_PHI, PHI
 
 __all__ = [
+    "AudioEnvelope",
+    "audio_envelope",
     "video_calibrated_dims",
     "spatial_scale_matrix",
     "phi_soft_limit",
     "phi_soft_limit_sample",
 ]
+
+
+@dataclass(frozen=True)
+class AudioEnvelope:
+    """Post-limiter buffer envelope for audio-reactive visual uniforms."""
+
+    rms: float
+    peak: float
+    reactivity: float
+    sample_count: int
 
 
 def video_calibrated_dims(width: int, height: int) -> tuple[int, int]:
@@ -50,10 +63,10 @@ def spatial_scale_matrix(factor: float = PHI) -> list[list[float]]:
 
     With the default ``factor = φ`` this scales geometry to ``1/φ`` of its source
     extent — the calibrated bounding box used by ``video_render`` in the native
-    plugin. ``factor`` must be non-zero.
+    plugin. ``factor`` must be finite and non-zero.
     """
-    if factor == 0:
-        raise ValueError("scale factor must be non-zero")
+    if not math.isfinite(factor) or factor == 0:
+        raise ValueError(f"scale factor must be finite and non-zero, got {factor}")
     s = 1.0 / factor
     return [
         [s, 0.0, 0.0],
@@ -71,8 +84,8 @@ def phi_soft_limit_sample(x: float, threshold: float) -> float:
     reaches ``threshold``. The curve is monotone, sign-preserving, and NaN/Inf-safe
     (ISC-27..31).
     """
-    if threshold <= 0:
-        raise ValueError(f"threshold must be positive, got {threshold}")
+    if not math.isfinite(threshold) or threshold <= 0:
+        raise ValueError(f"threshold must be finite and positive, got {threshold}")
     if not math.isfinite(x):
         # Defensive: a non-finite input is clamped to the ceiling, never propagated.
         return math.copysign(threshold, x) if not math.isnan(x) else 0.0
@@ -98,6 +111,35 @@ def phi_soft_limit(samples: Iterable[float], threshold: float = 1.0) -> list[flo
     well below the knee, and free of NaN/Inf for any finite input.
     """
     return [phi_soft_limit_sample(float(s), threshold) for s in samples]
+
+
+def audio_envelope(samples: Iterable[float], threshold: float = 1.0) -> AudioEnvelope:
+    """Measure the post-limiter RMS/peak envelope for audio-reactive visuals.
+
+    The envelope is computed after the same φ soft limiter used by
+    :func:`phi_soft_limit`, so non-finite inputs are absorbed into finite output and
+    the reported peak never exceeds ``threshold``. ``reactivity`` is a bounded
+    ``[0, 1]`` scalar derived from RMS/threshold and φ-scaled for shader use.
+    """
+    if not math.isfinite(threshold) or threshold <= 0:
+        raise ValueError(f"threshold must be finite and positive, got {threshold}")
+
+    count = 0
+    sum_sq = 0.0
+    peak = 0.0
+    for sample in samples:
+        limited = phi_soft_limit_sample(float(sample), threshold)
+        mag = abs(limited)
+        peak = max(peak, mag)
+        sum_sq += limited * limited
+        count += 1
+
+    if count == 0:
+        return AudioEnvelope(rms=0.0, peak=0.0, reactivity=0.0, sample_count=0)
+
+    rms = math.sqrt(sum_sq / count)
+    reactivity = min(1.0, max(0.0, (rms / threshold) * PHI))
+    return AudioEnvelope(rms=rms, peak=peak, reactivity=reactivity, sample_count=count)
 
 
 def is_monotone_non_decreasing(values: Sequence[float]) -> bool:

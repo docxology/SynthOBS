@@ -136,3 +136,17 @@ def test_golden_spiral_empty() -> None:
     assert golden_spiral_points(0) == []
     with pytest.raises(ValueError):
         golden_spiral_points(-1)
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"a": float("nan")},
+        {"a": float("inf")},
+        {"start_theta": float("nan")},
+        {"start_theta": float("-inf")},
+    ],
+)
+def test_golden_spiral_rejects_nonfinite_parameters(kwargs: dict[str, float]) -> None:
+    with pytest.raises(ValueError):
+        golden_spiral_points(2, **kwargs)

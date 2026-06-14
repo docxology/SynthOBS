@@ -11,6 +11,7 @@ htmlcov/
 
 # Native build artifacts
 plugin/fractisynth/build/
+lean/.lake/
 *.so
 *.dll
 *.dylib

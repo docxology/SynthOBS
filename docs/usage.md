@@ -36,6 +36,11 @@ Select the source and click **Properties** for a full config panel:
 | **Show Clickable Targets** (`show_tabs`) | paint the seven-feed tab strip, layer-toggle rail, and marker-drop target affordances; saved scenes using the older `show_tabs` key keep working |
 | **Console Width / Height** | render resolution (default 1280×720) |
 
+When the **FractiSynth — φ Harmonic Limiter** is present on a live audio source, the
+console source receives post-limiter `RMS`, `peak`, and `reactivity` values. The
+procedural feeds pulse from that envelope, the bottom edge draws a compact audio meter,
+and the Telemetry HUD / dock expose the same numbers for operator verification.
+
 ### Switching feeds, layers, and markers by clicking (interactive)
 
 With **Show Clickable Targets** on, the console source is interactive: **right-click the
@@ -91,7 +96,8 @@ and restarting OBS:
      **Honeycomb Hex Lattice** (0–1), and **HOLO_GRID Overlay** (0–1). All gateway-driven
      layers fade with the live lock strength, so an offline stream stays clean.
    - **FractiSynth — φ Harmonic Limiter** — a φ-knee soft limiter on the source audio.
-     Knob: **Soft Limiter Ceiling** (0.05–1.0). It never hard-clips.
+     Knob: **Soft Limiter Ceiling** (0.05–1.0). It never hard-clips, and its
+     post-limiter envelope drives the console's audio-reactive shader uniforms.
 
 The filters read the shared oscillator automatically. Until the telemetry thread locks a
 real reading, the video filter contributes **zero** displacement (fail-closed) — so an

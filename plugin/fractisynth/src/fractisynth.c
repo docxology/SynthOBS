@@ -104,6 +104,16 @@ static fractisynth_swo_t g_swo = {0.0f, 0, 1.0f, false, 0.0f, 0.0f, 0.0f, false}
 static pthread_mutex_t g_swo_mutex = PTHREAD_MUTEX_INITIALIZER;
 static atomic_int g_console_theme = 0; /* exported to the Qt dock; default Observatory */
 
+typedef struct fractisynth_audio_envelope {
+	float rms;        /* post-limiter root mean square */
+	float peak;       /* post-limiter peak magnitude */
+	float reactivity; /* φ-scaled RMS/threshold, clamped to [0,1] */
+	bool has_audio;
+} fractisynth_audio_envelope_t;
+
+static fractisynth_audio_envelope_t g_audio = {0.0f, 0.0f, 0.0f, false};
+static pthread_mutex_t g_audio_mutex = PTHREAD_MUTEX_INITIALIZER;
+
 /* ------------------------------------------------------------------ */
 /*  Telemetry history ring buffer (mirrors src/synthobs/history.py)    */
 /*  Feeds the Telemetry HUD waveform sparklines.                       */
@@ -205,8 +215,8 @@ static int series_get(int idx, float *out, int max)
 static bool synchronize_swo_calibration(fractisynth_swo_t *swo, float current_flux,
 					int active_spots)
 {
-	/* ENFORCEMENT: block any stale, default, or zeroed indicator. */
-	if (current_flux <= 0.0f || active_spots <= 0) {
+	/* ENFORCEMENT: block stale, default, zeroed, or non-finite indicators. */
+	if (!isfinite(current_flux) || current_flux <= 0.0f || active_spots <= 0) {
 		swo->is_calibrated = false;
 		return false; /* escape to Hold Pattern — vector unchanged */
 	}
@@ -287,6 +297,44 @@ static bool gateway_read(float *out_lock, float *out_phase)
 	*out_phase = locked ? g_swo.wind_phase : 0.0f;
 	pthread_mutex_unlock(&g_swo_mutex);
 	return locked;
+}
+
+static float unit_clamp(float v)
+{
+	if (!isfinite(v))
+		return 0.0f;
+	if (v < 0.0f)
+		return 0.0f;
+	if (v > 1.0f)
+		return 1.0f;
+	return v;
+}
+
+static void audio_envelope_store(float rms, float peak, float reactivity, bool has_audio)
+{
+	if (!isfinite(rms) || rms < 0.0f)
+		rms = 0.0f;
+	if (!isfinite(peak) || peak < 0.0f)
+		peak = 0.0f;
+	reactivity = unit_clamp(reactivity);
+
+	pthread_mutex_lock(&g_audio_mutex);
+	g_audio.rms = rms;
+	g_audio.peak = peak;
+	g_audio.reactivity = reactivity;
+	g_audio.has_audio = has_audio;
+	pthread_mutex_unlock(&g_audio_mutex);
+}
+
+static void audio_envelope_read(float *out_rms, float *out_peak,
+				float *out_reactivity, bool *out_has_audio)
+{
+	pthread_mutex_lock(&g_audio_mutex);
+	*out_rms = g_audio.rms;
+	*out_peak = g_audio.peak;
+	*out_reactivity = g_audio.reactivity;
+	*out_has_audio = g_audio.has_audio;
+	pthread_mutex_unlock(&g_audio_mutex);
 }
 
 /* ------------------------------------------------------------------ */
@@ -397,7 +445,7 @@ static float extract_last_flux(const char *json)
 			p++;
 		char *end = NULL;
 		float val = strtof(p, &end);
-		if (end != p && val > 0.0f)
+		if (end != p && isfinite(val) && val > 0.0f)
 			last = val; /* keep the most recent positive reading */
 		p = (end && end != p) ? end : p + 1;
 	}
@@ -494,7 +542,7 @@ static float extract_last_wind_speed(const char *json)
 		p++;
 	char *end = NULL;
 	float val = strtof(p, &end);
-	if (end == p || val <= 0.0f)
+	if (end == p || !isfinite(val) || val <= 0.0f)
 		return -1.0f;
 	return val;
 }
@@ -611,7 +659,7 @@ static int parse_kp_series(const char *json, float *out, int max)
 		float v = strtof(q, &end);
 		if (end == q)
 			break;
-		if (v >= 0.0f && v <= 12.0f)
+		if (isfinite(v) && v >= 0.0f && v <= 12.0f)
 			out[n++] = v;
 		p = (end > q) ? end : q + 1;
 	}
@@ -672,7 +720,7 @@ static void *telemetry_thread_fn(void *arg)
 
 		/* Amplitude plane: only lock with genuinely live, positive values. Any
 		 * failure leaves g_swo holding its last verified vector. */
-		if (flux > 0.0f && spots > 0) {
+		if (isfinite(flux) && flux > 0.0f && spots > 0) {
 			pthread_mutex_lock(&g_swo_mutex);
 			bool ok = synchronize_swo_calibration(&g_swo, flux, spots);
 			pthread_mutex_unlock(&g_swo_mutex);
@@ -686,7 +734,7 @@ static void *telemetry_thread_fn(void *arg)
 		}
 
 		/* EGS gateway (phase) plane: independent fail-closed lock from wind. */
-		if (wind > 0.0f) {
+		if (isfinite(wind) && wind > 0.0f) {
 			pthread_mutex_lock(&g_swo_mutex);
 			bool wok = synchronize_gateway_lock(&g_swo, wind);
 			pthread_mutex_unlock(&g_swo_mutex);
@@ -1021,7 +1069,7 @@ static void fsa_update(void *data, obs_data_t *settings)
 {
 	fractisynth_audio_data_t *f = data;
 	f->threshold = (float)obs_data_get_double(settings, "threshold");
-	if (f->threshold <= 0.0f)
+	if (!isfinite(f->threshold) || f->threshold <= 0.0f)
 		f->threshold = 1.0f;
 }
 
@@ -1055,6 +1103,8 @@ static obs_properties_t *fsa_properties(void *data)
 /* φ-scaled soft limiter — identical curve to the Python phi_soft_limit_sample. */
 static inline float phi_soft_limit_sample(float x, float threshold)
 {
+	if (!isfinite(threshold) || threshold <= 0.0f)
+		threshold = 1.0f;
 	if (!isfinite(x))
 		return isnan(x) ? 0.0f : copysignf(threshold, x);
 
@@ -1076,17 +1126,40 @@ static inline float phi_soft_limit_sample(float x, float threshold)
 static struct obs_audio_data *fsa_filter_audio(void *data, struct obs_audio_data *audio)
 {
 	fractisynth_audio_data_t *f = data;
+	if (!audio) {
+		audio_envelope_store(0.0f, 0.0f, 0.0f, false);
+		return audio;
+	}
 	float phase = swo_phase_vector();
 	/* phase vector gently scales the effective ceiling (presence with weather). */
 	float threshold = f->threshold;
 	UNUSED_PARAMETER(phase);
+	if (!isfinite(threshold) || threshold <= 0.0f)
+		threshold = 1.0f;
 
+	double sum_sq = 0.0;
+	float peak = 0.0f;
+	size_t count = 0;
 	for (size_t ch = 0; ch < MAX_AV_PLANES; ch++) {
 		float *samples = (float *)audio->data[ch];
 		if (!samples)
 			continue;
-		for (uint32_t i = 0; i < audio->frames; i++)
-			samples[i] = phi_soft_limit_sample(samples[i], threshold);
+		for (uint32_t i = 0; i < audio->frames; i++) {
+			float limited = phi_soft_limit_sample(samples[i], threshold);
+			float mag = fabsf(limited);
+			samples[i] = limited;
+			sum_sq += (double)limited * (double)limited;
+			if (mag > peak)
+				peak = mag;
+			count++;
+		}
+	}
+	if (count > 0) {
+		float rms = (float)sqrt(sum_sq / (double)count);
+		float reactivity = unit_clamp((rms / threshold) * EGS_PHI);
+		audio_envelope_store(rms, peak, reactivity, true);
+	} else {
+		audio_envelope_store(0.0f, 0.0f, 0.0f, false);
 	}
 	return audio;
 }
@@ -1114,11 +1187,15 @@ struct fractisynth_dock_state {
 	float lock_strength;
 	float wind_phase;
 	float solar_wind_kms;
+	float audio_rms;
+	float audio_peak;
+	float audio_reactivity;
 	float flux;        /* live F10.7 cm radio flux */
 	int sunspots;      /* live active-region count */
 	int verdict;       /* holographic gate: +1 constructive(AR14409), -1 destructive, 0 mixed */
 	int swo_calibrated;
 	int gateway_locked;
+	int audio_active;
 };
 
 void fractisynth_get_state(struct fractisynth_dock_state *out)
@@ -1147,6 +1224,9 @@ void fractisynth_get_state(struct fractisynth_dock_state *out)
 		out->verdict = 0;
 	}
 	pthread_mutex_unlock(&g_swo_mutex);
+	bool has_audio = false;
+	audio_envelope_read(&out->audio_rms, &out->audio_peak, &out->audio_reactivity, &has_audio);
+	out->audio_active = has_audio ? 1 : 0;
 }
 
 int fractisynth_get_console_theme(void)
@@ -1502,6 +1582,9 @@ typedef struct fractisynth_console_data {
 	gs_eparam_t *p_lock_strength;
 	gs_eparam_t *p_wind_phase;
 	gs_eparam_t *p_egs_key;
+	gs_eparam_t *p_audio_rms;
+	gs_eparam_t *p_audio_peak;
+	gs_eparam_t *p_audio_reactivity;
 	gs_eparam_t *p_elapsed;
 	gs_eparam_t *p_uv_size;
 	gs_eparam_t *p_feed;
@@ -1585,6 +1668,9 @@ static void *fcv_create(obs_data_t *settings, obs_source_t *context)
 		f->p_lock_strength = gs_effect_get_param_by_name(f->effect, "lock_strength");
 		f->p_wind_phase = gs_effect_get_param_by_name(f->effect, "wind_phase");
 		f->p_egs_key = gs_effect_get_param_by_name(f->effect, "egs_key");
+		f->p_audio_rms = gs_effect_get_param_by_name(f->effect, "audio_rms");
+		f->p_audio_peak = gs_effect_get_param_by_name(f->effect, "audio_peak");
+		f->p_audio_reactivity = gs_effect_get_param_by_name(f->effect, "audio_reactivity");
 		f->p_elapsed = gs_effect_get_param_by_name(f->effect, "elapsed");
 		f->p_uv_size = gs_effect_get_param_by_name(f->effect, "uv_size");
 		f->p_feed = gs_effect_get_param_by_name(f->effect, "feed");
@@ -1598,14 +1684,14 @@ static void *fcv_create(obs_data_t *settings, obs_source_t *context)
 		f->p_show_spiral = gs_effect_get_param_by_name(f->effect, "show_spiral");
 		f->p_show_fringes = gs_effect_get_param_by_name(f->effect, "show_fringes");
 		f->p_show_grid = gs_effect_get_param_by_name(f->effect, "show_grid");
-			f->p_show_hex = gs_effect_get_param_by_name(f->effect, "show_hex");
-			f->p_show_dot = gs_effect_get_param_by_name(f->effect, "show_dot");
-			f->p_show_tabs = gs_effect_get_param_by_name(f->effect, "show_tabs");
-			f->p_layer_visible_mask = gs_effect_get_param_by_name(f->effect, "layer_visible_mask");
-			f->p_marker_x = gs_effect_get_param_by_name(f->effect, "marker_x");
-			f->p_marker_y = gs_effect_get_param_by_name(f->effect, "marker_y");
-			f->p_marker_age = gs_effect_get_param_by_name(f->effect, "marker_age");
-		}
+		f->p_show_hex = gs_effect_get_param_by_name(f->effect, "show_hex");
+		f->p_show_dot = gs_effect_get_param_by_name(f->effect, "show_dot");
+		f->p_show_tabs = gs_effect_get_param_by_name(f->effect, "show_tabs");
+		f->p_layer_visible_mask = gs_effect_get_param_by_name(f->effect, "layer_visible_mask");
+		f->p_marker_x = gs_effect_get_param_by_name(f->effect, "marker_x");
+		f->p_marker_y = gs_effect_get_param_by_name(f->effect, "marker_y");
+		f->p_marker_age = gs_effect_get_param_by_name(f->effect, "marker_age");
+	}
 
 	fcv_update(f, settings);
 	return f;
@@ -1852,6 +1938,47 @@ static void hud_marker(fractisynth_console_data_t *f, uint8_t *b, int W, int H)
 	t8_putpx(b, W, H, x, y, 58, 175, 169, 255);
 }
 
+/* Visible provenance fallback: 32 high-contrast cells mirror the first four
+ * digest bytes used by the short signature. This survives ordinary screenshots
+ * even when compositor resampling destroys the row-0 blue LSB payload. */
+static void hud_signature_strip(uint8_t *b, int W, int H, const uint8_t digest4[4])
+{
+	const int bits = 32;
+	int cell_w = W / 160;
+	int cell_h = H / 160;
+	if (cell_w < 3)
+		cell_w = 3;
+	if (cell_h < 4)
+		cell_h = 4;
+	if (cell_w > 10)
+		cell_w = 10;
+	if (cell_h > 10)
+		cell_h = 10;
+
+	int margin = 8;
+	int total_w = bits * cell_w;
+	if (total_w > W - margin * 2) {
+		cell_w = (W - margin * 2) / bits;
+		if (cell_w < 1)
+			return;
+		total_w = bits * cell_w;
+	}
+	int x0 = W - margin - total_w;
+	int y0 = H - cell_h - 3;
+	if (x0 < 0 || y0 < 0)
+		return;
+
+	for (int i = 0; i < bits; i++) {
+		int bit = (digest4[i >> 3] >> (7 - (i & 7))) & 1;
+		if (bit)
+			t8_fill_rect(b, W, H, x0 + i * cell_w, y0, cell_w, cell_h,
+				     58, 175, 169, 255);
+		else
+			t8_fill_rect(b, W, H, x0 + i * cell_w, y0, cell_w, cell_h,
+				     239, 233, 220, 255);
+	}
+}
+
 static void fcv_render_hud(fractisynth_console_data_t *f)
 {
 	int W = (int)f->width, H = (int)f->height;
@@ -1908,7 +2035,16 @@ static void fcv_render_hud(fractisynth_console_data_t *f)
 	} else {
 		t8_text(b, W, H, x, y, "GATEWAY  -- HOLD", sc, 232, 49, 58, 255); y += lh;
 	}
-	t8_text(b, W, H, x, y, "K_EGS  2.5394  PHI.LR/LHA", sc, 58, 175, 169, 255);
+	t8_text(b, W, H, x, y, "K_EGS  2.5394  PHI.LR/LHA", sc, 58, 175, 169, 255); y += lh;
+	if (st.audio_active) {
+		snprintf(ln, sizeof ln, "AUDIO RMS   %.3f  PEAK %.3f", (double)st.audio_rms,
+			 (double)st.audio_peak);
+		t8_text(b, W, H, x, y, ln, sc, 58, 175, 169, 255); y += lh;
+		snprintf(ln, sizeof ln, "AUDIO REACT %.3f", (double)st.audio_reactivity);
+		t8_text(b, W, H, x, y, ln, sc, 232, 163, 61, 255);
+	} else {
+		t8_text(b, W, H, x, y, "AUDIO  --  ACQUIRING", sc, 232, 163, 61, 255);
+	}
 
 	/* waveform sparklines (right column, below the title) */
 	int bx = W * 58 / 100, bw = W - bx - 16;
@@ -1957,8 +2093,9 @@ static void fcv_render_hud(fractisynth_console_data_t *f)
 		memcpy(stream + 26, dig, 4); /* payload checksum = SHA-256[:4] */
 		char sig[12];
 		snprintf(sig, sizeof sig, "%02x%02x%02x%02x", dig[0], dig[1], dig[2], dig[3]);
-		snprintf(ln, sizeof ln, "PROVENANCE  %s  LSB-EMBEDDED", sig);
+		snprintf(ln, sizeof ln, "PROVENANCE  %s  LSB+VISIBLE", sig);
 		t8_text(b, W, H, x, H - 8 * sc - 14, ln, sc, 120, 200, 180, 255);
+		hud_signature_strip(b, W, H, dig);
 		/* embed LAST (MSB-first per byte, one bit per pixel's blue LSB, row 0) */
 		int total_bits = (int)sizeof(stream) * 8;
 		for (int i = 0; i < total_bits; i++) {
@@ -2089,6 +2226,10 @@ static void fcv_video_render(void *data, gs_effect_t *effect)
 	swo_read(&phase);
 	float lock = 0.0f, wind_phase = 0.0f;
 	gateway_read(&lock, &wind_phase);
+	float audio_rms = 0.0f, audio_peak = 0.0f, audio_reactivity = 0.0f;
+	bool audio_active = false;
+	audio_envelope_read(&audio_rms, &audio_peak, &audio_reactivity, &audio_active);
+	UNUSED_PARAMETER(audio_active);
 
 	if (f->p_swo_phase)
 		gs_effect_set_float(f->p_swo_phase, phase);
@@ -2098,6 +2239,12 @@ static void fcv_video_render(void *data, gs_effect_t *effect)
 		gs_effect_set_float(f->p_wind_phase, wind_phase);
 	if (f->p_egs_key)
 		gs_effect_set_float(f->p_egs_key, EGS_GATEWAY_KEY);
+	if (f->p_audio_rms)
+		gs_effect_set_float(f->p_audio_rms, audio_rms);
+	if (f->p_audio_peak)
+		gs_effect_set_float(f->p_audio_peak, audio_peak);
+	if (f->p_audio_reactivity)
+		gs_effect_set_float(f->p_audio_reactivity, audio_reactivity);
 	if (f->p_elapsed)
 		gs_effect_set_float(f->p_elapsed, f->elapsed);
 	if (f->p_uv_size) {
@@ -2165,22 +2312,24 @@ static void fcv_video_render(void *data, gs_effect_t *effect)
 }
 
 /*
-	 * Interactive target selection: when targets are shown, a left-click in the top
-	 * ~9% maps to one of seven feeds, the left rail toggles feed-layer visibility,
-	 * and the remaining canvas drops a transient marker. Interaction is delivered via
-	 * OBS's Interact window / interactive projector. Fail-safe: invalid clicks or
-	 * hidden targets are ignored.
+ * Interactive target selection: when targets are shown, a left-click in the top
+ * ~9% maps to one of seven feeds, the left rail toggles feed-layer visibility,
+ * and the remaining canvas drops a transient marker. Interaction is delivered via
+ * OBS's Interact window / interactive projector. Fail-safe: invalid clicks or
+ * hidden targets are ignored.
  */
 static void fcv_mouse_click(void *data, const struct obs_mouse_event *event, int32_t type,
 			    bool mouse_up, uint32_t click_count)
 {
 	UNUSED_PARAMETER(click_count);
 	fractisynth_console_data_t *f = data;
-	if (type != MOUSE_LEFT || !mouse_up || f->show_tabs < 0.5f)
+	if (!event || type != MOUSE_LEFT || !mouse_up || f->show_tabs < 0.5f)
 		return;
 	if (f->width == 0 || f->height == 0)
 		return;
 	float x = (float)event->x, y = (float)event->y;
+	if (!isfinite(x) || !isfinite(y))
+		return;
 	if (x < 0.0f || y < 0.0f || x >= (float)f->width || y >= (float)f->height)
 		return;
 

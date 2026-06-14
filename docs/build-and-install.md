@@ -163,8 +163,8 @@ Restart OBS. SynthOBS appears as **a source you can add**, **two filters**, an o
 | --- | --- | --- | --- |
 | **SynthOBS — φ Wavefield Console** | source | `FractiSynthConsole` | generated, draggable live gateway-console pane |
 | **FractiSynth — φ Video Calibration** | filter | `FractiSynthVideo` | calibrates a source's harmonic box against φ |
-| **FractiSynth — φ Harmonic Limiter**  | filter | `FractiSynthAudio` | recursive 1/φ soft limiter (`tanhf`, never hard-clipped) |
-| **SynthOBS Gateway** | dock | — | live gateway gauge with freeze, style, precision, and theme-follow controls (optional Qt-matched build) |
+| **FractiSynth — φ Harmonic Limiter**  | filter | `FractiSynthAudio` | recursive 1/φ soft limiter (`tanhf`, never hard-clipped) + RMS/peak/reactivity envelope |
+| **SynthOBS Gateway** | dock | — | live gateway/audio gauge with freeze, style, precision, and theme-follow controls (optional Qt-matched build) |
 
 ## Uninstall
 

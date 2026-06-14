@@ -25,7 +25,8 @@ also adds a frontend dock.
 The **console source** (`fcv_*` callbacks) draws a full-screen quad through its own
 procedural shader `fractisynth_console.effect` (no input image — `gs_draw_sprite(NULL,
 …)`), feeding it the live `swo_phase` / `lock_strength` / `wind_phase` / `egs_key`
-uniforms via the mutex-guarded `swo_read()` + `gateway_read()`. It is what makes SynthOBS
+uniforms plus `audio_rms` / `audio_peak` / `audio_reactivity` via mutex-guarded
+snapshots. It is what makes SynthOBS
 appear in the Sources "+" menu. Its interaction handler mirrors
 `synthobs.interaction.resolve_target_action`: the top strip has seven feed cells, the
 left rail toggles layer visibility bits, and the remaining canvas drops a transient
@@ -86,6 +87,17 @@ byte-for-byte analog of the Python limiter:
 It iterates audio planes up to `MAX_AV_PLANES` with a null-guard per plane — the
 standard, safe OBS audio-filter idiom.
 
+The same loop measures the **post-limiter** envelope:
+
+- `audio_rms` — root mean square of the limited samples;
+- `audio_peak` — peak magnitude after limiting, never above the ceiling;
+- `audio_reactivity` — φ-scaled RMS/threshold clamped to `[0, 1]`.
+
+The values are stored under `g_audio_mutex`, exported through `fractisynth_get_state()`,
+drawn on the Telemetry HUD as `AUDIO RMS` / `AUDIO REACT`, shown in the Qt dock, and
+bound into `fractisynth_console.effect` so the procedural feeds visibly pulse with
+stream audio. Empty or malformed audio buffers store a zeroed, inactive envelope.
+
 ## The Solar Wavefield Oscillator core
 
 A single process-global struct guarded by a pthread mutex:
@@ -100,8 +112,8 @@ typedef struct fractisynth_swo {
 ```
 
 - `synchronize_swo_calibration()` — the writer. Fail-closed guard:
-  `if (current_flux <= 0.0f || active_spots <= 0)` → hold. Also rejects non-finite
-  vectors.
+  `if (!isfinite(current_flux) || current_flux <= 0.0f || active_spots <= 0)` → hold.
+  Also rejects non-finite vectors.
 - `swo_phase_vector()` — locked read of the vector alone.
 - `swo_read(&v)` — locked read of the vector **and** `is_calibrated` together, so the
   render path can enforce the fail-closed rule atomically.
@@ -175,8 +187,21 @@ The C plugin is a *mirror*, not the source of truth. The φ literal, the SWO for
 (`φ · flux/spots`), the fail-closed rule, and the soft-limiter curve are identical to
 [`src/synthobs`](../src/synthobs), and the pin between them is a **test** — drift is a
 failure, not a silent divergence. When in doubt about intended behavior, the Python
-engine and its 1024-test suite are authoritative; the C plugin makes that behavior run
+engine and its 1132-test suite are authoritative; the C plugin makes that behavior run
 natively inside OBS.
+
+The Telemetry HUD provenance strip can be checked from a captured PNG:
+
+```bash
+uv run python scripts/verify_provenance_strip.py output/live/telemetry_hud.png --json
+```
+
+The verifier uses the same length prefix, blue-channel LSB extraction, checksum, and
+record validation as `src/synthobs/provenance.py`. It is tested on real RGB/RGBA PNG
+round-trips; live OBS scene-compositor survival is still a manual gate because websocket
+captures may rescale or composite the source before the strip reaches disk. The HUD also
+draws a redundant 32-cell visible signature strip from the same digest prefix, giving the
+live scenario harness a survivable fallback signal if row-0 LSBs are destroyed.
 
 ## OBS effect-language gotchas (hard-won)
 

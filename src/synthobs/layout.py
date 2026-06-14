@@ -138,6 +138,10 @@ def golden_spiral_points(n: int, *, a: float = 1.0, start_theta: float = 0.0) ->
     """
     if n < 0:
         raise ValueError(f"n must be >= 0, got {n}")
+    if not math.isfinite(a):
+        raise ValueError(f"a must be finite, got {a}")
+    if not math.isfinite(start_theta):
+        raise ValueError(f"start_theta must be finite, got {start_theta}")
     # b such that r multiplies by φ each quarter turn: r = a·e^{bθ}, e^{b·(π/2)} = φ
     b = math.log(PHI) / (math.pi / 2.0)
     pts: list[tuple[float, float]] = []

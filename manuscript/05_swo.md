@@ -38,8 +38,8 @@ The Python `SolarWavefieldOscillator.calibrate()` is the tested source of truth 
 ```c
 static bool synchronize_swo_calibration(fractisynth_swo_t *swo,
                                         float current_flux, int active_spots) {
-    /* ENFORCEMENT: block any stale, default, or zeroed indicator. */
-    if (current_flux <= 0.0f || active_spots <= 0) {
+    /* ENFORCEMENT: block any stale, default, zeroed, or non-finite indicator. */
+    if (!isfinite(current_flux) || current_flux <= 0.0f || active_spots <= 0) {
         swo->is_calibrated = false;
         return false;                 /* escape to Hold Pattern — vector unchanged */
     }

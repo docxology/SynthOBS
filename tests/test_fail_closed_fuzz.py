@@ -25,7 +25,8 @@ from typing import Any, Callable
 
 import pytest
 
-from synthobs import gateway, interaction, telemetry
+from synthobs import commands, gateway, interaction, telemetry
+from synthobs.commands import CommandError
 from synthobs.interaction import TargetAction
 from synthobs.provenance import ProvenanceError, TelemetryRecord
 from synthobs.swo import SolarWavefieldOscillator
@@ -105,6 +106,14 @@ def _resolve(coord: float) -> Any:
     return interaction.resolve_target_action(coord, 10.0, 1000, 800, layer_count=3)
 
 
+def _command_flux(flux: float) -> Any:
+    return commands.parse(f"/swo calibrate --flux={flux} --spots=3")
+
+
+def _command_ratio(ratio: float) -> Any:
+    return commands.parse(f"/transducer bind cam --ratio={ratio}")
+
+
 BOUNDARIES: list[Boundary] = [
     Boundary("telemetry_from_payload", lambda f: telemetry.telemetry_from_payload(_telemetry_payload(f)), raises=(TelemetryUnavailable,)),
     Boundary("parse_noaa_f107_flux", lambda f: telemetry.parse_noaa_f107_flux(_f107(f)), raises=(TelemetryUnavailable,)),
@@ -115,6 +124,8 @@ BOUNDARIES: list[Boundary] = [
     Boundary("swo.calibrate", _calibrate, sentinel=lambda r: r is False),
     Boundary("provenance.TelemetryRecord", _provenance, raises=(ProvenanceError,)),
     Boundary("resolve_target_action", _resolve, sentinel=lambda r: r.action is TargetAction.NONE),
+    Boundary("commands.parse /swo flux", _command_flux, raises=(CommandError,)),
+    Boundary("commands.parse /transducer ratio", _command_ratio, raises=(CommandError,)),
 ]
 
 

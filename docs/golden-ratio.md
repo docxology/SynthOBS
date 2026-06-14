@@ -116,6 +116,7 @@ assemble_viewport(width: int, height: int) -> Viewport
 ```python
 phi_soft_limit_sample(x: float, threshold: float) -> float
 phi_soft_limit(samples: Iterable[float], threshold: float = 1.0) -> list[float]
+audio_envelope(samples: Iterable[float], threshold: float = 1.0) -> AudioEnvelope
 ```
 
 A `tanh`-based soft limiter whose **knee sits at `1/φ`** of the threshold (`knee =
@@ -151,6 +152,15 @@ This is the same knee the C plugin's `phi_soft_limit_sample`
 ([`plugin/fractisynth/src/fractisynth.c`](../plugin/fractisynth/src/fractisynth.c))
 implements for OBS audio.
 
+`threshold` itself must be finite and positive; `NaN`, `±Inf`, zero, and negative
+thresholds raise `ValueError` before a transfer curve is computed.
+
+`audio_envelope` measures the **post-limiter** buffer, not the raw input. It returns
+`AudioEnvelope(rms, peak, reactivity, sample_count)`, where `peak <= threshold` and
+`reactivity = clamp((rms / threshold) · φ, 0, 1)`. The native audio filter mirrors this
+envelope and publishes the values to the console shader (`audio_rms`, `audio_peak`,
+`audio_reactivity`), the Telemetry HUD, and the Qt dock.
+
 ## 3. The spatial scale matrix (`dsp.spatial_scale_matrix`)
 
 ```python
@@ -164,7 +174,7 @@ spatial_scale_matrix(factor: float = PHI) -> list[list[float]]
 - `spatial_scale_matrix(factor=φ)` returns a 3×3 homogeneous matrix that scales by
   `1/factor`. At the default `factor = φ` the two spatial diagonal entries are each
   `1/φ` (the suite asserts `m[0][0] == m[1][1] ≈ INV_PHI`); the homogeneous entry
-  `m[2][2]` stays `1.0`. A `factor = 0` raises `ValueError` (ISC-32):
+  `m[2][2]` stays `1.0`. A non-finite or zero `factor` raises `ValueError` (ISC-32):
 
   ```
   spatial_scale_matrix(φ)

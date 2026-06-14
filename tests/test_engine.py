@@ -59,6 +59,9 @@ def test_modulate_after_calibration() -> None:  # ISC-52
     assert cw == 1187 and ch == 667  # round(1920/φ), round(1080/φ)
     out = eng.modulate_audio([0.0, 0.5, 2.0], threshold=1.0)
     assert all(abs(s) <= 1.0 for s in out)
+    env = eng.measure_audio([0.0, 0.5, 2.0], threshold=1.0)
+    assert 0.0 < env.rms <= 1.0
+    assert 0.0 < env.reactivity <= 1.0
 
 
 def test_refuses_modulation_before_calibration() -> None:  # ISC-54
@@ -67,6 +70,8 @@ def test_refuses_modulation_before_calibration() -> None:  # ISC-54
         eng.modulate_video(1920, 1080)
     with pytest.raises(TelemetryUnavailable):
         eng.modulate_audio([0.1, 0.2])
+    with pytest.raises(TelemetryUnavailable):
+        eng.measure_audio([0.1, 0.2])
 
 
 def test_demo_mode_allows_modulation() -> None:  # ISC-54 (demo escape)

@@ -22,6 +22,9 @@ uniform float swo_phase;
 uniform float lock_strength;
 uniform float wind_phase;
 uniform float egs_key;
+uniform float audio_rms;
+uniform float audio_peak;
+uniform float audio_reactivity;
 uniform float elapsed;
 uniform float2 uv_size;
 
@@ -110,6 +113,8 @@ float3 feed_wavefield(float2 uv, float t, float lock, float pn, float inten, flo
 {
 	Palette p = get_palette();
 	float2 c = (uv - 0.5); c.x *= aspect;
+	float audio = clamp(audio_reactivity, 0.0, 1.0);
+	c *= 1.0 + audio * 0.04 * sin(t * TWO_PI + length(c) * 18.0);
 	float r = length(c); float ang = atan2(c.y, c.x);
 	float3 col = lerp(p.bg, p.bg * 1.4, uv.y);
 
@@ -131,6 +136,8 @@ float3 feed_wavefield(float2 uv, float t, float lock, float pn, float inten, flo
 	float onRing = 1.0 - smoothstep(0.012, 0.024, abs(r - 0.34));
 	float arc = step((ang + 3.14159265) / TWO_PI, lock);
 	col = lerp(col, lerp(p.hot, p.ring, lock), onRing * (0.15 + arc * 0.85) * show_ring * inten);
+	float audioRing = 1.0 - smoothstep(0.010, 0.026, abs(r - (0.16 + 0.22 * clamp(audio_peak, 0.0, 1.0))));
+	col = lerp(col, p.hot, audioRing * audio * 0.42 * inten);
 
 	col = lerp(col, p.core, (1.0 - smoothstep(0.012, 0.022, r)) * (0.3 + 0.7 * pn) * show_dot);
 	return col;
@@ -145,8 +152,9 @@ float3 feed_hex_tunnel(float2 uv, float t, float lock, float pn, float inten, fl
 	float u = log(max(r, 1e-3)) * 3.0 - (t * 0.4 + wind_phase * 0.1);
 	float edge = hex_edge(float2(ang / TWO_PI * 12.0, u * 2.0));
 	float depth = smoothstep(0.0, 0.55, r);
+	float audio = clamp(audio_reactivity, 0.0, 1.0);
 	float3 col = lerp(p.bg, p.ring, edge * depth * (0.4 + 0.6 * lock) * inten);
-	col += p.mari * pow(saturate(1.0 - r * 1.6), 3.0) * (0.4 + 0.6 * lock) * inten;  /* centre glow */
+	col += p.mari * pow(saturate(1.0 - r * 1.6), 3.0) * (0.4 + 0.6 * lock + 0.5 * audio) * inten;  /* centre glow */
 	return col;
 }
 
@@ -160,9 +168,10 @@ float3 feed_interference(float2 uv, float t, float lock, float pn, float inten, 
 	float w1 = cos(dot(c, float2(cos(a1), sin(a1))) * k - t * 0.4);
 	float w2 = cos(dot(c, float2(cos(a2), sin(a2))) * k + t * 0.3);
 	float m = w1 + w2; float fi = m * m * 0.25;
-	float3 col = lerp(p.bg, p.ring, fi * (0.5 + 0.5 * lock) * inten);
+	float audio = clamp(audio_reactivity, 0.0, 1.0);
+	float3 col = lerp(p.bg, p.ring, fi * (0.5 + 0.5 * lock + 0.35 * audio) * inten);
 	col = lerp(col, p.hot, pow(fi, 3.0) * lock * inten);
-	col += p.mari * 0.12 * lock * inten * (0.5 + 0.5 * sin(fi * TWO_PI + t));
+	col += p.mari * 0.12 * (lock + audio) * inten * (0.5 + 0.5 * sin(fi * TWO_PI + t));
 	return col;
 }
 
@@ -172,7 +181,8 @@ float3 feed_spectral(float2 uv, float t, float lock, float pn, float inten, floa
 	Palette p = get_palette();
 	float2 c = (uv - 0.5); c.x *= aspect;
 	float r = length(c);
-	float bands = 8.0 + lock * 8.0;
+	float audio = clamp(audio_reactivity, 0.0, 1.0);
+	float bands = 8.0 + lock * 8.0 + audio * 4.0;
 	float pos = r * bands - t * 0.3;
 	float ringf = frac(pos);
 	float idx = floor(pos);
@@ -188,10 +198,11 @@ float3 feed_spiral_drift(float2 uv, float t, float lock, float pn, float inten, 
 	Palette p = get_palette();
 	float2 c = (uv - 0.5); c.x *= aspect;
 	float r = length(c); float ang = atan2(c.y, c.x);
-	float arms = 5.0;
+	float audio = clamp(audio_reactivity, 0.0, 1.0);
+	float arms = 5.0 + audio;
 	float s = sin(ang * arms - log(max(r, 1e-3)) / log(PHI) * TWO_PI + t * 0.6);
 	float3 col = lerp(p.bg, p.mari, smoothstep(0.6, 1.0, s) * (0.3 + 0.7 * lock) * inten);
-	col += p.ring * pow(s * 0.5 + 0.5, 4.0) * 0.3 * lock * inten;
+	col += p.ring * pow(s * 0.5 + 0.5, 4.0) * 0.3 * (lock + audio) * inten;
 	col = lerp(col, p.core, (1.0 - smoothstep(0.01, 0.02, r)) * (0.3 + 0.7 * pn));
 	return col;
 }
@@ -201,7 +212,8 @@ float3 feed_color(float2 uv)
 	float t = elapsed * max(anim_speed, 0.0);
 	float lock = clamp(lock_strength, 0.0, 1.0);
 	float pn = clamp(swo_phase / 200.0, 0.0, 1.0);
-	float inten = clamp(intensity, 0.0, 1.0);
+	float audio = clamp(audio_reactivity, 0.0, 1.0);
+	float inten = clamp(intensity * (1.0 + 0.35 * audio), 0.0, 1.35);
 	float aspect = uv_size.x / max(uv_size.y, 1.0);
 	if (feed < 0.5) return feed_wavefield(uv, t, lock, pn, inten, aspect);
 	if (feed < 1.5) return feed_hex_tunnel(uv, t, lock, pn, inten, aspect);
@@ -249,6 +261,16 @@ float4 PSConsole(VertData v_in) : TARGET
 	if (show_tabs > 0.5 && uv.x < 0.030 && uv.y >= 0.090) {
 		float rail = frac((uv.y - 0.090) / 0.910 * 7.0);
 		col = lerp(col, p.mari, (step(rail, 0.05) + step(0.95, rail)) * 0.45);
+	}
+	if (show_tabs > 0.5 && uv.y > 0.955) {
+		float react = clamp(audio_reactivity, 0.0, 1.0);
+		float rms = clamp(audio_rms, 0.0, 1.0);
+		float peak = clamp(audio_peak, 0.0, 1.0);
+		float meter = step(uv.x, max(react, rms));
+		float peakLine = soft_line(uv.x - peak, 1.5 / uv_size.x);
+		col = lerp(col, p.bg * 1.8, 0.55);
+		col = lerp(col, p.ring, meter * 0.82);
+		col = lerp(col, p.hot, peakLine);
 	}
 	return float4(saturate(col), 1.0);
 }

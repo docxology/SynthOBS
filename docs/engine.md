@@ -147,11 +147,19 @@ See [telemetry.md](telemetry.md) for the full fail-closed contract.
 parse_noaa_f107_flux(data: Any) -> tuple[float, datetime]
 telemetry_from_payload(payload: Any, *, source="payload", max_age_s=DEFAULT_MAX_AGE_S, now=None) -> SolarTelemetry
 fetch_live_telemetry(url: str, *, max_age_s=DEFAULT_MAX_AGE_S, timeout=10.0, now=None, opener=None) -> SolarTelemetry
+parse_noaa_solar_regions(data: Any) -> int
+parse_noaa_solar_wind(data: Any, *, source="payload", max_age_s=DEFAULT_MAX_AGE_S, now=None) -> SolarWind
+fetch_live_solar_wind(url=NOAA_SOLAR_WIND_URL, *, max_age_s=DEFAULT_MAX_AGE_S, timeout=10.0, now=None, opener=None) -> SolarWind
+parse_noaa_plasma_series(data: Any) -> tuple[list[float], list[float], list[float]]
+parse_noaa_xray_flux(data: Any, band="0.1-0.8nm") -> list[float]
+parse_noaa_kp_index(data: Any) -> list[float]
 ```
 
 The module also exposes the solar-wind half of the gateway feed — `SolarWind`,
 `parse_noaa_solar_wind`, `fetch_live_solar_wind`, `NOAA_SOLAR_WIND_URL`, and the
 `DEFAULT_MAX_AGE_S` staleness bound (3 h). See [egs-gateway.md](egs-gateway.md).
+The three series parsers feed the native Solar Graph mirror: plasma density/speed/
+temperature, GOES X-ray flux, and estimated Kp.
 
 ### `class TelemetryUnavailable(RuntimeError)`
 
@@ -180,6 +188,11 @@ Immutable snapshot of one verified live reading.
 - **`fetch_live_telemetry(url, …)`** → performs the live HTTP fetch and returns a
   validated `SolarTelemetry`. (Tested with `pytest-httpserver` against local servers — no
   mocks.) The `opener` keyword is injectable only to point tests at a local server.
+- **`parse_noaa_solar_regions(data)`** → active-region count for the latest observed
+  date in NOAA `solar_regions.json`.
+- **`parse_noaa_plasma_series(data)`**, **`parse_noaa_xray_flux(data, band)`**, and
+  **`parse_noaa_kp_index(data)`** → real-time graph series; malformed or fully invalid
+  feeds raise `TelemetryUnavailable`.
 
 ---
 
@@ -200,7 +213,7 @@ lock). Either can hold while the other re-locks.
 
 | Member                            | Signature                  | Notes                                                                                       |
 | --------------------------------- | -------------------------- | ------------------------------------------------------------------------------------------- |
-| `calibrate(current_flux, active_spots)` | `(float, int) -> bool` | Commits a new phase vector and returns `True` on valid input; on `flux ≤ 0`, `spots ≤ 0`, or a non-finite result it **holds** the last verified vector and returns `False`. Never raises. |
+| `calibrate(current_flux, active_spots)` | `(float, int) -> bool` | Commits a new phase vector and returns `True` on valid input; on non-finite `flux`, `flux ≤ 0`, or `spots ≤ 0` it **holds** the last verified vector and returns `False`. Never raises. |
 | `hold_vector()`                   | `-> float \| None`         | The last verified phase vector, or `None` if never calibrated.                              |
 | `lock_gateway(solar_wind_kms)`    | `(float) -> bool`          | Locks the gateway phase plane from a live wind reading; returns `False` and holds on a non-positive/non-finite reading. |
 | `lock_strength`                   | `property -> float`        | Gateway lock strength `\|cos(phase_bias)\|` ∈ `[0,1]`; `0.0` if never locked.                |
@@ -217,16 +230,19 @@ video_calibrated_dims(width: int, height: int) -> tuple[int, int]
 spatial_scale_matrix(factor: float = PHI) -> list[list[float]]
 phi_soft_limit_sample(x: float, threshold: float) -> float
 phi_soft_limit(samples: Iterable[float], threshold: float = 1.0) -> list[float]
+audio_envelope(samples: Iterable[float], threshold: float = 1.0) -> AudioEnvelope
 ```
 
 - **`video_calibrated_dims(w, h)`** → a φ-scaled bounding box `(round(w/φ), round(h/φ))`;
   each dim is clamped to `≥ 1` for inputs `≥ 1`. Raises `ValueError` on a negative dim.
 - **`spatial_scale_matrix(factor)`** → a 3×3 homogeneous matrix that scales by `1/factor`
-  (diagonal = `1/factor`). Raises `ValueError` on `factor == 0`.
+  (diagonal = `1/factor`). Raises `ValueError` on a non-finite or zero factor.
 - **`phi_soft_limit_sample(x, threshold)`** → one limited sample; knee at `threshold·(1/φ)`,
   `|out| ≤ threshold` for all `x` (incl. `±inf`, `nan`). Raises `ValueError` on
-  `threshold ≤ 0`.
+  a non-finite or non-positive threshold.
 - **`phi_soft_limit(samples, threshold)`** → the limiter applied across a signal.
+- **`audio_envelope(samples, threshold)`** → post-limiter `AudioEnvelope(rms, peak,
+  reactivity, sample_count)`; `reactivity` is φ-scaled and clamped to `[0, 1]`.
 
 > **`is_monotone_non_decreasing(values)`** — a transfer-curve monotonicity check used by
 > the test suite. It lives in `synthobs.dsp` but is **not** re-exported at the package
@@ -340,6 +356,61 @@ name, so the command grammar and obspython bridge fail closed before touching OB
 
 ---
 
+## `history` — bounded waveform state
+
+```python
+Sample(flux, solar_wind_kms, lock_strength, phase_bias_rad)
+TelemetryHistory(capacity=128)
+```
+
+`Sample` rejects non-real and non-finite values. `TelemetryHistory` mirrors the C HUD
+ring buffer: it stores the most recent samples in chronological order, evicts the oldest
+sample past capacity, returns raw field series, normalized series, and the latest
+sample, and raises `ValueError` on invalid field names or invalid normalization bounds.
+
+## `provenance` — byte-exact HUD signature payloads
+
+```python
+TelemetryRecord(flux, sunspots, solar_wind_kms, lock_strength, phase_bias_rad, observed_unix)
+canonical_bytes(record) -> bytes
+provenance_digest(record) -> str
+short_signature(record) -> str
+signature_bits(signature) -> tuple[int, ...]
+build_payload(record) -> bytes
+embed_lsb(rgba, width, height, payload) -> None
+extract_lsb(rgba, width, height) -> bytes
+verify_payload(payload) -> TelemetryRecord
+```
+
+`TelemetryRecord` is the locked-overlay provenance record. It requires finite values,
+positive flux, positive solar-wind speed, `sunspots` in signed-int32 range,
+`lock_strength` in `[0, 1]`, and `observed_unix` in uint32 range. The wire format is a
+fixed 24-byte little-endian record plus a 4-byte truncated SHA-256 checksum. LSB embed
+and extract functions raise `ProvenanceError` on malformed buffers, undersized frames,
+oversized payloads, checksum mismatch, or invalid recovered records.
+
+`signature_bits` converts the 8-hex on-screen signature into the 32-bit visible-strip
+contract mirrored by the native HUD. It is a fallback signal for captures where OBS
+resampling destroys the row-0 blue LSBs.
+
+## `verification` — live-gate scoring contracts
+
+```python
+audio_meter_roi(width, height) -> tuple[int, int, int, int]
+score_audio_meter_delta(before, after, width, height, channels=4) -> RoiDelta
+GateResult.passed(reason, **metrics) -> GateResult
+GateResult.failed(reason, **metrics) -> GateResult
+GateResult.skipped(reason, **metrics) -> GateResult
+```
+
+The live OBS harness stays in `scripts/`; this module owns only deterministic scoring.
+`audio_meter_roi` pins the shader's bottom meter band (`uv.y > 0.955`), and
+`score_audio_meter_delta` compares silent-vs-tone captures inside that ROI while
+ignoring alpha. `GateResult` serializes manifest gates as explicit `pass`, `fail`, or
+`skip` records with scalar metrics.
+
+---
+
 ## `engine` — the orchestrator
 
 ### `class EngineState`
@@ -377,11 +448,12 @@ Constructed as `SynthEngine(*, mode=Mode.OBSERVATORY, demo_mode=False)`.
 | `layout(width, height)`               | `(int, int) -> Viewport`                   | the φ viewport for a frame                                       |
 | `modulate_video(width, height)`       | `(int, int) -> tuple[int, int]`            | calibrated dims; **raises before first calibration** unless demo  |
 | `modulate_audio(samples, threshold=1.0)` | `(Iterable, float) -> list[float]`      | φ soft-limited signal; same pre-calibration guard                |
+| `measure_audio(samples, threshold=1.0)` | `(Iterable, float) -> AudioEnvelope`    | post-limiter RMS/peak/reactivity; same pre-calibration guard     |
 
 **The pre-calibration guard is the engine's fail-closed core:** `modulate_video` and
-`modulate_audio` raise `TelemetryUnavailable` if the engine has never successfully
-calibrated — unless it was constructed in `demo_mode` (which returns a neutral unity
-vector). There is no path to "modulate with a guessed vector".
+`modulate_audio` / `measure_audio` raise `TelemetryUnavailable` if the engine has never
+successfully calibrated — unless it was constructed in `demo_mode` (which returns a
+neutral unity vector). There is no path to "modulate with a guessed vector".
 
 ```mermaid
 flowchart TD

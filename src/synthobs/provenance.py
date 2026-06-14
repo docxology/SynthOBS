@@ -37,9 +37,11 @@ __all__ = [
     "CHECKSUM_SIZE",
     "PAYLOAD_SIZE",
     "LENGTH_PREFIX_SIZE",
+    "SIGNATURE_HEX_SIZE",
     "canonical_bytes",
     "provenance_digest",
     "short_signature",
+    "signature_bits",
     "build_payload",
     "embed_lsb",
     "extract_lsb",
@@ -74,6 +76,7 @@ RECORD_SIZE: int = RECORD_STRUCT.size  # == 24
 CHECKSUM_SIZE: int = 4
 PAYLOAD_SIZE: int = RECORD_SIZE + CHECKSUM_SIZE  # == 28
 LENGTH_PREFIX_SIZE: int = 2  # uint16 little-endian payload length
+SIGNATURE_HEX_SIZE: int = CHECKSUM_SIZE * 2
 
 
 @dataclass(frozen=True)
@@ -111,6 +114,10 @@ class TelemetryRecord:
 
         if self.flux <= 0.0:
             raise ProvenanceError(f"flux must be > 0, got {self.flux!r}")
+        if self.solar_wind_kms <= 0.0:
+            raise ProvenanceError(
+                f"solar_wind_kms must be > 0, got {self.solar_wind_kms!r}"
+            )
 
         if isinstance(self.sunspots, bool) or not isinstance(self.sunspots, int):
             raise ProvenanceError(f"sunspots must be an int, got {self.sunspots!r}")
@@ -195,6 +202,28 @@ def provenance_digest(rec: TelemetryRecord) -> str:
 def short_signature(rec: TelemetryRecord) -> str:
     """Return the first 8 hex chars of :func:`provenance_digest` (on-screen ID)."""
     return provenance_digest(rec)[:8]
+
+
+def signature_bits(signature: str) -> tuple[int, ...]:
+    """Return the 32 visible-strip bits for an 8-hex provenance signature.
+
+    The native HUD mirrors this by drawing one high-contrast cell for each bit of
+    the first four digest bytes. The strip is redundant with the LSB payload; it
+    exists only as a robust capture fallback when compositor resampling destroys
+    row-0 blue LSBs.
+    """
+    if not isinstance(signature, str):
+        raise ProvenanceError(f"signature must be a string, got {signature!r}")
+    sig = signature.strip().lower()
+    if len(sig) != SIGNATURE_HEX_SIZE:
+        raise ProvenanceError(
+            f"signature must be {SIGNATURE_HEX_SIZE} hex chars, got {len(sig)}"
+        )
+    try:
+        raw = bytes.fromhex(sig)
+    except ValueError as exc:
+        raise ProvenanceError(f"signature must be lowercase hex: {signature!r}") from exc
+    return tuple((byte >> (7 - bit)) & 1 for byte in raw for bit in range(8))
 
 
 def build_payload(rec: TelemetryRecord) -> bytes:

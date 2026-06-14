@@ -101,13 +101,15 @@ plugin/fractisynth/build.sh
 Every geometric, telemetry, and DSP claim in this blueprint is exercised by the
 zero-mock test suite over the reference engine — including the three pinned laws
 @eq:swo-phase-vector, @eq:gateway-lock, and @eq:phi-soft-limit and their fail-closed
-boundaries. The current gate is 1024 Python tests at 97.86% coverage, five generated
-figures, and the native `plugin/fractisynth/build.sh` build. The native C plugin shares
-the φ literal, the SWO and gateway formulas, the full seven-feed target geometry, Solar
-Graph X-ray/Kp metrics, metric-aware graph horizons, Zoom Inspector target modes, dock
-theme/precision controls, and the fail-closed rule with the engine. The Python engine
-therefore remains authoritative: the C plugin mirrors arithmetic and interaction policy
-the engine has already proven, never the reverse.
+boundaries. The current gate is 1132 project tests at 96.95% coverage, five generated
+figures, the native `plugin/fractisynth/build.sh` build, and a buildable Lean scaffold
+for the structural invariants that should never drift. The native C plugin shares the φ
+literal, the SWO and gateway formulas, the full seven-feed target geometry, Solar Graph
+X-ray/Kp metrics, metric-aware graph horizons, Zoom Inspector target modes, dock
+theme/precision controls, the φ-soft-limiter RMS/peak/reactivity envelope, the LSB
+provenance payload layout, and the fail-closed rule with the engine. The Python engine
+therefore remains authoritative: the C plugin mirrors arithmetic, audio-reactive visual
+state, and interaction policy the engine has already proven, never the reverse.
 
 *A fair-exchange clause is in effect for this architectural expansion. Adjustments,
 refinements, or partial revisions to the delivery scale can be handled through

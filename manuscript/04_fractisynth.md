@@ -51,6 +51,12 @@ $\tanh$ branch is bounded by $h$, guaranteeing $\lvert y \rvert$ approaches but 
 crosses $\tau$. The curve is monotone, sign-preserving, and NaN/Inf-safe — maximizing
 acoustic presence while preventing compression fatigue (@fig:limiter).
 
+The limiter now also emits its own visual pulse: after the same post-limiter samples are
+written back into OBS, the engine measures RMS, peak, and a $\varphi$-scaled reactivity
+scalar. Those three values feed the Wavefield Console shader, the Telemetry HUD, and the
+gateway dock, so the visual surface breathes from the acoustic envelope without ever
+letting raw, non-finite audio poison the display.
+
 ![The FractiSynth $\varphi$ harmonic limiter (robin's-egg) versus naive hard clipping (dashed charcoal). Below the knee at $1/\varphi$ (marigold guides) the signal is identity; above it the recursive $\varphi$-scaled curve approaches the ceiling smoothly instead of clipping. Generated from the tested `phi_soft_limit()` engine function.](../output/figures/phi_soft_limiter.png){#fig:limiter width=70%}
 
 ## Single Source of Truth

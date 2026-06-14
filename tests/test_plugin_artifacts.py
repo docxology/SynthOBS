@@ -54,6 +54,10 @@ def test_audio_soft_limiter(c_source: str) -> None:  # ISC-58
     assert "phi_soft_limit_sample" in c_source
     assert "filter_audio = fsa_filter_audio" in c_source
     assert "tanhf" in c_source  # smooth, not hard-clipped
+    assert "audio_envelope_store" in c_source
+    assert "audio_envelope_read" in c_source
+    assert "sqrt(sum_sq / (double)count)" in c_source
+    assert "audio_reactivity" in c_source
 
 
 def test_reads_shared_swo(c_source: str) -> None:  # ISC-59
@@ -94,8 +98,15 @@ def test_console_interactive_targets_cover_all_feeds(c_source: str) -> None:
     assert "marker_x" in c_source and "marker_age" in c_source
     assert "layer_visible_mask" in c_source
     assert "OBS_SOURCE_INTERACTION" in c_source and ".mouse_click = fcv_mouse_click" in c_source
+    assert "if (!isfinite(x) || !isfinite(y))" in c_source
     assert "float fcell = uv.x * 7.0" in effect
     assert "marker_age" in effect and "layer_visible_mask" in effect
+    assert "uniform float audio_rms" in effect
+    assert "uniform float audio_peak" in effect
+    assert "uniform float audio_reactivity" in effect
+    assert "AUDIO RMS" in c_source and "AUDIO REACT" in c_source
+    assert "hud_signature_strip" in c_source
+    assert "LSB+VISIBLE" in c_source
     for key in (
         "FeedWavefield",
         "FeedHexTunnel",
@@ -118,6 +129,15 @@ def test_solar_graph_xray_kp_wiring_is_pinned(c_source: str) -> None:
     assert "GOES X-RAY FLUX 0.1-0.8NM" in c_source
     assert "PLANETARY K-INDEX (KP)" in c_source
     assert "MetricXray" in locale and "MetricKp" in locale
+
+
+def test_native_fail_closed_finiteness_guards_are_pinned(c_source: str) -> None:
+    assert "if (!isfinite(current_flux) || current_flux <= 0.0f || active_spots <= 0)" in c_source
+    assert "if (!isfinite(solar_wind_kms) || solar_wind_kms <= 0.0f)" in c_source
+    assert "end != p && isfinite(val) && val > 0.0f" in c_source
+    assert "end == p || !isfinite(val) || val <= 0.0f" in c_source
+    assert "if (isfinite(v) && v >= 0.0f && v <= 12.0f)" in c_source
+    assert "if (!isfinite(f->threshold) || f->threshold <= 0.0f)" in c_source
 
 
 def test_solar_graph_metric_time_axes_are_pinned(c_source: str) -> None:
@@ -157,14 +177,18 @@ def test_frontend_dock_polish_and_theme_following(dock_source: str, c_source: st
     assert "m_precision" in dock_source
     assert "%d dp" in dock_source
     assert "m_freeze" in dock_source
+    assert "audio_rms" in dock_source
+    assert "audio_peak" in dock_source
+    assert "audio_reactivity" in dock_source
+    assert "audio rms / peak" in dock_source
 
 
 def test_module_load_registers(c_source: str) -> None:  # ISC-61
     assert "bool obs_module_load(void)" in c_source
     assert "return true;" in c_source
     assert "obs_register_source(&fractisynth_audio_filter)" in c_source
-    # fail-closed telemetry: non-positive flux/spots returns false, holds vector
-    assert "if (current_flux <= 0.0f || active_spots <= 0)" in c_source
+    # fail-closed telemetry: non-positive/non-finite flux or non-positive spots holds.
+    assert "if (!isfinite(current_flux) || current_flux <= 0.0f || active_spots <= 0)" in c_source
 
 
 # --- obspython console bridge -------------------------------------------
@@ -208,3 +232,26 @@ def test_console_viewport_helper() -> None:
     mod = _load_console()
     vp = mod.viewport_for_canvas(1920, 1080)
     assert vp.tiles_exactly()
+
+
+def test_console_dashboard_transform_uses_supplied_canvas() -> None:
+    mod = _load_console()
+    assert mod.dashboard_layer_transform((0.5, 0.25, 0.25, 0.5), 1280, 720) == (
+        640.0,
+        180.0,
+        0.25,
+        0.5,
+    )
+    assert mod.dashboard_layer_transform((0.5, 0.25, 0.25, 0.5), 2560, 1080) == (
+        1280.0,
+        270.0,
+        0.5,
+        0.75,
+    )
+
+
+def test_console_dashboard_no_longer_hardcodes_1080p_scene_math() -> None:
+    text = CONSOLE_PY.read_text(encoding="utf-8")
+    assert "x * 1920.0" not in text
+    assert "y * 1080.0" not in text
+    assert "_obs_canvas_size" in text

@@ -62,6 +62,7 @@ Binds an OBS source to the transducer at a given ratio.
 | `/transducer bind cam_01` (no `--ratio`)    | **`CommandError`**                             |
 | `/transducer bind cam_01 --ratio=abc`       | **`CommandError`** (not a float)               |
 | `/transducer bind cam_01 --ratio=-1`        | **`CommandError`** (must be positive)          |
+| `/transducer bind cam_01 --ratio=NaN`       | **`CommandError`** (must be finite)            |
 
 ### `/swo calibrate` → `CalibrateCommand`
 
@@ -74,10 +75,11 @@ Manually calibrates the oscillator (the same fail-closed rules as live telemetry
 | `/swo` (no `calibrate`)                                | **`CommandError`**                                       |
 | `/swo calibrate --flux=130` (no `--spots`)             | **`CommandError`**                                       |
 | `/swo calibrate --flux=-1 --spots=3`                   | **`CommandError`** (flux must be positive)               |
+| `/swo calibrate --flux=Infinity --spots=3`             | **`CommandError`** (flux must be finite)                 |
 | `/swo calibrate --flux=130 --spots=0`                  | **`CommandError`** (spots must be positive)              |
 
-The `--flux>0` and `--spots>0` checks mirror the SWO Hold State exactly — you cannot
-hand the grammar a reading the oscillator would itself reject.
+The finite `--flux>0` and `--spots>0` checks mirror the SWO Hold State exactly — you
+cannot hand the grammar a reading the oscillator would itself reject.
 
 ### `/dashboard plan|build` → `DashboardCommand`
 
@@ -111,7 +113,7 @@ except CommandError as exc:
 ```
 
 Empty or whitespace-only lines, unbalanced quotes, unknown verbs, missing arguments,
-non-numeric numeric flags, empty dashboard names, and out-of-range values are all
+non-numeric or non-finite numeric flags, empty dashboard names, and out-of-range values are all
 `CommandError`. There is no
 input that produces a partial or silent result.
 

@@ -17,6 +17,7 @@ terminal never silently no-ops.
 
 from __future__ import annotations
 
+import math
 import shlex
 from dataclasses import dataclass
 
@@ -117,8 +118,8 @@ def _parse_transducer(raw: str, positionals: list[str], flags: dict[str, str]) -
         ratio = float(flags["--ratio"])
     except ValueError as exc:
         raise CommandError(f"--ratio must be a float, got {flags['--ratio']!r}") from exc
-    if ratio <= 0:
-        raise CommandError(f"--ratio must be positive, got {ratio}")
+    if not math.isfinite(ratio) or ratio <= 0:
+        raise CommandError(f"--ratio must be finite and positive, got {ratio}")
     return BindCommand(raw=raw, source=source, ratio=ratio)
 
 
@@ -133,8 +134,8 @@ def _parse_swo(raw: str, positionals: list[str], flags: dict[str, str]) -> Calib
     except ValueError as exc:
         raise CommandError(f"invalid numeric flag for /swo calibrate: {flags!r}") from exc
     # Fail closed on non-physical telemetry (mirrors SWO Hold State).
-    if flux <= 0:
-        raise CommandError(f"--flux must be positive, got {flux}")
+    if not math.isfinite(flux) or flux <= 0:
+        raise CommandError(f"--flux must be finite and positive, got {flux}")
     if spots <= 0:
         raise CommandError(f"--spots must be positive, got {spots}")
     target = flags.get("--target") or None

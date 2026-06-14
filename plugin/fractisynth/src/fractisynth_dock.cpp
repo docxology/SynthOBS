@@ -41,11 +41,15 @@ struct fractisynth_dock_state {
 	float lock_strength;
 	float wind_phase;
 	float solar_wind_kms;
+	float audio_rms;
+	float audio_peak;
+	float audio_reactivity;
 	float flux;
 	int sunspots;
 	int verdict; /* +1 constructive(AR14409), -1 destructive, 0 mixed */
 	int swo_calibrated;
 	int gateway_locked;
+	int audio_active;
 };
 void fractisynth_get_state(struct fractisynth_dock_state *out);
 int fractisynth_get_console_theme(void);
@@ -281,6 +285,9 @@ protected:
 		double lock = st.lock_strength;
 		if (lock < 0.0) lock = 0.0;
 		if (lock > 1.0) lock = 1.0;
+		double audio = st.audio_reactivity;
+		if (audio < 0.0) audio = 0.0;
+		if (audio > 1.0) audio = 1.0;
 
 		/* ---- title ---- */
 		QFont title = p.font();
@@ -317,6 +324,13 @@ protected:
 		p.setPen(pal.linen);
 		p.drawText(QRectF(0, cy + R + 2, w, 16), Qt::AlignHCenter,
 			   st.gateway_locked ? fs("lock %.0f%%", lock * 100.0) : fs("\xe2\x80\x94 acquiring"));
+		QRectF atrack(24, cy + R + 20, w - 48, 5);
+		p.setPen(Qt::NoPen);
+		p.setBrush(QColor(0, 0, 0, 120));
+		p.drawRoundedRect(atrack, 2, 2);
+		p.setBrush(st.audio_active ? pal.marigold : pal.h_alpha.darker(140));
+		p.drawRoundedRect(QRectF(atrack.left(), atrack.top(), atrack.width() * audio,
+					 atrack.height()), 2, 2);
 
 		/* ---- numeric readout (density set by the click-cycled mode) ---- */
 		const char *vt = st.verdict > 0 ? "CONSTRUCTIVE" : st.verdict < 0 ? "DESTRUCTIVE" : "MIXED";
@@ -337,6 +351,11 @@ protected:
 			row(p, y, w, fs("phase bias \xce\xb8"), num_unit(st.wind_phase, "rad"), pal.linen, pal);
 			row(p, y, w, fs("holographic gate"), fs("%s", vt), st.gateway_locked ? vc : pal.bone, pal);
 			row(p, y, w, fs("K_EGS  \xcf\x86\xc2\xb7\xce\xbbr/\xce\xbbH\xce\xb1"), num((double)K_EGS), pal.robin, pal);
+			QString audio_pair = fs("%.3f / %.3f", (double)st.audio_rms, (double)st.audio_peak);
+			row(p, y, w, fs("audio rms / peak"),
+			    st.audio_active ? audio_pair : fs("\xe2\x80\x94"), st.audio_active ? pal.marigold : pal.bone, pal);
+			row(p, y, w, fs("audio reactivity"),
+			    st.audio_active ? num(audio) : fs("\xe2\x80\x94"), st.audio_active ? pal.marigold : pal.bone, pal);
 			/* live realtime solar-wind graph (real NOAA 2 h series) */
 			y += 8;
 			double gx = 12, gw = w - 24;
@@ -383,6 +402,8 @@ protected:
 			    st.gateway_locked ? num_unit(st.solar_wind_kms, "km/s") : fs("\xe2\x80\x94"),
 			    pal.linen, pal);
 			row(p, y, w, fs("lock strength"), num(lock), st.gateway_locked ? lk : pal.h_alpha, pal);
+			row(p, y, w, fs("audio react"), st.audio_active ? num(audio) : fs("\xe2\x80\x94"),
+			    st.audio_active ? pal.marigold : pal.bone, pal);
 			row(p, y, w, fs("holographic gate"), fs("%s", vt), st.gateway_locked ? vc : pal.bone, pal);
 		}
 		/* m_mode == 2 (Gauge-only): no rows — just the gauge + lock%. */

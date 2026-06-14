@@ -142,6 +142,10 @@ def test_unknown_or_empty_fails_closed(line: str) -> None:  # ISC-46
         "/transducer bind --ratio=1.6",  # missing source
         "/transducer wiggle",  # bad subcommand
         "/transducer bind cam --ratio=0",  # non-positive ratio
+        "/transducer bind cam --ratio=NaN",  # non-finite ratio
+        "/transducer bind cam --ratio=Infinity",  # non-finite ratio
+        "/swo calibrate --flux=NaN --spots=3",  # non-finite flux
+        "/swo calibrate --flux=Infinity --spots=3",  # non-finite flux
     ],
 )
 def test_invalid_args_fail_closed(line: str) -> None:  # ISC-46, ISC-47

@@ -20,7 +20,7 @@ import math
 from dataclasses import dataclass
 
 from .console import Console, Mode
-from .dsp import phi_soft_limit, video_calibrated_dims
+from .dsp import AudioEnvelope, audio_envelope, phi_soft_limit, video_calibrated_dims
 from .interference import (
     InterferenceVerdict,
     NodeField,
@@ -181,3 +181,8 @@ class SynthEngine:
         """φ soft-limit an audio buffer, gated on a live/held vector (ISC-52, ISC-54)."""
         self._require_vector()
         return phi_soft_limit(samples, threshold)
+
+    def measure_audio(self, samples, threshold: float = 1.0) -> AudioEnvelope:
+        """Post-limiter audio envelope, gated on a live/held vector."""
+        self._require_vector()
+        return audio_envelope(samples, threshold)

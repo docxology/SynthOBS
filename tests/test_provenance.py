@@ -24,6 +24,7 @@ from synthobs.provenance import (
     extract_lsb,
     provenance_digest,
     short_signature,
+    signature_bits,
     verify_payload,
 )
 
@@ -90,6 +91,49 @@ def test_digest_is_deterministic() -> None:
     assert provenance_digest(rec) == provenance_digest(_record())
     assert len(provenance_digest(rec)) == 64
     assert short_signature(rec) == provenance_digest(rec)[:8]
+
+
+def test_signature_bits_are_digest_prefix_bits() -> None:
+    assert signature_bits("80ff0001") == (
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+    )
+
+
+@pytest.mark.parametrize("signature", ["", "abc", "zzzzzzzz", b"80ff0001"])
+def test_signature_bits_fail_closed(signature) -> None:
+    with pytest.raises(ProvenanceError, match="signature"):
+        signature_bits(signature)  # type: ignore[arg-type]
 
 
 def test_digest_changes_when_one_field_flips() -> None:
@@ -275,6 +319,8 @@ def test_extract_declared_length_overflow_raises() -> None:
         ({"sunspots": 0x80000000}, "int32 range"),
         ({"lock_strength": 1.5}, r"lock_strength must be in \[0, 1\]"),
         ({"lock_strength": -0.1}, r"lock_strength must be in \[0, 1\]"),
+        ({"solar_wind_kms": 0.0}, "solar_wind_kms must be > 0"),
+        ({"solar_wind_kms": -1.0}, "solar_wind_kms must be > 0"),
         ({"solar_wind_kms": float("nan")}, "finite"),
         ({"phase_bias_rad": float("inf")}, "finite"),
         ({"observed_unix": -1}, "uint32"),

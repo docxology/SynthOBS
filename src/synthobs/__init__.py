@@ -36,6 +36,8 @@ from .constants import (
     REFERENCE_SOLAR_WIND_KMS,
 )
 from .dsp import (
+    AudioEnvelope,
+    audio_envelope,
     phi_soft_limit,
     phi_soft_limit_sample,
     spatial_scale_matrix,
@@ -74,6 +76,7 @@ from .provenance import (
     extract_lsb,
     provenance_digest,
     short_signature,
+    signature_bits,
     verify_payload,
 )
 from .telemetry import (
@@ -89,6 +92,14 @@ from .telemetry import (
     parse_noaa_solar_wind,
     parse_noaa_solar_regions,
     telemetry_from_payload,
+)
+from .verification import (
+    AUDIO_METER_TOP_FRACTION,
+    GateResult,
+    RoiDelta,
+    audio_meter_roi,
+    score_audio_meter_delta,
+    score_roi_delta,
 )
 
 __version__ = "1.618.0"
@@ -146,6 +157,8 @@ __all__ = [
     "SolarWavefieldOscillator",
     "phase_vector",
     # dsp
+    "AudioEnvelope",
+    "audio_envelope",
     "video_calibrated_dims",
     "spatial_scale_matrix",
     "phi_soft_limit",
@@ -183,8 +196,16 @@ __all__ = [
     "canonical_bytes",
     "provenance_digest",
     "short_signature",
+    "signature_bits",
     "build_payload",
     "embed_lsb",
     "extract_lsb",
     "verify_payload",
+    # live verification
+    "AUDIO_METER_TOP_FRACTION",
+    "GateResult",
+    "RoiDelta",
+    "audio_meter_roi",
+    "score_audio_meter_delta",
+    "score_roi_delta",
 ]

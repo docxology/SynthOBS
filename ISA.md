@@ -3,11 +3,11 @@ project: SynthOBS
 task: Spec and develop SynthOBS + FractiSynth — golden-ratio OBS plugin driven by fail-closed live solar telemetry
 effort: E5
 phase: complete
-progress: 150/150
+progress: 166/166
 mode: ALGORITHM
 started: 2026-06-10
 updated: 2026-06-12
-iteration: 10
+iteration: 12
 ---
 
 # SynthOBS / FractiSynth — Ideal State Articulation
@@ -560,7 +560,7 @@ FractiSynth/obspython surfaces, and harden stale docs with tests.
   maintained current-status docs.
 
 ### Iteration-8 verification
-- Current Python gate baseline: `1024 passed`, `97.86%` coverage on `src/synthobs`.
+- Iteration-8 Python gate baseline: `1024 passed`, `97.86%` coverage on `src/synthobs`.
 - Figure manifest: 5 generated figures — `goldilocks_layout.png`, `golden_spiral.png`,
   `swo_calibration.png`, `phi_soft_limiter.png`, `gateway_lock.png`.
 - Native build gate: `plugin/fractisynth/build.sh` is the acceptance build for this
@@ -585,7 +585,7 @@ into the user's OBS plugin directory.
   mode/annotation locale, and graph-axis labels.
 
 ### Iteration-9 verification
-- Python gate: `1024 passed`, `97.86%` coverage on `src/synthobs`.
+- Iteration-9 Python gate: `1024 passed`, `97.86%` coverage on `src/synthobs`.
 - Figure manifest: 5 generated figures — `goldilocks_layout.png`, `golden_spiral.png`,
   `swo_calibration.png`, `phi_soft_limiter.png`, `gateway_lock.png`.
 - Native build: `plugin/fractisynth/build.sh` built and ad-hoc signed
@@ -670,3 +670,120 @@ the discipline forward.
   three layers because guards used `x <= 0.0` not `math.isfinite`; the 1024-test suite was blind
   because no test injected NaN/Inf. `provenance.py` was the lone gold standard (isfinite + >0).
   The fuzz harness generalizes that standard to the whole boundary surface.
+
+## Iteration 11 — Current-state documentation + method hardening (2026-06-12)
+
+User: implement the current-state and method-hardening plan without installing into
+the user's OBS plugin directory.
+
+### Criteria (iteration 11)
+- [x] ISC-155: command grammar rejects non-finite `/swo --flux` and `/transducer --ratio`
+  values with `CommandError`, closing the remaining manual-ingestion gap.
+- [x] ISC-156: DSP and geometry helpers reject poisoned parameters: non-finite soft-limiter
+  thresholds, non-finite/zero spatial scale factors, and non-finite golden-spiral inputs.
+- [x] ISC-157: `TelemetryRecord` requires positive solar-wind speed for locked HUD
+  provenance payloads, matching the native `swo_calibrated && gateway_locked` readiness gate.
+- [x] ISC-158: native C mirrors the finite-input contract in SWO flux extraction,
+  gateway/wind routing, Kp parsing, and audio-threshold defaults.
+- [x] ISC-159: docs contracts reject stale current baselines (`1024`, `1067`, `1075`,
+  `97.86`, `97.88`, `98.11`) in maintained status docs and pin the current suite
+  baseline.
+- [x] ISC-160: live-probe dependency is declared (`websocket-client`) so
+  `scripts/obs_ws_probe.py` is reproducible from the project environment.
+
+### Iteration-11 verification
+- Python gate baseline after the new regressions: `1101 passed`, `98.13%` coverage on
+  `src/synthobs` via `uv run pytest tests/ --cov=synthobs --cov-report=term-missing
+  --cov-fail-under=90`; the package docs and README now report that current state.
+- Targeted hardening tests cover command parsing, DSP/layout parameters, provenance wind
+  positivity, native finiteness tokens, and the adversarial fuzz battery.
+- Figure gate regenerated the five expected PNGs under `output/figures/`.
+- Native build gate passed via `plugin/fractisynth/build.sh` (build only; no install),
+  producing the local `plugin/fractisynth/build/FractiSynth.plugin` bundle.
+- Live OBS probe remains a manual gate via `scripts/obs_ws_probe.py`; this pass launched
+  OBS 32.1.2 against the freshly built local bundle only (`OBS_PLUGINS_PATH` and
+  `OBS_PLUGINS_DATA_PATH` both pointed at `plugin/fractisynth/build`, while the older
+  installed bundle was temporarily moved aside and restored). `lsof` showed only the
+  local `plugin/fractisynth/build/FractiSynth.plugin/Contents/MacOS/FractiSynth` binary
+  loaded. Fresh websocket screenshots for `F_wavefield`, `F_hextunnel`, `F_interference`,
+  `F_spectral`, `F_spiral`, `HUD`, `GR`, `FILT`, `INSP`, and `ALL` were nonblank under
+  `output/live/obs-local-only-20260612T160238/`; OBS crash reports stayed `8 -> 8`,
+  and the log ended with `[fractisynth] unloaded`.
+
+## Iteration 12 — Lean invariant scaffold + provenance verifier (2026-06-12)
+
+User: "Comprehensively proceed with all updates and improvements and lean4, creatively
+adding and improving within and across problem areas, scaffolding up to the open point."
+
+### Criteria (iteration 12)
+- [x] ISC-161: Lean scaffold added under `lean/` (`lakefile.lean`, `lean-toolchain`,
+  `SynthOBS/Invariants.lean`) with no mathlib dependency. It proves console structure
+  (3 modes, 3 common ids, 4 unique ids per mode, 7 total buttons, disjoint unique ids,
+  safety controls), literal pins, SWO fail-closed predicates, and provenance readiness
+  predicates.
+- [x] ISC-162: Lean verification is part of the checked surface: `tests/test_lean_invariants.py`
+  rejects `sorry` / custom `axiom` placeholders and runs `lake build` when Lake is
+  available; standalone `cd lean && lake build` passes.
+- [x] ISC-163: Provenance verification tool added: `scripts/verify_provenance_strip.py`
+  extracts the LSB-embedded HUD payload from RGB/RGBA PNG captures, validates checksum
+  + record fields through `src/synthobs/provenance.py`, emits JSON or compact text, and
+  fails closed on signature mismatch.
+- [x] ISC-164: Real PNG verifier tests added: RGBA round-trip, RGB screenshot conversion,
+  undersized-image refusal, CLI JSON success, and CLI signature-mismatch failure.
+- [x] ISC-165: Docs and roadmap updated: `docs/formal-invariants.md`, README verifier
+  command, testing ledger, native-plugin/telemetry notes, manuscript implementation
+  status, and roadmap Phase H formal/provenance scaffold. Docs contract now rejects
+  stale `1101` status baselines in maintained status pages.
+- [x] ISC-166: Anti: no regression — Python suite, docs contracts, Lean build, figure
+  regeneration, lint, and native plugin build all pass.
+
+### Iteration-12 verification
+- Pytest gate: `uv run pytest tests/ --cov=synthobs --cov-fail-under=90` →
+  `1108 passed`, `98.13%` coverage.
+- Lean gate: `cd lean && lake build` → `Build completed successfully`.
+- Figure gate: `uv run python scripts/generate_figures.py` regenerated the five expected
+  figure PNGs.
+- Lint gate: `uv run ruff check .` → `All checks passed!`.
+- Native build gate: `plugin/fractisynth/build.sh` → OBS 32.1.2 target, libcurl enabled,
+  Qt 6.8 dock compiled, bundle linked/ad-hoc signed, Mach-O arm64 output.
+
+### Decisions (iteration 12)
+- Lean stays a structural invariant ledger. Floating-point numerical behavior, native
+  rendering, libcurl I/O, and shader behavior remain governed by Python/C tests and live
+  OBS probes, not by overclaiming the Lean scaffold.
+- Provenance verification is operational for PNG captures and unit-tested through real
+  image I/O. The remaining kill-gate is live OBS compositor/websocket rescale survival
+  for the embedded strip; if a scene capture destroys row-0 LSBs, the next implementation
+  should move verification to a render-target readback path.
+
+## Iteration 13 — Audio-reactive visual + interaction hardening (2026-06-12)
+
+User: "Check and improve all audio visual and interactive elements."
+
+### Criteria (iteration 13)
+- [x] ISC-167: `src/synthobs.dsp.audio_envelope` added as the source-of-truth
+  post-limiter audio envelope: RMS, peak, φ-scaled reactivity, and sample count. It
+  rejects bad thresholds, absorbs non-finite samples through the existing limiter, and
+  keeps peak/reactivity bounded.
+- [x] ISC-168: `SynthEngine.measure_audio` gates envelope measurement on the same
+  live/held-vector precondition as `modulate_audio`.
+- [x] ISC-169: Native `fractisynth_audio` mirrors the envelope in the hot audio loop,
+  stores it under `g_audio_mutex`, exports it through `fractisynth_get_state`, and binds
+  `audio_rms`, `audio_peak`, and `audio_reactivity` into the console shader.
+- [x] ISC-170: Procedural console feeds are audio-reactive: the shader uses the
+  envelope to pulse/brighten Wavefield, Hex Tunnel, Interference, Spectral Rings, and
+  Spiral Drift, and draws a bottom audio meter with a peak marker. Telemetry HUD and
+  the Qt dock expose the same audio values.
+- [x] ISC-171: Native interaction fail-closed parity restored: `fcv_mouse_click` now
+  rejects null events and non-finite coordinates before feed/rail/marker resolution,
+  matching `src/synthobs.interaction.resolve_target_action`.
+- [x] ISC-172: Docs/status contracts updated to the current 1115-test, 98.18% suite,
+  and the roadmap moves audio-reactivity from a purely planned item to a wired,
+  test-pinned implementation with live screenshot proof still kill-gated.
+
+### Iteration-13 verification
+- Targeted gate: `uv run pytest tests/test_swo_and_dsp.py tests/test_engine.py
+  tests/test_plugin_artifacts.py -q` → `90 passed`.
+- Coverage gate: `uv run pytest tests/ --cov=synthobs --cov-fail-under=90` →
+  `1115 passed`, `98.18%` coverage.
+- Lint gate: targeted `uv run ruff check ...` passed before docs updates.

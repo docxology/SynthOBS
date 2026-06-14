@@ -25,10 +25,11 @@ fail-closed rule are pinned identical across all three.
 ## Layout
 
 ```
-src/synthobs/        tested engine (constants, layout, telemetry, swo, dsp, console, commands, interaction, layers, engine)
+src/synthobs/        tested engine (constants, layout, telemetry, swo, dsp, console, commands, interaction, layers, engine, verification)
 plugin/fractisynth/  native libobs C plugin (CMake + src/fractisynth.c + locale)
 plugin/synthobs/     obspython console script (synthobs_console.py)
-scripts/             thin orchestrators (generate_figures.py)
+scripts/             thin orchestrators (generate_figures.py, verify_provenance_strip.py, obs_scenario_probe.py)
+lean/                Lean 4 invariant scaffold (console shape + fail-closed gates)
 manuscript/          Technical Design Blueprint (brand voice)
 tests/               zero-mock suite, ≥90% coverage on src/
 ISA.md               Ideal State Artifact — system of record
@@ -41,8 +42,15 @@ ISA.md               Ideal State Artifact — system of record
 uv run pytest projects/working/SynthOBS/tests/ --cov=synthobs --cov-report=term-missing
 ```
 
-1024 tests, **97.86%** coverage, no mocks (HTTP exercised via `pytest-httpserver`,
+1132 tests, **96.95%** coverage, no mocks (HTTP exercised via `pytest-httpserver`,
 real numeric examples, fixed seeds).
+
+Lean invariant scaffold:
+
+```bash
+cd projects/working/SynthOBS/lean
+lake build
+```
 
 ## Regenerate figures
 
@@ -57,6 +65,32 @@ Generated manifest:
 - `output/figures/swo_calibration.png`
 - `output/figures/phi_soft_limiter.png`
 - `output/figures/gateway_lock.png`
+
+## Verify a Telemetry HUD provenance strip
+
+```bash
+uv run python projects/working/SynthOBS/scripts/verify_provenance_strip.py \
+  output/live/telemetry_hud.png --json --expect-signature ed1dc4b2
+```
+
+The verifier extracts the LSB-embedded HUD payload from a PNG, recomputes the
+checksum, and reports the recovered flux, active-region count, wind speed, lock
+strength, phase bias, timestamp, and on-screen signature. RGB and RGBA screenshots are
+both accepted; tampered or undersized captures fail closed.
+
+## Run the live OBS scenario verifier
+
+```bash
+uv run python projects/working/SynthOBS/scripts/obs_scenario_probe.py \
+  --out output/live/$(date -u +%Y%m%dT%H%M%SZ) \
+  --verify-audio --verify-provenance
+```
+
+The harness talks to obs-websocket v5, creates/selects a verification scene, adds a
+`fractisynth_console` source, captures `audio_silent.png`, `audio_tone.png`, and
+`telemetry_hud.png`, then writes `manifest.json`. If OBS or a controlled audio route is
+unavailable, the relevant gate is marked `skip` with a reason; use `--require-live` when
+a non-pass gate should fail the command.
 
 ## Build the native plugin (FractiSynth)
 
@@ -85,7 +119,9 @@ The script exposes the global command line:
 The native console exposes seven clickable feed targets (Wavefield, Hex,
 Interference, Spectral, Spiral, Telemetry HUD, Solar Graph), a layer-toggle rail, and
 a marker-drop area. Solar Graph metrics cover wind speed, density, temperature,
-GOES X-ray flux, and Kp index.
+GOES X-ray flux, and Kp index. The φ harmonic audio limiter now also exports
+post-limiter RMS, peak, and reactivity into the console shader, Telemetry HUD, and dock
+so the synthetic feeds visibly breathe with stream audio.
 
 ## Design principles
 
@@ -95,6 +131,8 @@ GOES X-ray flux, and Kp index.
 - **Single source of truth.** All math lives in `src/synthobs`; the plugin and the
   script consume it. Scripts only do I/O and visualization (thin orchestrator).
 - **No mocks.** Real HTTP, real numbers, deterministic.
+- **Proof scaffolding where it pays.** Lean pins structural invariants; Python/C tests
+  remain the authority for floating-point math, rendering, and live I/O.
 
 ## License
 

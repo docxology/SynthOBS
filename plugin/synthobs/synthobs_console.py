@@ -51,6 +51,8 @@ ENGINE = SynthEngine(mode=Mode.OBSERVATORY)
 _DASHBOARD_HOTKEYS = []
 _DASHBOARD_ITEMS = []
 _DASHBOARD_ACTIVE = 0
+_DEFAULT_CANVAS = (1920, 1080)
+_DEFAULT_SOURCE = (1280, 720)
 
 
 def apply_command(line: str) -> str:
@@ -104,6 +106,27 @@ def viewport_for_canvas(width: int, height: int):
     return assemble_viewport(width, height)
 
 
+def dashboard_layer_transform(
+    bounds,
+    canvas_width: int,
+    canvas_height: int,
+    source_width: int = _DEFAULT_SOURCE[0],
+    source_height: int = _DEFAULT_SOURCE[1],
+):
+    """Map normalized dashboard bounds into OBS position/scale values."""
+    if canvas_width <= 0 or canvas_height <= 0:
+        raise ValueError(f"canvas dims must be positive, got {canvas_width}x{canvas_height}")
+    if source_width <= 0 or source_height <= 0:
+        raise ValueError(f"source dims must be positive, got {source_width}x{source_height}")
+    x, y, w, h = bounds
+    return (
+        x * float(canvas_width),
+        y * float(canvas_height),
+        (w * float(canvas_width)) / float(source_width),
+        (h * float(canvas_height)) / float(source_height),
+    )
+
+
 def _dashboard_summary(plan, action: str) -> str:
     labels = ", ".join(layer.name.split(" / ", 1)[-1] for layer in plan.layers)
     return f"dashboard {action} {plan.scene_name}: {len(plan.layers)} layers: {labels}"
@@ -154,28 +177,50 @@ def _scene_for_dashboard(name: str):  # pragma: no cover - needs OBS
     return scene, scene_source
 
 
+def _obs_canvas_size():  # pragma: no cover - needs OBS
+    if not _IN_OBS:
+        return _DEFAULT_CANVAS
+    try:
+        info = obs.obs_video_info()
+        if obs.obs_get_video_info(info):
+            width = int(getattr(info, "base_width", 0))
+            height = int(getattr(info, "base_height", 0))
+            if width > 0 and height > 0:
+                return width, height
+    except Exception as exc:
+        obs.script_log(obs.LOG_WARNING, f"[SynthOBS] canvas size fallback: {exc}")
+    return _DEFAULT_CANVAS
+
+
 def _build_dashboard(plan) -> None:  # pragma: no cover - needs OBS
     global _DASHBOARD_ACTIVE
     _DASHBOARD_ITEMS.clear()
     scene, scene_source = _scene_for_dashboard(plan.scene_name)
     try:
+        canvas_width, canvas_height = _obs_canvas_size()
         for layer in plan.layers:
             settings = obs.obs_data_create()
             obs.obs_data_set_int(settings, "feed", int(layer.feed))
             if layer.graph_metric is not None:
                 obs.obs_data_set_int(settings, "graph_metric", int(layer.graph_metric))
-            obs.obs_data_set_int(settings, "width", 1280)
-            obs.obs_data_set_int(settings, "height", 720)
+            obs.obs_data_set_int(settings, "width", _DEFAULT_SOURCE[0])
+            obs.obs_data_set_int(settings, "height", _DEFAULT_SOURCE[1])
             source = obs.obs_source_create("fractisynth_console", layer.name, settings, None)
             try:
                 item = obs.obs_scene_add(scene, source)
-                x, y, w, h = layer.bounds
+                px, py, sx, sy = dashboard_layer_transform(
+                    layer.bounds,
+                    canvas_width,
+                    canvas_height,
+                    _DEFAULT_SOURCE[0],
+                    _DEFAULT_SOURCE[1],
+                )
                 pos = obs.vec2()
-                pos.x = x * 1920.0
-                pos.y = y * 1080.0
+                pos.x = px
+                pos.y = py
                 scale = obs.vec2()
-                scale.x = (w * 1920.0) / 1280.0
-                scale.y = (h * 1080.0) / 720.0
+                scale.x = sx
+                scale.y = sy
                 obs.obs_sceneitem_set_pos(item, pos)
                 obs.obs_sceneitem_set_scale(item, scale)
                 obs.obs_sceneitem_set_visible(item, layer.visible)

@@ -17,7 +17,7 @@ plugin is the production transducer, and the obspython script is the bridge.
         │ LAYER 1 — Python engine      │ mirror│ LAYER 2 — native libobs      │
         │ src/synthobs/                │◀─────▶│ plugin                       │
         │ source of truth              │ ISC-60│ plugin/fractisynth/src/      │
-        │ 1024 tests, no mocks         │       │ fractisynth.c (loads in OBS) │
+        │ 1132 tests, no mocks         │       │ fractisynth.c (loads in OBS) │
         └──────────────────────────────┘       └──────────────────────────────┘
                           ▲                               ▲
             drives the    │                               │   registers the two
@@ -53,6 +53,21 @@ modules, each one responsibility:
 
 Full API in [engine.md](engine.md). The two phase-plane modules have their own
 deep-dives: [egs-gateway.md](egs-gateway.md) and [interference.md](interference.md).
+
+## Formal scaffold (`lean/`)
+
+Lean is used as a buildable invariant ledger, not as the runtime engine. The
+`lean/SynthOBS/Invariants.lean` project proves console-shape facts (3 modes, 3 common
+ids, 4 unique ids per mode, 7 buttons per mode, disjoint unique ids, safety buttons),
+literal pins, SWO fail-closed predicates, and the provenance readiness gate. The build
+is small and dependency-free:
+
+```bash
+cd lean
+lake build
+```
+
+See [formal-invariants.md](formal-invariants.md).
 
 ## Layer 2 — the native plugin (`plugin/fractisynth/`)
 
@@ -123,9 +138,11 @@ flowchart TB
 
     SWO -->|system_phase_vector| VID["engine.modulate_video(w, h)<br/>→ dsp.video_calibrated_dims (w/φ, h/φ)"]
     SWO -->|system_phase_vector| AUD["engine.modulate_audio(samples)<br/>→ dsp.phi_soft_limit (knee 1/φ)"]
+    AUD --> ENV["engine.measure_audio(samples)<br/>→ post-limiter RMS / peak / reactivity"]
 
     VID --> BOX["calibrated bounding box"]
     AUD --> SIG["never-clipping limited signal"]
+    ENV --> AUV["audio-reactive console uniforms"]
     HOLO --> VERDICT["constructive AR14409 = 'true'<br/>destructive H-phase-flip = 'false'<br/>mixed = tie"]
 ```
 

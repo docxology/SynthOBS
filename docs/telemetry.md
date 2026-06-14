@@ -134,6 +134,25 @@ This is what lets the rest of the system keep running smoothly through a telemet
 dropout: it simply keeps transducing against the last real reading rather than lurching
 to a default.
 
+## Provenance payload verification
+
+The Telemetry HUD can embed a tamper-evident telemetry record into the blue-channel
+least-significant bits of its rendered frame. The shared verifier extracts the payload,
+checks the SHA-256 checksum, validates the record fields, and reports the same short
+signature shown on the HUD:
+
+```bash
+uv run python scripts/verify_provenance_strip.py output/live/telemetry_hud.png --json
+```
+
+The tool accepts RGB or RGBA PNG captures and fails closed on missing images, malformed
+pixel shapes, undersized buffers, checksum mismatch, or a signature mismatch supplied by
+`--expect-signature`.
+
+The native HUD additionally paints a visible 32-cell signature strip derived from the
+same 8-hex digest prefix. It is not a replacement for the LSB payload; it is a robust
+capture fallback when live OBS compositing or screenshot rescaling destroys row-0 LSBs.
+
 ## The same contract, natively, in OBS
 
 The C plugin (`plugin/fractisynth/src/fractisynth.c`) mirrors this exactly. Its
@@ -157,7 +176,7 @@ background libcurl thread (`telemetry_thread_fn`) runs this loop on a
 
 - `synchronize_swo_calibration()` implements the identical formula
   `(current_flux / active_spots) * EGS_PHI` and the identical fail-closed guard
-  `if (current_flux <= 0.0f || active_spots <= 0)` → hold.
+  `if (!isfinite(current_flux) || current_flux <= 0.0f || active_spots <= 0)` → hold.
 - The amplitude lock fires only when `flux > 0.0f && spots > 0`; otherwise the thread
   logs `telemetry unavailable — holding last vector` and moves on. Any curl error,
   non-200, or parse failure leaves the fetched value non-positive, so it folds into the
