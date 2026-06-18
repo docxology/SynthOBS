@@ -97,3 +97,47 @@ def test_gate_result_fails_closed_on_ambiguous_status() -> None:
         GateResult("maybe", "not a contract")
     with pytest.raises(ValueError, match="reason"):
         GateResult.skipped(" ")
+
+
+def test_gate_result_rejects_bad_metrics() -> None:
+    with pytest.raises(ValueError, match="metric keys"):
+        GateResult("pass", "ok", {"": 1})
+    with pytest.raises(ValueError, match="non-scalar"):
+        GateResult("pass", "ok", {"k": [1, 2]})
+    with pytest.raises(ValueError, match="finite"):
+        GateResult("pass", "ok", {"k": float("nan")})
+
+
+def test_roi_delta_to_dict_is_jsonable_shape() -> None:
+    width, height = 8, 8
+    img = bytes(_rgba(width, height, (0, 0, 0, 255)))
+    after = bytearray(img)
+    _paint(after, width, 4, (0, 0, 4, 4), (10, 20, 30, 255))
+
+    d = score_roi_delta(img, bytes(after), width, height, roi=(0, 0, 4, 4), threshold=1.0).to_dict()
+
+    assert d["roi"] == [0, 0, 4, 4]
+    assert d["passed"] is True
+    assert d["channels"] == 4
+
+
+def test_roi_delta_rejects_bad_dims_channels_and_after_buffer() -> None:
+    img = bytes(_rgba(8, 8, (0, 0, 0, 255)))
+    with pytest.raises(ValueError, match="width/height must be integers"):
+        score_roi_delta(img, img, 8.0, 8, roi=(0, 0, 1, 1), threshold=1.0)  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="width/height must be positive"):
+        score_roi_delta(img, img, 0, 8, roi=(0, 0, 1, 1), threshold=1.0)
+    with pytest.raises(ValueError, match="channels must be 3 or 4"):
+        score_roi_delta(img, img, 8, 8, channels=2, roi=(0, 0, 8, 8), threshold=1.0)
+    with pytest.raises(ValueError, match="after image"):
+        score_roi_delta(img, img[:-1], 8, 8, roi=(0, 0, 8, 8), threshold=1.0)
+
+
+def test_roi_delta_rejects_malformed_roi() -> None:
+    img = bytes(_rgba(8, 8, (0, 0, 0, 255)))
+    with pytest.raises(ValueError, match="roi must be"):
+        score_roi_delta(img, img, 8, 8, roi=(0, 0, 8), threshold=1.0)  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="roi values must be integers"):
+        score_roi_delta(img, img, 8, 8, roi=(0, 0, 8.0, 8), threshold=1.0)  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="roi width/height must be positive"):
+        score_roi_delta(img, img, 8, 8, roi=(0, 0, 0, 8), threshold=1.0)
