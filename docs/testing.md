@@ -30,7 +30,7 @@ cd projects/working/SynthOBS
 PYTHONPATH="$PWD/src" python -m pytest tests/ -q
 ```
 
-Current state: **1132 passed**, **96.95 % coverage** (≥ 90 % gate).
+Current state: **1136 passed**, **98.37 % coverage** (≥ 90 % gate).
 
 ```bash
 # with coverage gate
@@ -46,7 +46,7 @@ the one annotated in that file's own test bodies where an ISC range applies.
 
 The **Tests** column is the *collected* count (parametrized cases expand — e.g.
 `test_constants_and_layout.py` fans geometry invariants across the φ grid into 742
-cases), so the column sums to the full 1132-test suite.
+cases), so the column sums to the full 1136-test suite.
 
 | File                                     | Tests | ISCs         | Covers                                                                                                  |
 | ---------------------------------------- | ----: | ------------ | ------------------------------------------------------------------------------------------------------- |
@@ -61,13 +61,13 @@ cases), so the column sums to the full 1132-test suite.
 | `tests/test_provenance.py`               |    47 | —            | telemetry record packing, SHA checksum, LSB/visible-signature contracts, tamper evidence, fail-closed validation |
 | `tests/test_provenance_verify_tool.py`   |     5 | —            | real PNG provenance-strip verification, RGB/RGBA screenshot handling, CLI signature mismatch rejection  |
 | `tests/test_interaction_and_layers.py`   |    24 | —            | seven feed targets, layer rail, marker drop, dashboard plans, dashboard command dry-runs                |
-| `tests/test_plugin_artifacts.py`         |    21 | 55–64, 93–94 | native C plugin/source static structure, audio-reactive uniforms, X-ray/Kp wiring, graph axes, inspector, dock, obspython bridge, φ/K_EGS pins |
+| `tests/test_plugin_artifacts.py`         |    21 | 55–64, 93–94 | native C plugin/source static structure, audio-reactive uniforms + envelope release hold, X-ray/Kp wiring, graph axes, inspector, dock, obspython bridge, φ/K_EGS pins |
 | `tests/test_fail_closed_fuzz.py`         |    37 | 145–154      | adversarial NaN/±Inf battery across parser, telemetry, gateway, SWO, interaction, and provenance boundaries |
 | `tests/test_docs_contracts.py`           |     4 | —            | markdown links, generated figure manifest, and stale status-baseline guards                             |
 | `tests/test_lean_invariants.py`          |     2 | —            | Lean scaffold has no `sorry` / custom `axiom`, and `lake build` passes when Lake is available           |
 | `tests/test_obs_scenario_probe.py`       |     3 | —            | live scenario manifest schema, skip semantics, and `--require-live` exit behavior                       |
-| `tests/test_verification.py`             |     7 | —            | audio-meter ROI delta oracle and live-gate result validation                                            |
-| **Total**                                | **1132** |          |                                                                                                         |
+| `tests/test_verification.py`             |    11 | —            | audio-meter ROI delta oracle, live-gate result validation, and fail-closed `ValueError` guards (bad metrics, dims, channels, ROI) — 100% of `verification.py` |
+| **Total**                                | **1136** |          |                                                                                                         |
 
 ## The no-mocks policy
 

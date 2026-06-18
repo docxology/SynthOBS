@@ -24,7 +24,7 @@ is the complete, standalone documentation for all three.
 | [build-and-install.md](build-and-install.md) | Build, sign, and install the plugin into OBS — with the verified load evidence |
 | [usage.md](usage.md) | Actually use FractiSynth inside OBS: add the filters, run the console script |
 | [formal-invariants.md](formal-invariants.md) | Build the Lean 4 invariant scaffold for console shape and fail-closed gates |
-| [testing.md](testing.md) | Understand the 1132-test, no-mocks, 96.95%-coverage suite and how to run it |
+| [testing.md](testing.md) | Understand the 1136-test, no-mocks, 98.37%-coverage suite and how to run it |
 
 ## The 60-second tour
 
@@ -50,7 +50,7 @@ is the complete, standalone documentation for all three.
 
 | Aspect | State |
 | --- | --- |
-| Python engine | **Source of truth.** 1132 tests, 96.95 % coverage, no mocks. |
+| Python engine | **Source of truth.** 1136 tests, 98.37 % coverage, no mocks. |
 | Native C plugin | **Loads live in OBS 32.1.2.** Built, ad-hoc signed, installed; libcurl telemetry thread hits live NOAA SWPC. Seven feed targets, the layer rail, marker drops, X-ray/Kp graphing, graph axes, inspector modes, audio-reactive shader uniforms, and dock controls are statically pinned. See [build-and-install.md](build-and-install.md). |
 | obspython console | Imports guarded; drives the real engine via `apply_command`, including deterministic dashboard plan/build dry-runs outside OBS. |
 | Lean scaffold | `lean/SynthOBS/Invariants.lean` builds with Lake and rejects `sorry` / custom `axiom` placeholders in the default suite when Lake is available. |

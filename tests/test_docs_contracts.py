@@ -12,8 +12,8 @@ from pathlib import Path
 from scripts.generate_figures import FIGURE_FILES
 
 ROOT = Path(__file__).resolve().parents[1]
-CURRENT_TEST_COUNT = "1132"
-CURRENT_COVERAGE = "96.95"
+CURRENT_TEST_COUNT = "1136"
+CURRENT_COVERAGE = "98.37"
 
 
 def _markdown_files() -> list[Path]:
@@ -79,6 +79,10 @@ def test_current_status_docs_do_not_contain_legacy_baselines() -> None:
         "1115-test",
         "1115 passed",
         "1115 passing",
+        "1132 tests",
+        "1132-test",
+        "1132 passed",
+        "1132 passing",
         "94.70",
         "94.85",
         "97.86",
@@ -86,6 +90,7 @@ def test_current_status_docs_do_not_contain_legacy_baselines() -> None:
         "98.11",
         "98.13",
         "98.18",
+        "96.95",
     )
     status_docs = [
         ROOT / "README.md",

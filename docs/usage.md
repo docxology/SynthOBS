@@ -38,8 +38,11 @@ Select the source and click **Properties** for a full config panel:
 
 When the **FractiSynth — φ Harmonic Limiter** is present on a live audio source, the
 console source receives post-limiter `RMS`, `peak`, and `reactivity` values. The
-procedural feeds pulse from that envelope, the bottom edge draws a compact audio meter,
-and the Telemetry HUD / dock expose the same numbers for operator verification.
+procedural feeds pulse from that envelope, and the bottom edge draws a compact audio
+meter — a dark track with a bright φ-ring fill whose width tracks the level. When the
+audio source stops, the meter **releases to silence** after a 200 ms hold rather than
+freezing at the last level. The Telemetry HUD / dock expose the same numbers
+(`AUDIO RMS` / `AUDIO REACT`) for operator verification.
 
 ### Switching feeds, layers, and markers by clicking (interactive)
 

@@ -69,11 +69,12 @@ FractiSynth.plugin/
     └── Resources/
         ├── locale/
         │   └── en-US.ini               filter display-name strings
-        ├── fractisynth.effect          φ video-calibration shader
-        └── fractisynth_console.effect  wavefield-console shader
+        ├── fractisynth.effect            φ video-calibration shader
+        ├── fractisynth_console.effect    wavefield-console shader (feeds + audio meter)
+        └── fractisynth_inspector.effect  Zoom Inspector loupe shader
 ```
 
-Both `data/*.effect` files and the `data/locale` directory are copied into
+All three `data/*.effect` files and the `data/locale` directory are copied into
 `Contents/Resources/`.
 
 ### Requirements

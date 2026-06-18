@@ -396,18 +396,22 @@ resampling destroys the row-0 blue LSBs.
 ## `verification` — live-gate scoring contracts
 
 ```python
+AUDIO_METER_TOP_FRACTION = 0.955   # shader meter band: uv.y > 0.955
 audio_meter_roi(width, height) -> tuple[int, int, int, int]
-score_audio_meter_delta(before, after, width, height, channels=4) -> RoiDelta
+score_roi_delta(before, after, width, height, *, channels=4, roi, threshold) -> RoiDelta
+score_audio_meter_delta(before, after, width, height, *, channels=4, threshold=8.0) -> RoiDelta
 GateResult.passed(reason, **metrics) -> GateResult
 GateResult.failed(reason, **metrics) -> GateResult
 GateResult.skipped(reason, **metrics) -> GateResult
 ```
 
 The live OBS harness stays in `scripts/`; this module owns only deterministic scoring.
-`audio_meter_roi` pins the shader's bottom meter band (`uv.y > 0.955`), and
-`score_audio_meter_delta` compares silent-vs-tone captures inside that ROI while
-ignoring alpha. `GateResult` serializes manifest gates as explicit `pass`, `fail`, or
-`skip` records with scalar metrics.
+`audio_meter_roi` pins the shader's bottom meter band (`AUDIO_METER_TOP_FRACTION`,
+`uv.y > 0.955`); `score_roi_delta` returns the mean/max absolute RGB delta inside any
+ROI as a frozen `RoiDelta` (alpha ignored, invalid dims/ROIs/thresholds raise rather
+than soft-pass), and `score_audio_meter_delta` is the thin wrapper that scores a
+silent-vs-tone pair in the meter ROI. `GateResult` serializes manifest gates as explicit
+`pass`, `fail`, or `skip` records with scalar metrics.
 
 ---
 

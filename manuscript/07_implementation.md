@@ -101,7 +101,7 @@ plugin/fractisynth/build.sh
 Every geometric, telemetry, and DSP claim in this blueprint is exercised by the
 zero-mock test suite over the reference engine — including the three pinned laws
 @eq:swo-phase-vector, @eq:gateway-lock, and @eq:phi-soft-limit and their fail-closed
-boundaries. The current gate is 1132 project tests at 96.95% coverage, five generated
+boundaries. The current gate is 1136 project tests at 98.37% coverage, five generated
 figures, the native `plugin/fractisynth/build.sh` build, and a buildable Lean scaffold
 for the structural invariants that should never drift. The native C plugin shares the φ
 literal, the SWO and gateway formulas, the full seven-feed target geometry, Solar Graph

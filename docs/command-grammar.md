@@ -109,7 +109,7 @@ from synthobs.commands import parse, CommandError
 try:
     parse("/warp --core")
 except CommandError as exc:
-    print(exc)   # unknown command verb: '/warp' (known: ['/mode', '/swo', '/transducer'])
+    print(exc)   # unknown command verb: '/warp' (known: ['/dashboard', '/mode', '/swo', '/transducer'])
 ```
 
 Empty or whitespace-only lines, unbalanced quotes, unknown verbs, missing arguments,

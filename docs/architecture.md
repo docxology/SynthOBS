@@ -17,7 +17,7 @@ plugin is the production transducer, and the obspython script is the bridge.
         │ LAYER 1 — Python engine      │ mirror│ LAYER 2 — native libobs      │
         │ src/synthobs/                │◀─────▶│ plugin                       │
         │ source of truth              │ ISC-60│ plugin/fractisynth/src/      │
-        │ 1132 tests, no mocks         │       │ fractisynth.c (loads in OBS) │
+        │ 1136 tests, no mocks         │       │ fractisynth.c (loads in OBS) │
         └──────────────────────────────┘       └──────────────────────────────┘
                           ▲                               ▲
             drives the    │                               │   registers the two
@@ -32,7 +32,7 @@ plugin is the production transducer, and the obspython script is the bridge.
 ## Layer 1 — the Python engine (`src/synthobs/`)
 
 The engine is the **source of truth**. It has zero OBS dependency and zero network
-dependency in its core, which is exactly what makes it testable without mocks. Thirteen
+dependency in its core, which is exactly what makes it testable without mocks. Fifteen
 modules, each one responsibility:
 
 | Module            | Responsibility                                                                                              |
@@ -48,7 +48,10 @@ modules, each one responsibility:
 | `commands.py`     | The terminal grammar parser (`parse`). Fails closed (`CommandError`) on unknown verbs / bad values.          |
 | `interaction.py`  | Seven feed-tab targets, layer-toggle rail geometry, and marker-drop resolution.                             |
 | `layers.py`       | Deterministic OBS dashboard/layer plans for Wavefield, Telemetry HUD, and Solar Graph metrics.              |
+| `history.py`      | Bounded telemetry history ring buffer feeding the HUD waveform sparklines (mirrors the C ring).             |
+| `provenance.py`   | Telemetry-record packing, SHA-256 checksum, LSB/visible-signature embedding, and tamper-evident validation. |
 | `engine.py`       | `SynthEngine` — orchestrates calibration, layout, and modulation; refuses to modulate before calibration.    |
+| `verification.py` | Pure live-gate oracle: audio-meter ROI scoring (`uv.y > 0.955`) and `GateResult` pass/fail/skip contracts.   |
 | `__init__.py`     | Public package surface.                                                                                      |
 
 Full API in [engine.md](engine.md). The two phase-plane modules have their own

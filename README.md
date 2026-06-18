@@ -25,10 +25,10 @@ fail-closed rule are pinned identical across all three.
 ## Layout
 
 ```
-src/synthobs/        tested engine (constants, layout, telemetry, swo, dsp, console, commands, interaction, layers, engine, verification)
+src/synthobs/        tested engine, 15 modules (constants, layout, telemetry, swo, gateway, dsp, console, commands, interaction, layers, interference, history, provenance, engine, verification)
 plugin/fractisynth/  native libobs C plugin (CMake + src/fractisynth.c + locale)
 plugin/synthobs/     obspython console script (synthobs_console.py)
-scripts/             thin orchestrators (generate_figures.py, verify_provenance_strip.py, obs_scenario_probe.py)
+scripts/             thin orchestrators (generate_figures.py, obs_scenario_probe.py, obs_ws_probe.py, verify_provenance_strip.py)
 lean/                Lean 4 invariant scaffold (console shape + fail-closed gates)
 manuscript/          Technical Design Blueprint (brand voice)
 tests/               zero-mock suite, ≥90% coverage on src/
@@ -42,7 +42,7 @@ ISA.md               Ideal State Artifact — system of record
 uv run pytest projects/working/SynthOBS/tests/ --cov=synthobs --cov-report=term-missing
 ```
 
-1132 tests, **96.95%** coverage, no mocks (HTTP exercised via `pytest-httpserver`,
+1136 tests, **98.37%** coverage, no mocks (HTTP exercised via `pytest-httpserver`,
 real numeric examples, fixed seeds).
 
 Lean invariant scaffold:
