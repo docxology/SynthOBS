@@ -109,9 +109,17 @@ typedef struct fractisynth_audio_envelope {
 	float peak;       /* post-limiter peak magnitude */
 	float reactivity; /* φ-scaled RMS/threshold, clamped to [0,1] */
 	bool has_audio;
+	uint64_t updated_ns; /* os_gettime_ns() of the last filter update */
 } fractisynth_audio_envelope_t;
 
-static fractisynth_audio_envelope_t g_audio = {0.0f, 0.0f, 0.0f, false};
+/* When a source stops feeding the filter (media ends, scene switch, source
+ * removed) OBS simply stops calling filter_audio — it never delivers a final
+ * "silence" buffer — so the last envelope would otherwise stick lit forever.
+ * Reads older than this hold window are treated as silence, giving the meter
+ * proper release ballistics and a truthful idle state. */
+#define AUDIO_ENVELOPE_HOLD_NS 200000000ULL /* 200 ms */
+
+static fractisynth_audio_envelope_t g_audio = {0.0f, 0.0f, 0.0f, false, 0};
 static pthread_mutex_t g_audio_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 /* ------------------------------------------------------------------ */
@@ -323,6 +331,7 @@ static void audio_envelope_store(float rms, float peak, float reactivity, bool h
 	g_audio.peak = peak;
 	g_audio.reactivity = reactivity;
 	g_audio.has_audio = has_audio;
+	g_audio.updated_ns = os_gettime_ns();
 	pthread_mutex_unlock(&g_audio_mutex);
 }
 
@@ -330,10 +339,19 @@ static void audio_envelope_read(float *out_rms, float *out_peak,
 				float *out_reactivity, bool *out_has_audio)
 {
 	pthread_mutex_lock(&g_audio_mutex);
-	*out_rms = g_audio.rms;
-	*out_peak = g_audio.peak;
-	*out_reactivity = g_audio.reactivity;
-	*out_has_audio = g_audio.has_audio;
+	bool fresh = g_audio.has_audio &&
+		     (os_gettime_ns() - g_audio.updated_ns) < AUDIO_ENVELOPE_HOLD_NS;
+	if (fresh) {
+		*out_rms = g_audio.rms;
+		*out_peak = g_audio.peak;
+		*out_reactivity = g_audio.reactivity;
+		*out_has_audio = true;
+	} else {
+		*out_rms = 0.0f;
+		*out_peak = 0.0f;
+		*out_reactivity = 0.0f;
+		*out_has_audio = false;
+	}
 	pthread_mutex_unlock(&g_audio_mutex);
 }
 

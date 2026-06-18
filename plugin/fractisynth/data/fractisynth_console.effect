@@ -268,9 +268,14 @@ float4 PSConsole(VertData v_in) : TARGET
 		float peak = clamp(audio_peak, 0.0, 1.0);
 		float meter = step(uv.x, max(react, rms));
 		float peakLine = soft_line(uv.x - peak, 1.5 / uv_size.x);
-		col = lerp(col, p.bg * 1.8, 0.55);
-		col = lerp(col, p.ring, meter * 0.82);
-		col = lerp(col, p.hot, peakLine);
+		/* A real meter: a dark OPAQUE track (so the animated feed can't bleed
+		 * through and swamp the level) with a bright φ-ring fill. High contrast
+		 * keeps the level readable on any feed and makes silent-vs-signal an
+		 * unambiguous delta for the live verifier. */
+		float3 track = p.bg * 0.25;
+		col = lerp(col, track, 0.92);
+		col = lerp(col, p.ring, meter * 0.90);
+		col = lerp(col, p.core, peakLine);
 	}
 	return float4(saturate(col), 1.0);
 }

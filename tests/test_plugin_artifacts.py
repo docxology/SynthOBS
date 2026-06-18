@@ -58,6 +58,11 @@ def test_audio_soft_limiter(c_source: str) -> None:  # ISC-58
     assert "audio_envelope_read" in c_source
     assert "sqrt(sum_sq / (double)count)" in c_source
     assert "audio_reactivity" in c_source
+    # Envelope must release to silence when the source stops feeding the filter
+    # (OBS never delivers a final silence buffer), so reads have a staleness hold
+    # and the meter falls to zero — a lit-forever meter is the bug this guards.
+    assert "AUDIO_ENVELOPE_HOLD_NS" in c_source
+    assert "updated_ns" in c_source
 
 
 def test_reads_shared_swo(c_source: str) -> None:  # ISC-59

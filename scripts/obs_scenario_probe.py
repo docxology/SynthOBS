@@ -325,15 +325,22 @@ def _verify_audio(
         _capture_png(client, source_name=scene, out_path=silent, width=width, height=height)
         manifest["captures"]["audio_silent"] = str(silent)
 
-        tone_path = out_dir / "controlled_tone.wav"
+        tone_path = (out_dir / "controlled_tone.wav").resolve()
         _write_tone(tone_path)
         media_name = f"{console_source} / controlled tone"
+        # ffmpeg_source resolves local_file against OBS's own CWD, not ours — it must
+        # be absolute or the media never plays and the audio meter never reacts.
         _create_or_update_input(
             client,
             scene=scene,
             name=media_name,
             kind=audio_input_kind,
-            settings={"local_file": str(tone_path), "looping": True, "restart_on_activate": True},
+            settings={
+                "is_local_file": True,
+                "local_file": str(tone_path),
+                "looping": True,
+                "restart_on_activate": True,
+            },
         )
         client.request(
             "CreateSourceFilter",

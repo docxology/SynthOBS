@@ -20,10 +20,15 @@ Status legend: ✅ shipped · 🚧 in progress · 📋 planned
 - ✅ **Telemetry HUD feed** (CPU-rendered): validated metadata rows + live
   waveform sparklines + a steganographic provenance strip (LSB-embedded,
   C↔Python-verifiable) + on-screen signature. Self-documenting on a stream.
-- 🚧 **Audio-reactive visuals**: the φ soft-limiter now exports post-limiter RMS,
-  peak, and reactivity to the console shader, Telemetry HUD, and dock. Procedural
-  feeds brighten/pulse from the live envelope and show a bottom audio meter; the
-  remaining kill-gate is a live OBS screenshot/video capture with an audible source.
+- ✅ **Audio-reactive visuals** (live-proven 2026-06-18): the φ soft-limiter exports
+  post-limiter RMS, peak, and reactivity to the console shader, Telemetry HUD, and dock.
+  The bottom audio meter is now a dark opaque track + bright φ-ring fill (high contrast,
+  unconfounded by the animated feed), and the global envelope releases to silence after a
+  200 ms hold (`AUDIO_ENVELOPE_HOLD_NS`) so it no longer sticks lit when a source stops.
+  `scripts/obs_scenario_probe.py --verify-audio` scores a controlled silent-vs-tone
+  capture at `mean_abs_delta ≈ 49` (threshold 8): the silent meter band is uniform dark,
+  the 440 Hz tone lights the left ~40% (= live `AUDIO REACT 0.401`); HUD shows
+  `AUDIO RMS 0.248 / REACT 0.401`.
 
 ## Phase B — A more configurable dock  ✅
 - ✅ In-dock clickable display-mode cycle (moc-free mousePressEvent): Full · Compact · Gauge-only.
@@ -89,21 +94,22 @@ Status legend: ✅ shipped · 🚧 in progress · 📋 planned
   a 0-width target) and the loupe inset clamped to the frame on wide aspects.
 - ✅ **Fail-closed fuzz harness** (`tests/test_fail_closed_fuzz.py`): one extensible
   battery sweeps every external-ingestion boundary with `NaN`/`±Inf`; adding a boundary
-  is one `Boundary(...)` entry. The current suite is 1132 passing / 96.95%.
+  is one `Boundary(...)` entry. The current suite is 1136 passing / 98.37%.
 
-## Phase H — Formal + provenance verification scaffold  🚧
+## Phase H — Formal + provenance verification scaffold  ✅
 - ✅ Lean invariant scaffold — `lean/SynthOBS/Invariants.lean` builds with Lake and
   proves the console shape, shared common ids, disjoint unique ids, safety controls,
   literal pins, SWO fail-closed acceptance, and provenance readiness predicates.
-- 🚧 Provenance-verify tool — `scripts/verify_provenance_strip.py` extracts and
-  verifies the LSB-embedded HUD signature from RGB/RGBA PNG captures, with real PNG
-  round-trip tests. *Remaining kill-gate:* confirm the strip survives live OBS
-  compositing/websocket rescale on a real captured Telemetry HUD frame. The HUD now
-  also draws a high-contrast 32-bit visible signature strip from the same digest prefix;
-  if row-0 LSBs do not survive, use render-target readback where available or the
-  visible strip as the survivable capture fallback.
+- ✅ Provenance-verify tool (live-proven 2026-06-18) — `scripts/verify_provenance_strip.py`
+  extracts and verifies the LSB-embedded HUD signature from RGB/RGBA PNG captures, with real
+  PNG round-trip tests. **Kill-gate closed:** the LSB strip survives live OBS
+  compositing/websocket rescale on a real captured Telemetry HUD frame — `--verify-provenance`
+  reports `provenance_lsb.status == "pass"` with the signature decoded from the live capture
+  matching the canonical 24-byte telemetry digest. The HUD also draws a high-contrast 32-bit
+  visible signature strip from the same digest prefix (`PROVENANCE … LSB+VISIBLE`) as a
+  survivable fallback.
 
-## Phase I — Live verifier harness + operator proof  🚧
+## Phase I — Live verifier harness + operator proof  ✅ (cross-platform CI deferred)
 - ✅ Pure live-verification oracle — `src/synthobs/verification.py` pins manifest gate
   statuses and the shader-aligned audio-meter ROI (`uv.y > 0.955`) so live captures can
   be scored without broad full-frame guesses.
@@ -115,13 +121,16 @@ Status legend: ✅ shipped · 🚧 in progress · 📋 planned
   canvas dimensions when available and falls back to 1920×1080 only when OBS does not
   expose video settings; pure transform tests cover 720p, 1080p, and ultrawide canvas
   math.
-- 🚧 Audio-reactivity live proof — run:
-  `uv run python scripts/obs_scenario_probe.py --out output/live/<timestamp> --verify-audio`.
-  The gate closes only when `manifest.json` reports `audio_reactivity.status == "pass"`
-  from a controlled silent-vs-tone capture.
-- 🚧 Provenance survival proof — run:
-  `uv run python scripts/obs_scenario_probe.py --out output/live/<timestamp> --verify-provenance`.
-  The gate closes only when `provenance_lsb.status == "pass"`; a failure must remain
-  visible in the manifest and trigger the render-target/visible-strip fallback path.
+- ✅ Audio-reactivity live proof (closed 2026-06-18) — `obs_scenario_probe.py --verify-audio`
+  reports `audio_reactivity.status == "pass"` (`mean_abs_delta ≈ 49`, threshold 8) from a
+  controlled silent-vs-tone capture. Required three fixes found by driving real OBS: the probe
+  passed a *relative* `local_file` OBS could not resolve (audio never played → now absolute +
+  `is_local_file`); the installed plugin was stale (rebuilt — the audio-meter/uniform code was
+  missing); and the global envelope stuck lit after a source stopped (added the 200 ms release
+  hold so the silent baseline is truthful).
+- ✅ Provenance survival proof (closed 2026-06-18) — `obs_scenario_probe.py --verify-provenance`
+  reports `provenance_lsb.status == "pass"`; the signature decodes from the live HUD capture and
+  matches the canonical telemetry digest. The manifest still records any failure and the
+  render-target/visible-strip fallback path remains available.
 - 📋 Cross-platform live verification — the scenario harness is OS-agnostic; wire it
   into Linux/Windows OBS CI smoke once a headless OBS target exists.
