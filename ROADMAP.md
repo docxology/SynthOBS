@@ -94,7 +94,7 @@ Status legend: ✅ shipped · 🚧 in progress · 📋 planned
   a 0-width target) and the loupe inset clamped to the frame on wide aspects.
 - ✅ **Fail-closed fuzz harness** (`tests/test_fail_closed_fuzz.py`): one extensible
   battery sweeps every external-ingestion boundary with `NaN`/`±Inf`; adding a boundary
-  is one `Boundary(...)` entry. The current suite is 1136 passing / 98.37%.
+  is one `Boundary(...)` entry. The current suite is 1161 passing / 98.51%.
 
 ## Phase H — Formal + provenance verification scaffold  ✅
 - ✅ Lean invariant scaffold — `lean/SynthOBS/Invariants.lean` builds with Lake and

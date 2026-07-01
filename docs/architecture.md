@@ -17,7 +17,7 @@ plugin is the production transducer, and the obspython script is the bridge.
         │ LAYER 1 — Python engine      │ mirror│ LAYER 2 — native libobs      │
         │ src/synthobs/                │◀─────▶│ plugin                       │
         │ source of truth              │ ISC-60│ plugin/fractisynth/src/      │
-        │ 1136 tests, no mocks         │       │ fractisynth.c (loads in OBS) │
+        │ 1161 tests, no mocks         │       │ fractisynth.c (loads in OBS) │
         └──────────────────────────────┘       └──────────────────────────────┘
                           ▲                               ▲
             drives the    │                               │   registers the two
@@ -49,7 +49,7 @@ modules, each one responsibility:
 | `interaction.py`  | Seven feed-tab targets, layer-toggle rail geometry, and marker-drop resolution.                             |
 | `layers.py`       | Deterministic OBS dashboard/layer plans for Wavefield, Telemetry HUD, and Solar Graph metrics.              |
 | `history.py`      | Bounded telemetry history ring buffer feeding the HUD waveform sparklines (mirrors the C ring).             |
-| `provenance.py`   | Telemetry-record packing, SHA-256 checksum, LSB/visible-signature embedding, and tamper-evident validation. |
+| `provenance.py`   | Telemetry-record packing, SHA-256 (unkeyed) corruption-detecting checksum, LSB/visible-signature embedding, and integrity validation (detects accidental corruption, not forgery). |
 | `engine.py`       | `SynthEngine` — orchestrates calibration, layout, and modulation; refuses to modulate before calibration.    |
 | `verification.py` | Pure live-gate oracle: audio-meter ROI scoring (`uv.y > 0.955`) and `GateResult` pass/fail/skip contracts.   |
 | `__init__.py`     | Public package surface.                                                                                      |

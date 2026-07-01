@@ -6,8 +6,13 @@ its last good vector or refuses outright. A 2026-06-12 cross-vendor audit found
 that several boundary ingestion functions enforced this with a bare ``x <= 0.0``
 guard, which silently accepts ``NaN``/``Inf`` (every comparison against NaN is
 False, and ``json.loads`` accepts the ``NaN``/``Infinity`` literals by default).
-Four such holes were fixed; this harness exists so the *whole* boundary surface is
-swept by one adversarial battery and the class of defect cannot silently return.
+Such holes are fixed as found; this harness exists so every external numeric
+ingestion boundary *registered below* is swept by one adversarial battery and the
+class of defect cannot silently return for a covered boundary. Coverage is only as
+complete as ``BOUNDARIES`` — a 2026-06-22 cross-vendor audit found that the
+``sunspots`` field of ``telemetry_from_payload`` (its ``int()`` conversion raised an
+uncaught ``OverflowError`` on a JSON-legal ``Infinity``) and the ``parse_noaa_kp_index``
+parser were both ingestion boundaries missing from this list; both are now registered.
 
 Each boundary is registered with its fail-closed contract (``raises`` an allowed
 exception, or returns a ``sentinel``). Adding a new external-ingestion function is
@@ -58,6 +63,17 @@ class Boundary:
 # Handing the float object directly routes straight to the validation guard.
 def _telemetry_payload(flux: float) -> Any:
     return {"flux": flux, "sunspots": 3, "time_tag": "2026-06-10T11:30:00Z"}
+
+
+def _telemetry_sunspots(spots: float) -> Any:
+    # The bad scalar lands in the SUNSPOTS field (flux fixed-valid). This is the
+    # boundary the battery previously never fuzzed: int(float('inf')) raised an
+    # uncaught OverflowError instead of failing closed (telemetry.py, fixed 2026-06-22).
+    return {"flux": 130.4, "sunspots": spots, "time_tag": "2026-06-10T11:30:00Z"}
+
+
+def _kp(kp: float) -> Any:
+    return [{"time_tag": "2026-06-10T11:59:00", "estimated_kp": kp}]
 
 
 def _f107(flux: float) -> Any:
@@ -116,6 +132,8 @@ def _command_ratio(ratio: float) -> Any:
 
 BOUNDARIES: list[Boundary] = [
     Boundary("telemetry_from_payload", lambda f: telemetry.telemetry_from_payload(_telemetry_payload(f)), raises=(TelemetryUnavailable,)),
+    Boundary("telemetry_from_payload[sunspots]", lambda f: telemetry.telemetry_from_payload(_telemetry_sunspots(f)), raises=(TelemetryUnavailable,)),
+    Boundary("parse_noaa_kp_index", lambda f: telemetry.parse_noaa_kp_index(_kp(f)), raises=(TelemetryUnavailable,)),
     Boundary("parse_noaa_f107_flux", lambda f: telemetry.parse_noaa_f107_flux(_f107(f)), raises=(TelemetryUnavailable,)),
     Boundary("parse_noaa_solar_wind", lambda f: telemetry.parse_noaa_solar_wind(_solarwind(f)), raises=(TelemetryUnavailable,)),
     Boundary("parse_noaa_plasma_series", lambda f: telemetry.parse_noaa_plasma_series(_plasma_series(f)), raises=(TelemetryUnavailable,)),
@@ -168,6 +186,31 @@ def test_battery_is_actually_adversarial() -> None:
     assert telemetry.parse_noaa_f107_flux(_f107(130.4))[0] == pytest.approx(130.4)
     assert _calibrate(130.0) is True
     assert math.isfinite(gateway.gateway_filter(400.0).lock_strength)
+
+
+def test_sunspots_and_kp_boundaries_have_positive_controls() -> None:
+    # Positive controls for the two boundaries added 2026-06-22: each must ACCEPT
+    # good input, so their fail-closed rows above are meaningful, not vacuously-raising.
+    from datetime import datetime, timezone
+
+    rec = telemetry.telemetry_from_payload(
+        _telemetry_sunspots(7),
+        now=datetime(2026, 6, 10, 11, 30, 5, tzinfo=timezone.utc),
+    )
+    assert rec.sunspots == 7
+    assert telemetry.parse_noaa_kp_index(_kp(2.0)) == [2.0]
+
+
+def test_sunspots_infinity_is_load_bearing() -> None:
+    # Anti-regression for the OverflowError leak (2026-06-22): int(float('inf'))
+    # raises OverflowError, which was NOT in telemetry.py's caught tuple, so an
+    # Infinity sunspots crashed ingestion instead of failing closed into Hold State.
+    # The inf/-inf cases are the load-bearing ones for THIS fix (int(nan) already
+    # raised ValueError pre-fix); nan is kept to assert the broader fail-closed contract.
+    # Reverting the `OverflowError` add to telemetry.py makes the inf/-inf cases fail.
+    for bad in (float("inf"), float("-inf"), float("nan")):
+        with pytest.raises(TelemetryUnavailable):
+            telemetry.telemetry_from_payload(_telemetry_sunspots(bad))
 
 
 def test_json_boundaries_refuse_via_finiteness_not_json_parse() -> None:

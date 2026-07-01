@@ -26,7 +26,11 @@ os.environ.setdefault("MPLBACKEND", "Agg")
 
 import matplotlib.image as mpimg  # noqa: E402
 import numpy as np  # noqa: E402
-import websocket  # type: ignore  # noqa: E402
+
+try:  # live-probe-only dependency; the pure manifest helpers (and their tests) never touch it
+    import websocket  # type: ignore  # noqa: E402
+except ModuleNotFoundError:  # pragma: no cover - exercised only in envs without the dev extra
+    websocket = None  # type: ignore[assignment]
 
 _ROOT = Path(__file__).resolve().parents[1]
 _SRC = _ROOT / "src"
@@ -63,6 +67,11 @@ class ObsClient:
         self.ws: websocket.WebSocket | None = None
 
     def connect(self) -> None:
+        if websocket is None:  # pragma: no cover - guarded live path
+            raise ObsScenarioError(
+                "websocket-client is not installed; install the project 'dev' extra "
+                "(uv sync --extra dev) to run the live OBS scenario probe"
+            )
         ws = websocket.create_connection(self.url, timeout=self.timeout)
         hello = json.loads(ws.recv())
         ident: dict[str, Any] = {"op": 1, "d": {"rpcVersion": 1}}

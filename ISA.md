@@ -3,11 +3,11 @@ project: SynthOBS
 task: Spec and develop SynthOBS + FractiSynth — golden-ratio OBS plugin driven by fail-closed live solar telemetry
 effort: E5
 phase: complete
-progress: 166/166
+progress: 184/184
 mode: ALGORITHM
 started: 2026-06-10
-updated: 2026-06-12
-iteration: 12
+updated: 2026-06-22
+iteration: 14
 ---
 
 # SynthOBS / FractiSynth — Ideal State Articulation
@@ -787,3 +787,132 @@ User: "Check and improve all audio visual and interactive elements."
 - Coverage gate: `uv run pytest tests/ --cov=synthobs --cov-fail-under=90` →
   `1115 passed`, `98.18%` coverage.
 - Lint gate: targeted `uv run ruff check ...` passed before docs updates.
+
+## Iteration 14 — Comprehensive cross-vendor audit + harden + repro/PDF closure (2026-06-22)
+
+User: "comprehensively proceed with all /workflows on SynthOBS" (E5, ALGORITHM).
+A whole-project adversarial sweep on a mature, self-reported-complete project: run a
+multi-dimension audit workflow (find → adversarially refute-verify → synthesize), fix
+every confirmed defect deterministically, re-baseline the gate, and cross-vendor audit.
+
+### OBSERVE ground truth (R8 Generator Pre-Execution — ran the gates this session)
+- Project gate via project `.venv`: **1136 passed, 98.37% coverage** on `src/synthobs`
+  (matches README exactly). `uvx ruff check .` → All checks passed. Lean toolchain
+  present (Lake 5.0.0 / Lean 4.28.0).
+- **R8 defect found:** the README's documented top-level command
+  `uv run pytest projects/working/SynthOBS/tests/ --cov=synthobs` run from the template
+  root FAILS collection — `ModuleNotFoundError: No module named 'websocket'`
+  (`test_obs_scenario_probe.py` → `scripts/obs_scenario_probe.py` imports `websocket` at
+  module top). `websocket-client` is a project-local `dev` extra absent from the
+  template-root env. Documented repro path is broken; only the project venv works.
+- No combined PDF currently on disk under `output/` (disposable/gitignored) — a claimed
+  ISC-67/65-69 deliverable with no current artifact to verify.
+- Working tree clean (0 changes), branch `main`. CO-ACTOR: none active this session.
+
+### Criteria (iteration 14)
+- [x] ISC-173: the README's documented test invocation collects + passes (websocket repro
+  gap closed): guarded `import websocket` (try/except ModuleNotFoundError → None) in both
+  `scripts/obs_scenario_probe.py` and `scripts/obs_ws_probe.py` + clear runtime error on the
+  live path — verified by running the exact documented command to green.
+- [x] ISC-174: combined PDF regenerated and present at `output/pdf/SynthOBS_combined.pdf`,
+  24 pages, 0 dangling text-layer `??` refs, 10 embedded images, contains
+  61.8/1.618/Goldilocks/Solar Wavefield/EMERGENCY/Gateway/golden ratio.
+- [x] ISC-175: the 5 manuscript figures regenerate deterministically via
+  `scripts/generate_figures.py` (byte-stable across two runs — identical SHA-1s).
+- [x] ISC-176: comprehensive multi-dimension audit run via /workflows (`wf_d6a19aa5-22f`,
+  26 agents, 8 surfaces, find→refute-verify→synthesize) — 11 confirmed defects (4 refuted,
+  2 uncertain). Per-dimension: fail-closed 2, py-c-parity 3, test-integrity 2, manuscript 1,
+  lean 1, provenance 1, repro 1; docs-accuracy 0.
+- [x] ISC-177: every finding adversarially cross-verified refute-default with ABSOLUTE paths
+  (a refute-skeptic per finding; 4 refuted + 2 uncertain dropped, only the 11 confirmed
+  entered the fix set).
+- [x] ISC-178: all 11 confirmed defects fixed; gate green — `1161 passed`, `98.51%` coverage
+  (up from 1136/98.37), `uvx ruff check .` clean, `lake build` clean. (+1 over the 11 fixes:
+  an Advisor-driven stdlib-only-engine AST guard.)
+- [x] ISC-179: cross-vendor Forge audit (Rule 2a, E5-mandatory, `codex-cli 0.141.0`, read-only,
+  274s) run on all 11 fixes + final artifacts. VERDICT: all 11 CONFIRMED-GOOD — "no DEFECT,
+  no regression, no green-by-construction trap, no overclaim survived." It independently swept
+  all 7 `int()` sites (confirming fix #1 complete), traced the negative-control to revert
+  behaviour, re-ran the overclaim grep, and recomputed the eq math + table sum. Two LOW cosmetic
+  notes (C-clamp-vs-Python-raise on invalid threshold; redundant nan iteration) → both closed
+  with documenting comments.
+- [x] ISC-180: Advisor (Rule 2, E5-HARD) ran at the commitment boundary — verdict: (2)
+  provenance honest-relabel SOUND; (1) telemetry OverflowError fix — Advisor flagged a
+  numpy-result leak, but the engine is stdlib-only (AST-verified) so that vector doesn't
+  exist, and a call-site sweep confirmed `int()`-on-JSON-float is the only OverflowError
+  vector (commands.py ints strings → ValueError only); (3) packaging — Advisor demanded a
+  clean-venv smoke test, RAN it: base install pulls only `synthobs` (no numpy/matplotlib),
+  engine imports + fail-closed works → made permanent via `test_engine_is_stdlib_only`.
+- [x] ISC-181: Anti: no overclaim — reported counts equal the actual workflow output (11
+  confirmed defects = 11 fixed; +1 Advisor-driven stdlib guard = 12 changes, 1161 tests);
+  every `[x]` above cites a quoted artifact (gate output, file:line, revert rc, grep result);
+  Forge independently confirmed "no overclaim survived"; no fabricated aggregate.
+- [x] ISC-182: Anti: no edit to any template git-tracked tree path (ISC-72 invariant held —
+  template `git status -s` = 0 changes; `git check-ignore projects/working/SynthOBS` →
+  ignored, so SynthOBS-internal edits are invisible to the template tree).
+- [x] ISC-183: Anti: no new NaN/Inf fail-closed leak — the sunspots `int()` boundary (the
+  HIGH leak #1) + `parse_noaa_kp_index` added to `test_fail_closed_fuzz.py` with positive
+  controls; negative-control A/B confirmed (`test_sunspots_infinity_is_load_bearing` FAILS
+  rc=1 when the telemetry.py `OverflowError` fix is reverted, PASSES with it).
+- [x] ISC-184: Anti: lean build stays green; no `sorry` / custom `axiom` re-introduced —
+  `cd lean && lake build` → "Build completed successfully (0 jobs)"; grep sorry/axiom → none.
+
+### Iteration-14 confirmed-defect ledger (all 11 fixed)
+| # | sev | surface | defect | fix |
+|---|-----|---------|--------|-----|
+| 1 | HIGH | fail-closed | `telemetry.py` `int(sunspots)` raised uncaught `OverflowError` on JSON `Infinity` → crashed ingestion past the fail-closed guard | added `OverflowError` to the except tuple (behavior-preserving) |
+| 2 | HIGH | test-integrity | fuzz battery never fuzzed the sunspots field (hid #1); docstring overclaimed "whole boundary surface" | added sunspots + Kp boundaries, positive controls, load-bearing anti-regression test; softened docstring |
+| 3 | MED | py-c-parity | all C↔Python parity tests were token-greps; C never compiled/executed | NEW `test_c_parity_behavioral.py` compiles the real C kernel (cc+ctypes) and asserts curve identity incl. NaN/Inf + concavity |
+| 4 | MED | manuscript | `03_modalities.md` eq:harmonic-comp was piecewise-LINEAR, contradicting the shipped tanh limiter + the other two sections | replaced with the shipped tanh form |
+| 5 | MED | provenance | unkeyed SHA-256[:4] checksum sold as "tamper-evident proof" (a forger recomputes it) | honest downgrade to "corruption-detecting checksum, NOT forgery-resistant" in code + 2 docs |
+| 6 | MED | packaging | core deps declared numpy/matplotlib/pyyaml the stdlib-only engine never imports; pyyaml fully unused | `dependencies=[]`; numpy/matplotlib → `figures` extra (pulled into `dev`); pyyaml removed |
+| 7 | LOW | py-c-parity | φ / K_EGS pin tests hardcoded the literal string (decorative) | bind via f-string on `PHI_C_LITERAL` / `EGS_GATEWAY_KEY_C_LITERAL` |
+| 8 | LOW | py-c-parity | C audio comment claimed phase scales the ceiling (it's `UNUSED_PARAMETER`) | corrected the comment to the true intent |
+| 9 | LOW | test-integrity | fuzz harness omitted `parse_noaa_kp_index` | added (merged with #2) |
+| 10 | LOW | test-integrity | doc-baseline test only checked the count *string is present*, not *correct* | added measured-vs-documented subprocess collect-only check |
+| 11 | LOW | lean | Lean literal pins were self-referential (`rfl`), unbound to Python | added Python test binding them to `synthobs.constants` |
+
+### Iteration-14 verification
+- Audit workflow `wf_d6a19aa5-22f`: 26 agents, 8 surfaces; 11 confirmed / 4 refuted / 2 uncertain.
+- Gate (project `.venv`): `1161 passed`, `98.51%` coverage (was 1136/98.37); `telemetry.py`
+  97.59% (up — the OverflowError path is now exercised). `uvx ruff check .` → All checks passed.
+- Lean: `lake build` → Build completed successfully; no sorry/axiom.
+- Negative-control A/B (EXECUTE mandate): reverting the telemetry.py `OverflowError` add makes
+  `test_sunspots_infinity_is_load_bearing` FAIL (rc=1); restored → PASS. Non-laundering proof.
+- Behavioral C parity: real `cc`-compiled `phi_soft_limit_sample` matches Python across the grid
+  (14 tests), incl. NaN→0 / ±Inf→±ceiling and a concavity check that a linear fold would fail.
+- PDF re-rendered after the manuscript change: `output/pdf/SynthOBS_combined.pdf`, 24 pages,
+  0 dangling refs, HTML export clean (0 errors), contains `tanh` (corrected eq) and `1161`.
+  (A self-caught regression: my first manuscript edit added a cross-SECTION `@eq:` ref that
+  the standalone-HTML export path threw on — the PDF resolved it but HTML did not; reworded
+  to prose, re-verified HTML 0 errors.)
+- Repro gap (R8): documented top-level command now collects+passes (websocket guarded).
+- Template tracked tree: `git status -s` = 0 changes; `projects/working/SynthOBS` git-ignored.
+
+### Decisions (iteration 14)
+- Telemetry sunspots fix is the minimal behavior-preserving form (add `OverflowError`), not a
+  float()+isfinite rewrite, to avoid silently changing acceptance of fractional-string sunspots.
+  An `int()` is always finite once constructed, so the only leak vector is the conversion itself.
+- Provenance: chose honest relabel over adding HMAC. The overlay is a local, single-operator
+  authenticity-free artifact; an unkeyed checksum genuinely only detects corruption, and the
+  project's #1 principle is "separate the verifiable from the mystical / tag epistemic status."
+  Adding real keyed authenticity is recorded as optional follow-up `SYNTHOBS-PROV-HMAC`.
+- Packaging: numpy/matplotlib are legitimately project deps (figures/scripts) but NOT engine
+  imports; moving them to a `figures` extra (kept in `dev`) honors the stdlib-only-engine claim
+  without breaking the documented `uv sync --extra dev` test/figure workflow.
+
+### Changelog (iteration 14)
+- conjectured: the iteration-10 `test_fail_closed_fuzz.py` battery swept "the *whole* boundary
+  surface" so the NaN/Inf-past-a-numeric-guard class could not silently return.
+- refuted_by: a cross-vendor audit found the battery injects ONE adversarial scalar per
+  ingestion CALL, structurally never reaching a multi-field payload's second numeric field — so
+  `telemetry_from_payload`'s `sunspots` was never fuzzed, hiding `int(float('inf'))` →
+  uncaught `OverflowError` (NOT in the `except (TypeError, ValueError)` tuple) that crashed
+  ingestion past the fail-closed guard. The 1136-test green suite at 98.37% was blind to it.
+- learned: a fuzz battery that injects one bad scalar per function CALL cannot reach the
+  non-first numeric fields of multi-field payloads; enumerate every external numeric FIELD, not
+  every ingestion function. And `int()` on a JSON-parsed float is a distinct fail-closed vector
+  from `float()`-then-`<=0`: it raises `OverflowError`, a sibling of the `<=0`-accepts-NaN/Inf
+  class but caught by a different except clause.
+- criterion_now: ISC-183 — sunspots + Kp field boundaries added with positive controls and a
+  negative-control A/B (`test_sunspots_infinity_is_load_bearing` fails rc=1 on revert).

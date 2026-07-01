@@ -196,7 +196,7 @@ The C plugin is a *mirror*, not the source of truth. The φ literal, the SWO for
 (`φ · flux/spots`), the fail-closed rule, and the soft-limiter curve are identical to
 [`src/synthobs`](../src/synthobs), and the pin between them is a **test** — drift is a
 failure, not a silent divergence. When in doubt about intended behavior, the Python
-engine and its 1136-test suite are authoritative; the C plugin makes that behavior run
+engine and its 1161-test suite are authoritative; the C plugin makes that behavior run
 natively inside OBS.
 
 The Telemetry HUD provenance strip can be checked from a captured PNG:

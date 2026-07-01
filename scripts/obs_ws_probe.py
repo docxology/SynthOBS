@@ -22,7 +22,10 @@ import json
 import sys
 import time
 
-import websocket  # type: ignore
+try:  # live-probe-only dependency (project 'dev' extra: websocket-client)
+    import websocket  # type: ignore
+except ModuleNotFoundError:  # pragma: no cover - exercised only without the dev extra
+    websocket = None  # type: ignore[assignment]
 
 
 def _auth(password: str, salt: str, challenge: str) -> str:
@@ -58,6 +61,13 @@ def main() -> int:
     ap.add_argument("--url", default="ws://localhost:4455")
     args = ap.parse_args()
 
+    if websocket is None:
+        print(
+            "websocket-client is not installed; install the project 'dev' extra "
+            "(uv sync --extra dev) to run the live OBS probe",
+            file=sys.stderr,
+        )
+        return 2
     ws = websocket.create_connection(args.url, timeout=15)
     hello = json.loads(ws.recv())
     ident: dict = {"op": 1, "d": {"rpcVersion": 1}}

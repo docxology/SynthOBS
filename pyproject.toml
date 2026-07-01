@@ -14,18 +14,23 @@ authors = [
     {name = "Daniel Ari Friedman", email = "daniel@activeinference.institute"},
 ]
 requires-python = ">=3.10"
-dependencies = [
-    "numpy>=1.24.0",
-    "matplotlib>=3.7.0",
-    "pyyaml>=6.0",
-]
+# The importable engine (src/synthobs) is stdlib-only by design — that is the whole
+# "tested engine is the single source of truth" claim. numpy/matplotlib are needed
+# only by the figure/analysis scripts (the `figures` extra), and pyyaml was unused.
+dependencies = []
 
 [project.optional-dependencies]
+# Figure generation + the analysis/verifier scripts (thin orchestrators, not the engine).
+figures = [
+    "numpy>=1.24.0",
+    "matplotlib>=3.7.0",
+]
 dev = [
     "pytest>=7.4.0",
     "pytest-cov>=4.1.0",
     "pytest-httpserver>=1.0.0",
     "websocket-client>=1.8.0",
+    "synthobs[figures]",
 ]
 
 [tool.pytest.ini_options]

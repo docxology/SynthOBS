@@ -1149,7 +1149,10 @@ static struct obs_audio_data *fsa_filter_audio(void *data, struct obs_audio_data
 		return audio;
 	}
 	float phase = swo_phase_vector();
-	/* phase vector gently scales the effective ceiling (presence with weather). */
+	/* The SWO phase vector is intentionally NOT applied to the audio ceiling: the
+	 * limiter must stay bit-for-curve identical to the Python phi_soft_limit /
+	 * audio_envelope contract, which limits against the configured threshold alone.
+	 * The phase is read (above) only so this decision is explicit and auditable. */
 	float threshold = f->threshold;
 	UNUSED_PARAMETER(phase);
 	if (!isfinite(threshold) || threshold <= 0.0f)

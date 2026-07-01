@@ -96,20 +96,24 @@ geometric harmonization.*
 `EGS_SCALE_LOCK` pins every gain stage and frame-crop variable to the same gateway
 key $K_{\mathrm{EGS}}$ of @eq:egs-key, so the synthesis plane scales in lockstep
 with the inbound phase plane. `HARMONIC_COMP` then routes audio through a recursive
-soft-limiter whose knee sits at the reciprocal golden ratio: gain above the
-$1/\varphi$ threshold is folded back by the same ratio, so each successive overshoot
-is attenuated geometrically.
+soft-limiter whose knee sits at the reciprocal golden ratio: below $\tau/\varphi$
+(the golden $1/\varphi$ fraction of the ceiling $\tau$) the signal passes untouched;
+above it the excess is smoothly saturated by a $\tanh$ branch scaled to the headroom
+$h = \tau/\varphi^{2}$, so the magnitude approaches but never crosses $\tau$.
 
 $$
 g(x) =
 \begin{cases}
-x, & \lvert x\rvert \le 1/\varphi \\[4pt]
-\dfrac{1}{\varphi} + \dfrac{1}{\varphi}\bigl(\lvert x\rvert - 1/\varphi\bigr)\,\operatorname{sgn}(x), & \lvert x\rvert > 1/\varphi
+x, & \lvert x\rvert \le \tau/\varphi \\[4pt]
+\operatorname{sgn}(x)\left[\dfrac{\tau}{\varphi} + h\,\tanh\!\left(\dfrac{\lvert x\rvert - \tau/\varphi}{h\,\varphi}\right)\right], & \lvert x\rvert > \tau/\varphi
 \end{cases}
 $$ {#eq:harmonic-comp}
 
-The $1/\varphi$ knee of @eq:harmonic-comp is what keeps the compressor "harmonic":
-the same constant that lays out the canvas also shapes the limiting curve.
+This is exactly the shipped $\varphi$ soft-limiter (the tested `phi_soft_limit_sample`,
+restated as the FractiSynth limiter in the Transducer Core section): the $1/\varphi$ knee
+is what keeps the compressor "harmonic" — the same constant that lays out the canvas also
+shapes the limiting curve — while the $\tanh$ branch (not a linear fold) is what makes it
+monotone, sign-preserving, and NaN/Inf-safe.
 
 ## Expedition Ship Mode — Outbound Transmission Deck
 

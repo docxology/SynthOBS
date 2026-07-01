@@ -71,15 +71,21 @@ def test_reads_shared_swo(c_source: str) -> None:  # ISC-59
 
 
 def test_phi_literal_matches_python(c_source: str) -> None:  # ISC-60
-    assert "#define EGS_PHI 1.61803398875f" in c_source
-    assert abs(1.61803398875 - PHI) < 1e-9
+    # Load-bearing pin: PHI_C_LITERAL is the SINGLE source of the C φ constant, so the
+    # C #define, the literal, and PHI all bind through one value. A bare hardcoded
+    # "1.61803398875f" string was decorative — changing PHI_C_LITERAL could not fail it.
+    from synthobs.constants import PHI_C_LITERAL
+
+    assert f"#define EGS_PHI {PHI_C_LITERAL}f" in c_source
+    assert abs(float(PHI_C_LITERAL) - PHI) < 1e-9
 
 
 def test_egs_gateway_key_literal_matches_python(c_source: str) -> None:  # ISC-93
-    # the canonical EGS Fractal Constant (gateway key) is pinned C↔Python
+    # the canonical EGS Fractal Constant (gateway key) is pinned C↔Python through the
+    # single EGS_GATEWAY_KEY_C_LITERAL (the C #define is built from it, not re-typed).
     from synthobs.constants import EGS_GATEWAY_KEY, EGS_GATEWAY_KEY_C_LITERAL
 
-    assert "#define EGS_GATEWAY_KEY 2.53942700f" in c_source
+    assert f"#define EGS_GATEWAY_KEY {EGS_GATEWAY_KEY_C_LITERAL}f" in c_source
     assert abs(float(EGS_GATEWAY_KEY_C_LITERAL) - EGS_GATEWAY_KEY) < 1e-6
 
 

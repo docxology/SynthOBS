@@ -136,10 +136,12 @@ to a default.
 
 ## Provenance payload verification
 
-The Telemetry HUD can embed a tamper-evident telemetry record into the blue-channel
-least-significant bits of its rendered frame. The shared verifier extracts the payload,
-checks the SHA-256 checksum, validates the record fields, and reports the same short
-signature shown on the HUD:
+The Telemetry HUD can embed a self-describing telemetry record into the blue-channel
+least-significant bits of its rendered frame, guarded by an unkeyed
+corruption-detecting SHA-256 checksum (it detects accidental corruption — a rescale,
+a recompression, a flipped bit — not a deliberate forgery; there is no secret key).
+The shared verifier extracts the payload, checks the SHA-256 checksum, validates the
+record fields, and reports the same short signature shown on the HUD:
 
 ```bash
 uv run python scripts/verify_provenance_strip.py output/live/telemetry_hud.png --json

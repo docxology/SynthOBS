@@ -42,7 +42,7 @@ ISA.md               Ideal State Artifact — system of record
 uv run pytest projects/working/SynthOBS/tests/ --cov=synthobs --cov-report=term-missing
 ```
 
-1136 tests, **98.37%** coverage, no mocks (HTTP exercised via `pytest-httpserver`,
+1161 tests, **98.51%** coverage, no mocks (HTTP exercised via `pytest-httpserver`,
 real numeric examples, fixed seeds).
 
 Lean invariant scaffold:
