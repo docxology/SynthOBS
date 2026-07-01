@@ -192,7 +192,50 @@ def test_parse_solar_regions_counts_latest_date_only() -> None:
         + [{"observed_date": "2026-06-10", "region": 4467 + i} for i in range(3)]
     )
     # must return 3 (latest date), NOT 23 (all records) — the over-count bug.
-    assert parse_noaa_solar_regions(feed) == 3
+    # `now` is pinned near the latest observed_date so the freshness guard passes
+    # deterministically regardless of the wall clock.
+    now = datetime(2026, 6, 10, 12, 0, 0, tzinfo=timezone.utc)
+    assert parse_noaa_solar_regions(feed, now=now) == 3
+
+
+def test_parse_solar_regions_selects_latest_by_parsed_date_not_lexical() -> None:
+    from synthobs.telemetry import parse_noaa_solar_regions
+
+    now = datetime(2026, 6, 10, 12, 0, 0, tzinfo=timezone.utc)
+    # Rows are shuffled and include a duplicate spelling of the latest day
+    # ("2026-06-10" and "2026-06-10T00:00:00" both parse to the same date). The
+    # latest date (2026-06-10) has 3 records total; older dates must be ignored.
+    # A naive lexical max() over raw strings would mis-rank "2026-06-10T00:00:00"
+    # vs "2026-06-10" and could under/over-count; parsed-date comparison must not.
+    feed = [
+        {"observed_date": "2026-06-10", "region": 4467},
+        {"observed_date": "2026-06-01", "region": 4450},
+        {"observed_date": "2026-06-10T00:00:00", "region": 4468},
+        {"observed_date": "2026-06-09", "region": 4460},
+        {"observed_date": "2026-06-10", "region": 4469},
+        {"observed_date": "2026-06-01", "region": 4451},
+    ]
+    assert parse_noaa_solar_regions(feed, now=now) == 3
+
+
+def test_parse_solar_regions_rejects_stale_feed() -> None:
+    from synthobs.telemetry import parse_noaa_solar_regions
+
+    # Latest date is ~10 days before `now` — well past the 3-day regions window.
+    now = datetime(2026, 6, 20, 12, 0, 0, tzinfo=timezone.utc)
+    feed = [{"observed_date": "2026-06-10", "region": 4467 + i} for i in range(3)]
+    with pytest.raises(TelemetryUnavailable, match="stale"):
+        parse_noaa_solar_regions(feed, now=now)
+
+
+def test_parse_solar_regions_rejects_future_feed() -> None:
+    from synthobs.telemetry import parse_noaa_solar_regions
+
+    now = datetime(2026, 6, 1, 12, 0, 0, tzinfo=timezone.utc)
+    # Latest date is ~9 days in the future relative to `now`.
+    feed = [{"observed_date": "2026-06-10", "region": 4467 + i} for i in range(2)]
+    with pytest.raises(TelemetryUnavailable, match="future"):
+        parse_noaa_solar_regions(feed, now=now)
 
 
 @pytest.mark.parametrize("bad", ["not json", "[]", '[{"region": 1}]', '{"observed_date": "x"}'])
@@ -213,6 +256,24 @@ def test_parse_solar_wind_happy_path() -> None:
 def test_parse_solar_wind_uses_last_row() -> None:
     wind = parse_noaa_solar_wind(_wind_feed("612.3"))
     assert wind.speed_kms == pytest.approx(612.3)  # last row, not the 480 first row
+
+
+def test_parse_solar_wind_selects_latest_by_timestamp_not_position() -> None:
+    # The most recent reading (by time_tag) is NOT the last array row here, and a
+    # duplicate-timestamp row is present. Selecting by array position (data[-1])
+    # would return the stale 400.0 reading; parsing timestamps must return 590.0.
+    now = datetime(2026, 6, 10, 12, 0, 0, tzinfo=timezone.utc)
+    feed = json.dumps(
+        [
+            ["time_tag", "density", "speed", "temperature"],
+            ["2026-06-10 11:59:00", "4.5", "590.0", "1.2e5"],  # newest, mid-array
+            ["2026-06-10 11:58:00", "4.2", "540.0", "1.1e5"],  # duplicate-ish older
+            ["2026-06-10 11:57:00", "4.0", "400.0", "1.0e5"],  # oldest, but LAST
+        ]
+    )
+    wind = parse_noaa_solar_wind(feed, now=now)
+    assert wind.speed_kms == pytest.approx(590.0)
+    assert wind.density == pytest.approx(4.5)
 
 
 def test_parse_solar_wind_bad_density_is_optional() -> None:

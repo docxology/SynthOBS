@@ -30,7 +30,7 @@ cd projects/working/SynthOBS
 PYTHONPATH="$PWD/src" python -m pytest tests/ -q
 ```
 
-Current state: **1136 passed**, **98.37 % coverage** (≥ 90 % gate).
+Current state: **1167 passed**, **98.51 % coverage** (≥ 90 % gate).
 
 ```bash
 # with coverage gate
@@ -46,28 +46,29 @@ the one annotated in that file's own test bodies where an ISC range applies.
 
 The **Tests** column is the *collected* count (parametrized cases expand — e.g.
 `test_constants_and_layout.py` fans geometry invariants across the φ grid into 742
-cases), so the column sums to the full 1136-test suite.
+cases), so the column sums to the full 1167-test suite.
 
 | File                                     | Tests | ISCs         | Covers                                                                                                  |
 | ---------------------------------------- | ----: | ------------ | ------------------------------------------------------------------------------------------------------- |
 | `tests/test_constants_and_layout.py`     |   742 | 1–2, 3–10    | φ constants single-source + Goldilocks split, recursive subdivision, spiral, viewport tiling            |
-| `tests/test_telemetry.py`                |    36 | 11–18        | fail-closed NOAA F10.7, solar-wind, and non-finite telemetry parsing                                    |
+| `tests/test_telemetry.py`                |    37 | 11–18        | fail-closed NOAA F10.7, solar-wind, and non-finite telemetry parsing                                    |
 | `tests/test_swo_and_dsp.py`              |    61 | 19–32        | oscillator phase formula + Hold State; φ soft limiter, post-limiter audio envelope, scale matrix, calibrated dims |
 | `tests/test_console_and_commands.py`     |    46 | 33–48        | 3 modes × 7 buttons + `/mode`, `/transducer`, `/swo`, `/dashboard`, fail-closed parsing                 |
 | `tests/test_engine.py`                   |    10 | 49–54        | calibrate / hold, layout, pre-calibration modulation refusal                                            |
-| `tests/test_gateway_and_interference.py` |    40 | 91–110       | EGS gateway key K_EGS, `lock_strength = \|cos(phase_bias)\|`, holographic verdict, live solar-wind feed |
+| `tests/test_gateway_and_interference.py` |    44 | 91–110       | EGS gateway key K_EGS, `lock_strength = \|cos(phase_bias)\|`, holographic verdict, live solar-wind feed |
 | `tests/test_solar_series.py`             |    15 | —            | NOAA plasma, GOES X-ray, and Kp time-series parsers for Solar Graph metrics                            |
 | `tests/test_history.py`                  |    32 | —            | bounded telemetry history, eviction, normalization, and latest-sample behavior                          |
-| `tests/test_provenance.py`               |    47 | —            | telemetry record packing, SHA checksum, LSB/visible-signature contracts, tamper evidence, fail-closed validation |
+| `tests/test_provenance.py`               |    47 | —            | telemetry record packing, SHA (unkeyed) corruption-detecting checksum, LSB/visible-signature contracts, integrity + fail-closed validation |
 | `tests/test_provenance_verify_tool.py`   |     5 | —            | real PNG provenance-strip verification, RGB/RGBA screenshot handling, CLI signature mismatch rejection  |
 | `tests/test_interaction_and_layers.py`   |    24 | —            | seven feed targets, layer rail, marker drop, dashboard plans, dashboard command dry-runs                |
 | `tests/test_plugin_artifacts.py`         |    21 | 55–64, 93–94 | native C plugin/source static structure, audio-reactive uniforms + envelope release hold, X-ray/Kp wiring, graph axes, inspector, dock, obspython bridge, φ/K_EGS pins |
-| `tests/test_fail_closed_fuzz.py`         |    37 | 145–154      | adversarial NaN/±Inf battery across parser, telemetry, gateway, SWO, interaction, and provenance boundaries |
-| `tests/test_docs_contracts.py`           |     4 | —            | markdown links, generated figure manifest, and stale status-baseline guards                             |
-| `tests/test_lean_invariants.py`          |     2 | —            | Lean scaffold has no `sorry` / custom `axiom`, and `lake build` passes when Lake is available           |
+| `tests/test_fail_closed_fuzz.py`         |    45 | 145–154, 183 | adversarial NaN/±Inf battery across parser, telemetry (incl. the sunspots `int()` boundary), Kp, gateway, SWO, interaction, and provenance boundaries, with positive controls |
+| `tests/test_c_parity_behavioral.py`      |    14 | 57–58        | compiles the real C `phi_soft_limit_sample` kernel and asserts it matches the Python curve across an adversarial grid (execution, not token-grep) |
+| `tests/test_docs_contracts.py`           |     6 | —            | markdown links, generated figure manifest, stale status-baseline guards, a measured-vs-documented test-count check, and the stdlib-only-engine packaging guard |
+| `tests/test_lean_invariants.py`          |     3 | —            | Lean scaffold has no `sorry` / custom `axiom`, `lake build` passes when Lake is available, and the Lean φ/K_EGS literals are bound to the Python constants |
 | `tests/test_obs_scenario_probe.py`       |     3 | —            | live scenario manifest schema, skip semantics, and `--require-live` exit behavior                       |
 | `tests/test_verification.py`             |    11 | —            | audio-meter ROI delta oracle, live-gate result validation, and fail-closed `ValueError` guards (bad metrics, dims, channels, ROI) — 100% of `verification.py` |
-| **Total**                                | **1136** |          |                                                                                                         |
+| **Total**                                | **1161** |          |                                                                                                         |
 
 ## The no-mocks policy
 

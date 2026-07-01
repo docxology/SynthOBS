@@ -1,12 +1,20 @@
 """Steganographic provenance for the live SynthOBS overlay.
 
-This module lets a rendered overlay frame carry verifiable, hidden,
-tamper-evident proof of the live solar telemetry it was generated from. A
-compact :class:`TelemetryRecord` is packed into a fixed-length, byte-exact
-little-endian struct, fingerprinted with SHA-256, and embedded into the
-least-significant bit of the BLUE channel of an RGBA frame buffer. The
-embedded payload carries a 4-byte truncated-SHA-256 checksum so any single
-flipped bit in the recovered payload is detected on extraction.
+This module lets a rendered overlay frame carry a hidden, self-describing record
+of the live solar telemetry it was generated from. A compact
+:class:`TelemetryRecord` is packed into a fixed-length, byte-exact little-endian
+struct, fingerprinted with SHA-256, and embedded into the least-significant bit of
+the BLUE channel of an RGBA frame buffer. The embedded payload carries a 4-byte
+truncated-SHA-256 checksum so any accidental corruption — a single flipped bit, a
+rescale, a recompression — is detected on extraction.
+
+**Honest scope (epistemic tag).** This is a *corruption-detecting checksum*, NOT a
+forgery-resistant signature. The checksum is unkeyed: anyone who can write the
+payload can also recompute a matching checksum, so a deliberately fabricated record
+verifies as "intact". It proves the recovered bytes were not *accidentally* mangled
+in transit/compositing — it does NOT prove authenticity or provenance against a
+motivated forger. A real authenticity guarantee would require an HMAC/signature
+keyed by a secret the verifier holds; that is deliberately out of scope here.
 
 The native C plugin (``plugin/fractisynth``) mirrors this logic. To keep the
 mirror trivial the algorithm is integer/byte-exact, uses only stdlib, and the
@@ -50,7 +58,7 @@ __all__ = [
 
 
 class ProvenanceError(Exception):
-    """Raised on a tamper-evident failure or malformed provenance data.
+    """Raised on a checksum/integrity failure or malformed provenance data.
 
     Covers checksum mismatch, truncated/oversized payloads, buffers too small
     to embed into, and invalid extracted records.
@@ -290,7 +298,17 @@ def embed_lsb(rgba: bytearray, width: int, height: int, payload: bytes) -> None:
 
 
 def _read_blue_bits(rgba: bytes, start_pixel: int, n_bits: int) -> bytes:
-    """Read ``n_bits`` blue LSBs (MSB-first) starting at ``start_pixel`` -> bytes."""
+    """Read ``n_bits`` blue LSBs (MSB-first) starting at ``start_pixel`` -> bytes.
+
+    ``n_bits`` must be a whole number of bytes: ``bytearray(n_bits // 8)`` would
+    otherwise round down and silently drop the trailing partial byte, corrupting
+    the recovered payload. Consistent with this module's fail-closed posture, a
+    non-byte-aligned request raises :class:`ProvenanceError` rather than truncating.
+    """
+    if n_bits % 8 != 0:
+        raise ProvenanceError(
+            f"n_bits must be a multiple of 8 (whole bytes), got {n_bits}"
+        )
     out = bytearray(n_bits // 8)
     for bit_index in range(n_bits):
         blue_pos = (start_pixel + bit_index) * 4 + 2

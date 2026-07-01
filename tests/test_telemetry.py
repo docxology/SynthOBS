@@ -150,6 +150,21 @@ def test_parse_noaa_f107_latest() -> None:
     assert observed.year == 2026 and observed.day == 10
 
 
+def test_parse_noaa_f107_selects_latest_by_timestamp_not_position() -> None:
+    # Records are shuffled (newest is NOT last) and include a duplicate time_tag.
+    # Selecting by array position (data[-1]) would return the stale 118.0 reading;
+    # parsing time_tags must return the 2026-06-10 value (135.9).
+    data = [
+        {"time_tag": "2026-06-10T00:00:00", "flux": 135.9},  # newest, mid-array
+        {"time_tag": "2026-06-08T00:00:00", "flux": 120.0},  # duplicate day below
+        {"time_tag": "2026-06-08T00:00:00", "flux": 121.0},
+        {"time_tag": "2026-06-07T00:00:00", "flux": 118.0},  # oldest, but LAST
+    ]
+    flux, observed = parse_noaa_f107_flux(data)
+    assert flux == 135.9
+    assert observed.year == 2026 and observed.month == 6 and observed.day == 10
+
+
 def test_parse_noaa_f107_as_text() -> None:
     text = json.dumps([{"time_tag": "2026-06-10T00:00:00Z", "flux": 99.5}])
     flux, _ = parse_noaa_f107_flux(text)

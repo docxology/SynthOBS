@@ -41,6 +41,7 @@ __all__ = [
     "NOAA_SOLAR_WIND_URL",
     "parse_noaa_solar_regions",
     "NOAA_SOLAR_REGIONS_URL",
+    "DEFAULT_REGIONS_MAX_AGE_S",
     "parse_noaa_plasma_series",
     "parse_noaa_xray_flux",
     "parse_noaa_kp_index",
@@ -48,8 +49,19 @@ __all__ = [
 
 NOAA_SOLAR_REGIONS_URL: str = "https://services.swpc.noaa.gov/json/solar_regions.json"
 
+# The solar-regions feed is daily (one ``observed_date`` per day), so its freshness
+# bound is deliberately coarser than the intraday flux/wind feeds' 3-hour window: a
+# reading older than this is treated as a dead/stalled feed and fails closed rather
+# than silently driving the SWO phase vector with a week-old active-region count.
+DEFAULT_REGIONS_MAX_AGE_S: float = 3 * 24 * 60 * 60  # 3 days
 
-def parse_noaa_solar_regions(data: Any) -> int:
+
+def parse_noaa_solar_regions(
+    data: Any,
+    *,
+    max_age_s: float = DEFAULT_REGIONS_MAX_AGE_S,
+    now: datetime | None = None,
+) -> int:
     """Count active solar regions on the LATEST observed_date in NOAA's
     ``solar_regions.json`` (one record per numbered region per day).
 
@@ -57,8 +69,17 @@ def parse_noaa_solar_regions(data: Any) -> int:
     NOT the raw record count over the ~month the feed spans, and NOT the hundreds
     of per-station observation rows in the separate ``sunspot_report.json``. It
     mirrors the native plugin's ``extract_active_region_count`` so the SWO phase
-    vector (``φ·flux/spots``) divides by a correct, stable count. Raises
-    :class:`TelemetryUnavailable` on an empty/malformed payload (fail closed).
+    vector (``φ·flux/spots``) divides by a correct, stable count.
+
+    The "latest" date is chosen by actually parsing each ``observed_date`` into a
+    timestamp and taking the maximum — never by a lexical ``max()`` over raw
+    strings, which would silently pick the wrong record if the feed ever changes
+    its date format or is delivered out of order. The latest reading must also be
+    no older than ``max_age_s`` (fail closed on a stalled feed).
+
+    Raises :class:`TelemetryUnavailable` on an empty/malformed payload, when no
+    record carries a parseable ``observed_date``, or when the latest date is
+    stale/in the future.
     """
     if isinstance(data, (str, bytes)):
         try:
@@ -67,17 +88,53 @@ def parse_noaa_solar_regions(data: Any) -> int:
             raise TelemetryUnavailable("solar-regions payload is not valid JSON") from exc
     if not isinstance(data, list) or not data:
         raise TelemetryUnavailable("solar-regions payload must be a non-empty array")
-    dates = [
-        r.get("observed_date")
-        for r in data
-        if isinstance(r, dict) and r.get("observed_date")
-    ]
-    if not dates:
-        raise TelemetryUnavailable("solar-regions payload missing observed_date")
-    latest = max(dates)
-    count = sum(
-        1 for r in data if isinstance(r, dict) and r.get("observed_date") == latest
-    )
+
+    # Select the latest observed_date by parsing timestamps, not by lexical string
+    # comparison, so a reordered feed (or a changed date format) cannot yield a
+    # stale-but-structurally-valid count.
+    latest_dt: datetime | None = None
+    for r in data:
+        if not isinstance(r, dict):
+            continue
+        raw = r.get("observed_date")
+        if not raw:
+            continue
+        try:
+            dt = _parse_time_tag(raw)
+        except TelemetryUnavailable:
+            continue
+        if latest_dt is None or dt > latest_dt:
+            latest_dt = dt
+    if latest_dt is None:
+        raise TelemetryUnavailable(
+            "solar-regions payload missing a parseable observed_date"
+        )
+
+    now = now or datetime.now(timezone.utc)
+    age = (now - latest_dt).total_seconds()
+    if age > max_age_s:
+        raise TelemetryUnavailable(
+            f"solar-regions is stale: age {age:.0f}s > max {max_age_s:.0f}s"
+        )
+    if age < -max_age_s:
+        raise TelemetryUnavailable(
+            f"solar-regions timestamp is in the future by {-age:.0f}s"
+        )
+
+    # Count by parsed-date equality (not raw-string equality) so duplicate rows
+    # that spell the same day differently still aggregate onto the latest date.
+    count = 0
+    for r in data:
+        if not isinstance(r, dict):
+            continue
+        raw = r.get("observed_date")
+        if not raw:
+            continue
+        try:
+            if _parse_time_tag(raw) == latest_dt:
+                count += 1
+        except TelemetryUnavailable:
+            continue
     if count <= 0:
         raise TelemetryUnavailable("solar-regions: no regions on the latest date")
     return count
@@ -133,9 +190,12 @@ def _parse_time_tag(raw: Any) -> datetime:
 def parse_noaa_f107_flux(data: Any) -> tuple[float, datetime]:
     """Extract the latest F10.7 flux + time from NOAA's real array payload.
 
-    NOAA returns ``[{"time_tag": "...", "flux": 130.4}, ...]`` ordered oldest→newest.
+    NOAA returns ``[{"time_tag": "...", "flux": 130.4}, ...]`` nominally ordered
+    oldest→newest. The most recent record is chosen by actually parsing each
+    ``time_tag`` and taking the maximum — never by array position (``data[-1]``),
+    which would silently return a stale value if the feed were ever reordered.
     Returns the most recent ``(flux, observed_at)``; fails closed on empty/invalid
-    data or non-positive flux.
+    data, a missing valid time_tag, or non-positive/non-finite flux.
     """
     if isinstance(data, (str, bytes)):
         try:
@@ -144,8 +204,28 @@ def parse_noaa_f107_flux(data: Any) -> tuple[float, datetime]:
             raise TelemetryUnavailable("F10.7 payload is not valid JSON") from exc
     if not isinstance(data, list) or not data:
         raise TelemetryUnavailable("F10.7 payload is empty or not a list")
-    latest = data[-1]
-    if not isinstance(latest, dict) or "flux" not in latest:
+
+    # Select the most recent record by parsed time_tag, not by array position, so a
+    # reordered feed cannot yield a stale-but-structurally-valid reading.
+    latest: dict[str, Any] | None = None
+    latest_time: datetime | None = None
+    for record in data:
+        if not isinstance(record, dict):
+            continue
+        raw_time = record.get("time_tag")
+        if not raw_time:
+            continue
+        try:
+            observed = _parse_time_tag(raw_time)
+        except TelemetryUnavailable:
+            continue
+        if latest_time is None or observed > latest_time:
+            latest_time = observed
+            latest = record
+    if latest is None or latest_time is None:
+        raise TelemetryUnavailable("F10.7 payload has no record with a valid time_tag")
+
+    if "flux" not in latest:
         raise TelemetryUnavailable(f"F10.7 record missing flux: {latest!r}")
     try:
         flux = float(latest["flux"])
@@ -153,8 +233,7 @@ def parse_noaa_f107_flux(data: Any) -> tuple[float, datetime]:
         raise TelemetryUnavailable(f"F10.7 flux not numeric: {latest!r}") from exc
     if not math.isfinite(flux) or flux <= 0.0:
         raise TelemetryUnavailable(f"F10.7 flux must be finite and positive, got {flux}")
-    observed = _parse_time_tag(latest.get("time_tag"))
-    return flux, observed
+    return flux, latest_time
 
 
 def telemetry_from_payload(
@@ -187,9 +266,12 @@ def telemetry_from_payload(
         raise TelemetryUnavailable("telemetry payload missing flux/sunspots")
     try:
         flux = float(payload["flux"])
+        # int(float('inf')) raises OverflowError (NOT a ValueError) — without it a JSON-legal
+        # `Infinity` sunspots rides past this guard and crashes ingestion instead of failing
+        # closed. json.loads accepts the `Infinity` literal, so this boundary is load-bearing.
         sunspots = int(payload["sunspots"])
-    except (TypeError, ValueError) as exc:
-        raise TelemetryUnavailable(f"telemetry flux/sunspots not numeric: {payload!r}") from exc
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise TelemetryUnavailable(f"telemetry flux/sunspots not numeric or finite: {payload!r}") from exc
 
     # Fail-closed enforcement — block stale, default, zeroed, or non-finite indicators.
     # NaN/Inf are JSON-legal (json.loads accepts NaN/Infinity) and silently pass a bare
@@ -240,10 +322,12 @@ def parse_noaa_solar_wind(
 
     The feed is an array of arrays: row 0 is the header
     ``["time_tag", "density", "speed", "temperature"]`` and subsequent rows are
-    data; the *last* data row is the present reading. Raises
-    :class:`TelemetryUnavailable` when: not a non-empty array of rows; the speed
-    column is missing/non-numeric; ``speed <= 0``; the timestamp is missing/
-    malformed; or the reading is older than ``max_age_s``.
+    data. The present reading is the row with the maximum parsed ``time_tag`` —
+    chosen by parsing timestamps rather than trusting the array's last position,
+    so a reordered feed cannot yield a stale-but-structurally-valid reading.
+    Raises :class:`TelemetryUnavailable` when: not a non-empty array of rows; the
+    speed column is missing/non-numeric; ``speed <= 0``; no row carries a valid
+    timestamp; or the latest reading is older than ``max_age_s``.
     """
     if isinstance(data, (str, bytes)):
         try:
@@ -263,8 +347,23 @@ def parse_noaa_solar_wind(
         raise TelemetryUnavailable(f"solar-wind header missing columns: {header!r}") from exc
     density_col = header.index("density") if "density" in header else None
 
-    last = data[-1]
-    if not isinstance(last, list) or len(last) <= speed_col:
+    # Select the most recent data row by parsing its time_tag, not by array
+    # position, so a reordered feed cannot yield a stale-but-valid reading.
+    last: list[Any] | None = None
+    last_time: datetime | None = None
+    for row in data[1:]:
+        if not isinstance(row, list) or len(row) <= time_col:
+            continue
+        try:
+            observed = _parse_time_tag(row[time_col])
+        except TelemetryUnavailable:
+            continue
+        if last_time is None or observed > last_time:
+            last_time = observed
+            last = row
+    if last is None or last_time is None:
+        raise TelemetryUnavailable("solar-wind payload has no row with a valid time_tag")
+    if len(last) <= speed_col:
         raise TelemetryUnavailable(f"solar-wind data row malformed: {last!r}")
 
     try:
@@ -285,7 +384,7 @@ def parse_noaa_solar_wind(
         if density is not None and not math.isfinite(density):
             density = None
 
-    observed = _parse_time_tag(last[time_col] if len(last) > time_col else None)
+    observed = last_time
     now = now or datetime.now(timezone.utc)
     age = (now - observed).total_seconds()
     if age > max_age_s:
@@ -418,10 +517,15 @@ def parse_noaa_xray_flux(data: Any, band: str = "0.1-0.8nm") -> list[float]:
 
 
 def parse_noaa_kp_index(data: Any) -> list[float]:
-    """Parse the 1-min estimated planetary Kp series -> list[float] (0..9).
+    """Parse the 1-min estimated planetary Kp series -> list[float].
 
-    Reads ``estimated_kp`` from each record (Kp may legitimately be 0). Mirrors
-    the native ``parse_kp_series``. Fail-closed on an empty/malformed feed.
+    Reads ``estimated_kp`` from each record (Kp may legitimately be 0). The
+    nominal Kp scale runs 0..9, but this guard admits values up to 12.0: NOAA's
+    *estimated* planetary Kp is a real-time approximation that can transiently
+    overshoot the 9 ceiling of the definitive index, so accepting the overshoot
+    avoids silently dropping a live storm reading. Records whose ``estimated_kp``
+    falls outside ``[0.0, 12.0]`` (or is non-numeric) are skipped. Mirrors the
+    native ``parse_kp_series``. Fail-closed on an empty/malformed feed.
     """
     if isinstance(data, (str, bytes)):
         try:

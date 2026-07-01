@@ -392,3 +392,20 @@ def test_record_is_frozen() -> None:
     rec = _record()
     with pytest.raises(Exception):
         rec.flux = 1.0  # type: ignore[misc]
+
+
+def test_read_blue_bits_rejects_non_byte_aligned_count() -> None:
+    """A non-multiple-of-8 bit count must fail closed, not silently truncate.
+
+    ``bytearray(n_bits // 8)`` rounds down, so requesting 12 bits would size a
+    1-byte buffer and drop the trailing 4 bits. The guard raises instead.
+    """
+    from synthobs.provenance import _read_blue_bits
+
+    rgba = bytes(4 * 8)  # 8 pixels, enough blue LSBs for the read attempt
+    for bad in (1, 7, 12, 15):
+        with pytest.raises(ProvenanceError, match="multiple of 8"):
+            _read_blue_bits(rgba, 0, bad)
+
+    # A byte-aligned request on the same buffer still works (no false positive).
+    assert _read_blue_bits(rgba, 0, 8) == b"\x00"
