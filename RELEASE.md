@@ -2,11 +2,18 @@
 
 ## Status
 
-Version `1.618.0` is a publication candidate, not yet a public release. The
-canonical target is [`github.com/docxology/SynthOBS`](https://github.com/docxology/SynthOBS).
-On 2026-07-17 the remote was verified as private, and this local publication
-sidecar contains uncommitted release changes. Do not label the artifact public v1
-until the intended source is committed, pushed, publicly cloneable, and tagged.
+Version `1.618.0` is the public v1 release. The canonical source is
+[`github.com/docxology/SynthOBS`](https://github.com/docxology/SynthOBS). On
+2026-07-17 the remote was flipped from private to public, tag `v1.618.0` was
+pushed, and the [GitHub release](https://github.com/docxology/SynthOBS/releases/tag/v1.618.0)
+was published with the regenerated PDF/HTML and built package attached. A
+hardcoded OBS WebSocket default-password default (present in earlier commits'
+`scripts/obs_scenario_probe.py` / `scripts/obs_ws_probe.py`) was scrubbed from
+the entire git history via `git filter-repo` and force-pushed before the
+visibility flip; the working-tree fix (empty-string default, requires
+`OBS_WEBSOCKET_PASSWORD` or `--password`) landed in the same commit that opened
+this release. The archival deposit is minted: DOI
+[`10.5281/zenodo.21418688`](https://doi.org/10.5281/zenodo.21418688).
 
 The author affiliation is **FractiAI / Active Inference Institute**. The repository
 is intended to be the canonical public source for the Python engine, native OBS
@@ -98,7 +105,10 @@ coverage, and per-filter/per-feed visual captures remain scoped in [`TODO.md`](T
 
 ## Release decision
 
-The candidate is technically reproducible locally, but it is **not yet full public
-v1** while the remote remains private and the source changes are uncommitted. The
-public-v1 decision becomes affirmative after the owner completes the repository
-visibility, commit/tag, clean-clone, and release-artifact gates above.
+**Public v1 is affirmative.** All gates above are satisfied: the repository is
+public, `v1.618.0` is tagged and released with the regenerated PDF/HTML and
+built package attached, the clean-clone preflight passes (1217 tests,
+96.09% coverage), and DOI `10.5281/zenodo.21418688` archives the exact tagged
+source and artifacts. Remaining scope (`SYNTHOBS-OBS-CI`,
+`SYNTHOBS-OBS-INTERACTION`, `SYNTHOBS-LIVE-MATRIX`, `SYNTHOBS-FILTER-VISUALS`)
+is tracked forward work in [`TODO.md`](TODO.md), not a blocker to this release.

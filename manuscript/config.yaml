@@ -19,6 +19,8 @@ publication:
   github_repository: "docxology/SynthOBS"
   journal: "Technical Design Blueprint"
   year: "2026"
+  doi: "10.5281/zenodo.21418688"
+  release_url: "https://github.com/docxology/SynthOBS/releases/tag/v1.618.0"
 
 keywords:
   - "OBS Studio"

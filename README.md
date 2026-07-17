@@ -25,13 +25,14 @@ obspython script imports the engine.
 
 ## Public v1 distribution
 
-The planned public home for SynthOBS is
-[`github.com/docxology/SynthOBS`](https://github.com/docxology/SynthOBS). The
-repository is intended to be the canonical source for the Python engine, native
-FractiSynth OBS module, obspython bridge, tests, installation and usage guides,
-manuscript, citation metadata, and versioned OBS evidence. The current checkout is
-the local publication sidecar; public-release gates and clean-clone instructions
-are tracked in [`RELEASE.md`](RELEASE.md).
+SynthOBS is public at
+[`github.com/docxology/SynthOBS`](https://github.com/docxology/SynthOBS), the
+canonical source for the Python engine, native FractiSynth OBS module, obspython
+bridge, tests, installation and usage guides, manuscript, citation metadata, and
+versioned OBS evidence. Release `v1.618.0` is tagged and published:
+[GitHub release](https://github.com/docxology/SynthOBS/releases/tag/v1.618.0) ·
+[Zenodo archival deposit, DOI 10.5281/zenodo.21418688](https://doi.org/10.5281/zenodo.21418688).
+Release gates and clean-clone instructions are in [`RELEASE.md`](RELEASE.md).
 
 Author affiliation: **FractiAI / Active Inference Institute**.
 
@@ -114,16 +115,15 @@ metadata is in [`CITATION.cff`](CITATION.cff).
 
 ### How to cite
 
-For the current candidate, cite the exact version or commit:
-
 ```text
 Friedman, Daniel Ari. SynthOBS & FractiSynth v1.618.0. FractiAI /
-Active Inference Institute. https://github.com/docxology/SynthOBS
+Active Inference Institute. https://github.com/docxology/SynthOBS/releases/tag/v1.618.0
+DOI: 10.5281/zenodo.21418688
 ```
 
-After the public tag exists, use the `v1.618.0` release URL and the archival DOI
-when one has been minted. See [`docs/scholarship.md`](docs/scholarship.md) for the
-claim-to-evidence and version-specific citation policy.
+See [`docs/scholarship.md`](docs/scholarship.md) for the claim-to-evidence and
+version-specific citation policy, and [`CITATION.cff`](CITATION.cff) for
+machine-readable citation metadata.
 
 ## Future work
 

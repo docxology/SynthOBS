@@ -1,16 +1,22 @@
 cff-version: 1.2.0
 title: "SynthOBS & FractiSynth: A Golden-Ratio OBS Broadcast Console and Native Transducer"
 type: software
-message: "If you use SynthOBS or FractiSynth, cite the exact version or commit, this repository, and the supporting sources listed below. Add the archival DOI when the public release is deposited."
+message: "If you use SynthOBS or FractiSynth, cite the exact version or commit, this repository, the archival DOI, and the supporting sources listed below."
 authors:
   - family-names: Friedman
     given-names: Daniel Ari
     affiliation: FractiAI / Active Inference Institute
     orcid: "https://orcid.org/0000-0001-6232-9096"
 version: "1.618.0"
+date-released: "2026-07-17"
+doi: "10.5281/zenodo.21418688"
 repository-code: "https://github.com/docxology/SynthOBS"
-url: "https://github.com/docxology/SynthOBS"
+url: "https://github.com/docxology/SynthOBS/releases/tag/v1.618.0"
 license: MIT
+identifiers:
+  - type: doi
+    value: "10.5281/zenodo.21418688"
+    description: "Archival deposit (Zenodo) for the v1.618.0 public release"
 keywords:
   - OBS Studio
   - libobs
