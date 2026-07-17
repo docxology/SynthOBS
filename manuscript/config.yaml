@@ -19,7 +19,11 @@ publication:
   github_repository: "docxology/SynthOBS"
   journal: "Technical Design Blueprint"
   year: "2026"
-  doi: "10.5281/zenodo.21418688"
+  # Concept DOI: stable across all versions, always resolves to the latest
+  # Zenodo deposit. Use this (not a version-specific DOI) as the citable
+  # identifier printed on the manuscript cover, since it cannot change out
+  # from under a rendered PDF the way a version DOI can.
+  doi: "10.5281/zenodo.21418687"
   release_url: "https://github.com/docxology/SynthOBS/releases/tag/v1.618.0"
 
 keywords:

@@ -31,7 +31,9 @@ canonical source for the Python engine, native FractiSynth OBS module, obspython
 bridge, tests, installation and usage guides, manuscript, citation metadata, and
 versioned OBS evidence. Release `v1.618.0` is tagged and published:
 [GitHub release](https://github.com/docxology/SynthOBS/releases/tag/v1.618.0) ·
-[Zenodo archival deposit, DOI 10.5281/zenodo.21418688](https://doi.org/10.5281/zenodo.21418688).
+[Zenodo archival deposit, DOI 10.5281/zenodo.21418687](https://doi.org/10.5281/zenodo.21418687)
+(concept DOI, always resolves to the latest archived version — the exact
+`v1.618.0` deposit is `10.5281/zenodo.21418901`).
 Release gates and clean-clone instructions are in [`RELEASE.md`](RELEASE.md).
 
 Author affiliation: **FractiAI / Active Inference Institute**.
@@ -118,7 +120,7 @@ metadata is in [`CITATION.cff`](CITATION.cff).
 ```text
 Friedman, Daniel Ari. SynthOBS & FractiSynth v1.618.0. FractiAI /
 Active Inference Institute. https://github.com/docxology/SynthOBS/releases/tag/v1.618.0
-DOI: 10.5281/zenodo.21418688
+DOI: 10.5281/zenodo.21418687
 ```
 
 See [`docs/scholarship.md`](docs/scholarship.md) for the claim-to-evidence and

@@ -9,14 +9,17 @@ authors:
     orcid: "https://orcid.org/0000-0001-6232-9096"
 version: "1.618.0"
 date-released: "2026-07-17"
-doi: "10.5281/zenodo.21418688"
+doi: "10.5281/zenodo.21418687"
 repository-code: "https://github.com/docxology/SynthOBS"
 url: "https://github.com/docxology/SynthOBS/releases/tag/v1.618.0"
 license: MIT
 identifiers:
   - type: doi
-    value: "10.5281/zenodo.21418688"
-    description: "Archival deposit (Zenodo) for the v1.618.0 public release"
+    value: "10.5281/zenodo.21418687"
+    description: "Zenodo concept DOI — always resolves to the latest archival deposit"
+  - type: doi
+    value: "10.5281/zenodo.21418901"
+    description: "Zenodo version DOI for the exact v1.618.0 archival deposit"
 keywords:
   - OBS Studio
   - libobs

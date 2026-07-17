@@ -12,9 +12,14 @@ hardcoded OBS WebSocket default-password default (present in earlier commits'
 the entire git history via `git filter-repo` and force-pushed before the
 visibility flip; the working-tree fix (empty-string default, requires
 `OBS_WEBSOCKET_PASSWORD` or `--password`) landed in the same commit that opened
-this release. The archival deposit is minted: DOI
-[`10.5281/zenodo.21418688`](https://doi.org/10.5281/zenodo.21418688). The
-repository is also mirrored on Software Heritage:
+this release. The archival deposit's concept DOI (stable across versions) is
+[`10.5281/zenodo.21418687`](https://doi.org/10.5281/zenodo.21418687); the exact
+`v1.618.0` version deposit is `10.5281/zenodo.21418901`. The manuscript cover
+page embeds the concept DOI directly (see "Publication order" below for why
+version 1 of the deposit — `10.5281/zenodo.21418688` — was superseded: its PDF
+was published before the DOI existed, so it could only reference the DOI
+externally, not print it on its own cover). The repository is also mirrored on
+Software Heritage:
 [`swh:1:snp:282b236c662b3caf77d823f175b4d3af35e568e2`](https://archive.softwareheritage.org/swh:1:snp:282b236c662b3caf77d823f175b4d3af35e568e2/).
 
 The author affiliation is **FractiAI / Active Inference Institute**. The repository
@@ -34,6 +39,43 @@ The public repository must include, in one inspectable source tree:
 
 `output/` is regeneratable and ignored by source control. The final PDF and HTML
 should be regenerated from the committed tree and attached to the GitHub release.
+
+## Publication order (entrenched — follow this for every future version)
+
+A DOI-bearing manuscript has a chicken-and-egg problem: the DOI cannot be
+printed on the cover before it exists, but the artifact deposited under that
+DOI should be the one with the DOI printed on it. The correct order:
+
+1. **Reserve** a Zenodo DOI before publishing anything (`prereserve_doi` on
+   deposit creation, or — as here — read the **concept DOI** off an existing
+   deposit lineage; the concept DOI is fixed at first-version creation and
+   never changes across later versions, so once one exists it can be embedded
+   safely in every future render).
+2. **Embed** that DOI in `manuscript/config.yaml`'s `publication.doi` field —
+   the render pipeline's `_publication_doi_line()` (`infrastructure/rendering/
+   _pdf_title_page_publishing.py`) prints it on the PDF cover automatically.
+   Do not hand-edit LaTeX for this.
+3. **Re-render**: `uv run python scripts/pipeline/stage_03_render.py --project
+   <name>` from the template root (not just `scripts/generate_figures.py` —
+   that only regenerates figures, not the title page).
+4. **Re-verify**: rerun the full test suite, the scholarship audit, and a
+   raster/text read of the rendered cover page (`pdftotext -f 1 -l 1 ... |
+   grep <doi>`) to confirm the DOI actually landed, not just that the
+   pipeline exited 0.
+5. **Commit + push** the config change, then move the git tag to the verified
+   commit (a still-fresh, unconsumed tag; do not move a tag with real external
+   clones).
+6. **Publish** the PDF/HTML to the existing Zenodo record as a **new version**
+   (`POST /deposit/depositions/{id}/actions/newversion`), not a new deposit —
+   this preserves the concept DOI lineage and citation history. Update the
+   GitHub release assets (`gh release upload --clobber`) with the same files.
+7. **Software Heritage** save-request last, once GitHub reflects the final
+   tree.
+
+Publishing the DOI first and embedding it afterward (what this release
+originally did) works but leaves the archived PDF unable to cite itself —
+correct it once via steps above rather than repeating the mistake on the next
+release.
 
 ## Scholarly release metadata
 
@@ -113,7 +155,8 @@ coverage, and per-filter/per-feed visual captures remain scoped in [`TODO.md`](T
 **Public v1 is affirmative.** All gates above are satisfied: the repository is
 public, `v1.618.0` is tagged and released with the regenerated PDF/HTML and
 built package attached, the clean-clone preflight passes (1217 tests,
-96.09% coverage), and DOI `10.5281/zenodo.21418688` archives the exact tagged
-source and artifacts. Remaining scope (`SYNTHOBS-OBS-CI`,
+96.09% coverage), and concept DOI `10.5281/zenodo.21418687` (version DOI
+`10.5281/zenodo.21418901`) archives the exact tagged source and artifacts,
+with the DOI printed on the manuscript's own cover page. Remaining scope (`SYNTHOBS-OBS-CI`,
 `SYNTHOBS-OBS-INTERACTION`, `SYNTHOBS-LIVE-MATRIX`, `SYNTHOBS-FILTER-VISUALS`)
 is tracked forward work in [`TODO.md`](TODO.md), not a blocker to this release.
