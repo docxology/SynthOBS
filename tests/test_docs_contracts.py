@@ -70,13 +70,18 @@ def test_documented_public_symbols_are_reachable_from_package_root() -> None:
 def test_todo_is_the_canonical_scoped_backlog() -> None:
     todo = (ROOT / "TODO.md").read_text(encoding="utf-8")
     active_ids = (
-        "SYNTHOBS-PUBLIC-V1",
         "SYNTHOBS-OBS-CI",
         "SYNTHOBS-OBS-INTERACTION",
         "SYNTHOBS-LIVE-MATRIX",
         "SYNTHOBS-FILTER-VISUALS",
     )
-    completed_ids = ("SYNTHOBS-C-PARITY", "SYNTHOBS-PROV-HMAC", "SYNTHOBS-PACKAGE-REPRO")
+    completed_ids = (
+        "SYNTHOBS-C-PARITY",
+        "SYNTHOBS-PROV-HMAC",
+        "SYNTHOBS-PACKAGE-REPRO",
+        "SYNTHOBS-PUBLIC-V1",
+        "SYNTHOBS-ARCHIVE-DOI",
+    )
     priority = todo.split("## Recently completed", 1)[0]
     completed = todo.split("## Recently completed", 1)[1]
     assert all(item in priority for item in active_ids)

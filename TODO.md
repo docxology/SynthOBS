@@ -10,8 +10,6 @@ claim.
 
 | ID | Priority | Scope | Done when |
 | --- | --- | --- | --- |
-| `SYNTHOBS-PUBLIC-V1` | P0 | Commit and tag the release candidate, make `docxology/SynthOBS` public, attach the regenerated PDF/HTML, and verify the clean-clone install/use path. | The public repository is cloneable, tag `v1.618.0` and its release exist, the clean-clone preflight passes, and the release artifacts link to the reviewed source. |
-| `SYNTHOBS-ARCHIVE-DOI` | P1 | Register the public `v1.618.0` source with a persistent software archive and update `CITATION.cff`, README, manuscript release metadata, and release notes with the exact DOI. | The DOI resolves to the exact public tag/commit and archive metadata agrees with the repository version, author affiliation, license, and evidence-manifest hash. |
 | `SYNTHOBS-OBS-CI` | P0 | Add a reproducible headless/containerized OBS acceptance target for the six-gate scenario. | CI runs the real binary, websocket path, compositor content, audio ROI, and provenance checks on a pinned environment; unavailable environments are explicit skips. |
 | `SYNTHOBS-OBS-INTERACTION` | P1 | Exercise actual OBS Interact/projector click transport, not only the pure resolver. | A live manifest records a transported click for feed, layer, and marker targets with before/after state evidence. |
 | `SYNTHOBS-LIVE-MATRIX` | P2 | Repeat live acceptance across supported OBS, OS, Qt, and audio-driver combinations. | One versioned manifest exists per supported environment, with build identity and explicit gate results. |
@@ -21,6 +19,8 @@ claim.
 
 | ID | Evidence |
 | --- | --- |
+| `SYNTHOBS-PUBLIC-V1` | `docxology/SynthOBS` is public (`gh repo view` → `"isPrivate": false`); tag `v1.618.0` and its non-draft release exist and attach the regenerated PDF/HTML (`gh release view v1.618.0` → 4 assets); local `main` (`02eef27`) matches `origin/main` exactly (`git rev-list --left-right --count main...origin/main` → `0 0`); CI green on the release commit (`gh run list`). |
+| `SYNTHOBS-ARCHIVE-DOI` | Concept DOI `10.5281/zenodo.21418687` resolves live to version deposit `21418901` (`state: submitted`, `publication_date: 2026-07-17`), whose metadata matches the repo version/author/ORCID/license and links back to the exact `v1.618.0` tag via `related_identifiers`; `CITATION.cff` and `README.md` carry the same DOI. |
 | `SYNTHOBS-C-PARITY` | `plugin/fractisynth/src/rtsw_parser.h` is a standalone dependency-free parser; `tests/test_c_parity_behavioral.py` compiles and executes it against current, shuffled, inactive, stale, future, and malformed RTSW rows. |
 | `SYNTHOBS-PROV-HMAC` | `build_authenticated_payload` and `verify_authenticated_payload` provide opt-in HMAC-SHA-256 authenticity; verifier tests cover missing, wrong, empty, and recomputed-key cases, and keys remain outside manifests/source. |
 | `SYNTHOBS-PACKAGE-REPRO` | `scripts/package_smoke.py` installs the `uv build` wheel with `--no-index --no-deps` into a fresh isolated environment; the workflow runs the 1217-test/96.09%-coverage gate, figure generation, and package smoke. |

@@ -6,8 +6,8 @@ phase: complete
 progress: 184/184
 mode: ALGORITHM
 started: 2026-06-10
-updated: 2026-06-22
-iteration: 14
+updated: 2026-07-17
+iteration: 15
 ---
 
 # SynthOBS / FractiSynth — Ideal State Articulation
@@ -916,3 +916,46 @@ every confirmed defect deterministically, re-baseline the gate, and cross-vendor
   class but caught by a different except clause.
 - criterion_now: ISC-183 — sunspots + Kp field boundaries added with positive controls and a
   negative-control A/B (`test_sunspots_infinity_is_load_bearing` fails rc=1 on revert).
+
+### Decisions (iteration 15, 2026-07-17)
+- Publication audit requested by principal ("confirm that's all published and documented and
+  updated on Github and Zenodo"). Verified live, not from cached claims: `git rev-list
+  --left-right --count main...origin/main` → `0 0` (local `02eef27` == `origin/main`); `gh
+  release view v1.618.0` → published, not draft, 4 assets; `gh run list` → CI green on the
+  release commit; `curl` on `https://doi.org/10.5281/zenodo.21418687` → `302` to
+  `zenodo.org/records/21418901`, `state: submitted`, 4 files matching the GitHub release
+  assets; Software Heritage snapshot `282b236c...` resolves live (`200`).
+- **Found + fixed a real license-source-of-truth bug via call-site sweep (R14).** `LICENSE`
+  contained the Apache-2.0 text — a byte-for-byte leftover of the template repo's default
+  `LICENSE` (confirmed via `diff` against `template/LICENSE`), never swapped when the project
+  committed to MIT. Four independent call-sites already agreed on MIT: `README.md` ("## License
+  \n MIT."), `CITATION.cff` (`license: MIT`), `manuscript/config.yaml` (`metadata.license:
+  "MIT"`), and `tests/test_docs_contracts.py::test_scholarship_ledger_and_repository_citation_metadata_are_contracts`
+  (asserts `"license: MIT"` is present in `CITATION.cff`). The Zenodo deposit's own metadata
+  (`"license": {"id": "mit-license"}`) already matches this 4-way consensus. Ground truth is
+  MIT; the outlier was `LICENSE` itself. Replaced `LICENSE` with standard MIT License text
+  (copyright Daniel Ari Friedman, 2026) rather than rewriting the 4-way-consistent
+  README/CITATION.cff/config/test toward Apache — the sweep-before-single-site-edit rule (R14)
+  is exactly what prevented an incorrect fix here.
+- Refreshed `TODO.md`: `SYNTHOBS-PUBLIC-V1` and `SYNTHOBS-ARCHIVE-DOI` were both live-verified
+  complete (evidence above) but still listed under "Priority order" as open P0/P1 work; moved
+  to "Recently completed" with the verification commands as evidence. `SYNTHOBS-OBS-CI`
+  (P0) is confirmed still genuinely open — `.github/workflows/verify.yml` runs engine
+  tests/coverage/package-smoke and native-parser parity only, no headless OBS job — left as is.
+
+### Changelog (iteration 15)
+- conjectured: once a project is publicly released and DOI-archived, its own status docs
+  (`TODO.md`, `CITATION.cff`, `LICENSE`) stay accurate by construction because the release
+  process touches them.
+- refuted_by: the release process (RELEASE.md's documented publish order) updated README,
+  CITATION.cff, and the Zenodo deposit's license field, but never touched the stale
+  template-default `LICENSE` file or moved the two now-complete TODO items out of "Priority
+  order" — a "shipped" milestone does not automatically retire its own tracking entry or catch
+  a file the publish script never writes to.
+- learned: after any release/publish pass, run a call-site sweep specifically over the
+  project's own status surfaces (TODO.md priority table, LICENSE vs. every doc/metadata file
+  that names a license) — these are exactly the files a publish script has no reason to touch,
+  so they drift silently even when the release itself is fully correct.
+- criterion_now: ISC-184 — `LICENSE` file content matches the license declared everywhere else
+  in the tracked tree (README/CITATION.cff/manuscript config/test), and `TODO.md`'s "Priority
+  order" table contains no item already contradicted by live GitHub/Zenodo state.
