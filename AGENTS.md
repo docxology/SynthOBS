@@ -31,8 +31,8 @@ template tree.)
 ## Commands
 
 ```bash
-uv run pytest projects/working/SynthOBS/tests/ --cov=synthobs --cov-fail-under=90
 uv run python projects/working/SynthOBS/scripts/generate_figures.py
+uv run pytest projects/working/SynthOBS/tests/ --cov=synthobs --cov-fail-under=90
 ```
 
 ## Manuscript voice

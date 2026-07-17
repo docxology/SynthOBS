@@ -13,7 +13,9 @@ the entire git history via `git filter-repo` and force-pushed before the
 visibility flip; the working-tree fix (empty-string default, requires
 `OBS_WEBSOCKET_PASSWORD` or `--password`) landed in the same commit that opened
 this release. The archival deposit is minted: DOI
-[`10.5281/zenodo.21418688`](https://doi.org/10.5281/zenodo.21418688).
+[`10.5281/zenodo.21418688`](https://doi.org/10.5281/zenodo.21418688). The
+repository is also mirrored on Software Heritage:
+[`swh:1:snp:282b236c662b3caf77d823f175b4d3af35e568e2`](https://archive.softwareheritage.org/swh:1:snp:282b236c662b3caf77d823f175b4d3af35e568e2/).
 
 The author affiliation is **FractiAI / Active Inference Institute**. The repository
 is intended to be the canonical public source for the Python engine, native OBS
@@ -37,9 +39,12 @@ should be regenerated from the committed tree and attached to the GitHub release
 
 The public release must preserve the software's identity as well as its executable
 behavior. Before tagging, run the scholarship audit and confirm that every manuscript
-citation resolves to `manuscript/references.bib`:
+citation resolves to `manuscript/references.bib`. Figures must exist first — the
+audit and `test_docs_contracts.py` both check that manuscript claims resolve to
+real files under `output/figures/`:
 
 ```bash
+uv run python scripts/generate_figures.py
 uv run python scripts/audit_scholarship.py
 uv run python -m pytest tests/test_docs_contracts.py -q
 ```
@@ -59,9 +64,9 @@ Run this from a fresh public checkout:
 git clone https://github.com/docxology/SynthOBS.git
 cd SynthOBS
 uv sync --extra dev
+uv run python scripts/generate_figures.py
 uv run python -m pytest tests --cov=synthobs --cov-fail-under=90
 uv run python scripts/audit_scholarship.py
-uv run python scripts/generate_figures.py
 uv build
 uv run python scripts/package_smoke.py
 ```
