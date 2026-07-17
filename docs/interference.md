@@ -70,8 +70,8 @@ Its one genuinely checkable property is the stability criterion:
 rsi_is_stable(gain, scale)   # |gain · scale| < 1
 ```
 
-When `gain·scale < 1` the iteration **contracts** toward a stable coherence node;
-when `gain·scale > 1` it diverges. This is the honest mathematical content the corpus
+When `|gain·scale| < 1` the iteration **contracts** toward zero; when
+`|gain·scale| > 1` it diverges in magnitude. This is the mathematical content the corpus
 offers — a tunable fixed point — and SynthOBS implements exactly that, with tests for
 both the contracting and diverging regimes.
 

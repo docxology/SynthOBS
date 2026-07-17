@@ -1,15 +1,18 @@
-# `tests/` — the zero-mock suite
+# `tests/` — the real-input suite
 
-**1136 tests, 98.37 % coverage** on `src/synthobs` (≥ 90 % gate). No mocks anywhere —
+**1217 tests, 96.09 % coverage** on `src/synthobs` (≥ 90 % gate). Real I/O throughout —
 HTTP is exercised with `pytest-httpserver`, numerics with real concrete inputs (including
 `±1e9`, `±inf`, `nan`), files with real temp files, and the C plugin / Lean scaffold by
 reading and building the real artifacts.
 
-Per-file counts, the ISC map, and the no-mocks patterns: [`../docs/testing.md`](../docs/testing.md).
+Per-file counts, the ISC map, and the real-input policy: [`../docs/testing.md`](../docs/testing.md).
 
 ## Run
 
 ```bash
+# from a public clone or this project root
+uv run pytest tests/ --cov=synthobs --cov-fail-under=90
+
 # from the template root (project is symlinked into projects/working/SynthOBS)
 uv run pytest projects/working/SynthOBS/tests/ --cov=synthobs --cov-fail-under=90
 

@@ -47,10 +47,16 @@ from synthobs.verification import (  # noqa: E402
     score_audio_meter_delta,
 )
 
-SCHEMA = "synthobs.live_scenario.v1"
-DEFAULT_PASSWORD = os.environ.get("OBS_WEBSOCKET_PASSWORD", "***REDACTED-DEFAULT-PASSWORD***")
+SCHEMA = "synthobs.live_scenario.v2"
+DEFAULT_PASSWORD = os.environ.get("OBS_WEBSOCKET_PASSWORD", "")
 DEFAULT_WIDTH = 1280
 DEFAULT_HEIGHT = 720
+BASE_REQUIRED_GATES = (
+    "connection",
+    "dashboard_fit_to_canvas",
+    "interaction_model",
+    "render_content",
+)
 
 
 class ObsScenarioError(RuntimeError):
@@ -148,6 +154,7 @@ def initial_manifest(
         "sources": {},
         "captures": {},
         "gates": {},
+        "required_gates": list(BASE_REQUIRED_GATES),
         "fallbacks": {},
     }
 
@@ -159,8 +166,16 @@ def set_gate(manifest: dict[str, Any], name: str, result: GateResult) -> None:
 def manifest_exit_code(manifest: dict[str, Any], *, require_live: bool) -> int:
     if not require_live:
         return 0
-    for gate in manifest.get("gates", {}).values():
-        if gate.get("status") != "pass":
+    gates = manifest.get("gates", {})
+    required = manifest.get("required_gates", [])
+    if not isinstance(gates, dict) or not isinstance(required, list) or not required:
+        return 1
+    for name in required:
+        gate = gates.get(name)
+        if not isinstance(gate, dict) or gate.get("status") != "pass":
+            return 1
+    for gate in gates.values():
+        if not isinstance(gate, dict) or gate.get("status") != "pass":
             return 1
     return 0
 
@@ -281,6 +296,29 @@ def _png_to_rgba_bytes(path: Path) -> tuple[bytes, int, int]:
     return arr.tobytes(order="C"), width, height
 
 
+def _image_content_gate(path: Path) -> GateResult:
+    arr = np.asarray(mpimg.imread(path))
+    if arr.ndim != 3 or arr.shape[2] not in (3, 4):
+        return GateResult.failed(f"render capture is not RGB/RGBA: shape={arr.shape!r}")
+    rgb = arr[..., :3].astype(np.float32)
+    if rgb.max() <= 1.0:
+        rgb *= 255.0
+    luma = (0.2126 * rgb[..., 0]) + (0.7152 * rgb[..., 1]) + (0.0722 * rgb[..., 2])
+    non_black = float(np.mean(luma > 8.0))
+    dynamic_range = float(np.max(luma) - np.min(luma))
+    channel_std = float(np.mean(np.std(rgb, axis=(0, 1))))
+    metrics = {
+        "width": int(arr.shape[1]),
+        "height": int(arr.shape[0]),
+        "non_black_fraction": non_black,
+        "dynamic_range": dynamic_range,
+        "mean_channel_std": channel_std,
+    }
+    if non_black >= 0.08 and dynamic_range >= 24.0 and channel_std >= 3.0:
+        return GateResult.passed("OBS scene screenshot contains nonblank rendered content", **metrics)
+    return GateResult.failed("OBS scene screenshot is blank or visually degenerate", **metrics)
+
+
 def _write_tone(path: Path, *, seconds: float = 2.0, sample_rate: int = 48_000) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     frames = int(seconds * sample_rate)
@@ -306,7 +344,9 @@ def _interaction_gate() -> GateResult:
     )
     if ok:
         return GateResult.passed(
-            "deterministic interaction model covers feed tabs, layer rail, and marker drop"
+            "engine-level interaction resolver covers feed tabs, layer rail, and marker drop; OBS click transport not exercised",
+            transport="engine_resolver",
+            live_obs_click=False,
         )
     return GateResult.failed("deterministic interaction model did not resolve all targets")
 
@@ -561,7 +601,24 @@ def main(argv: list[str] | None = None) -> int:
 
         set_gate(manifest, "interaction_model", _interaction_gate())
 
+        render_path = out_dir / "scene_render.png"
+        try:
+            time.sleep(args.settle)
+            _capture_png(
+                client,
+                source_name=args.scene,
+                out_path=render_path,
+                width=args.width,
+                height=args.height,
+            )
+            manifest["captures"]["scene_render"] = str(render_path)
+            set_gate(manifest, "render_content", _image_content_gate(render_path))
+        except (ObsScenarioError, OSError, ValueError) as exc:
+            set_gate(manifest, "render_content", GateResult.failed(str(exc)))
+
         if args.verify_audio:
+            if "audio_reactivity" not in manifest["required_gates"]:
+                manifest["required_gates"].append("audio_reactivity")
             _verify_audio(
                 client,
                 manifest=manifest,
@@ -574,6 +631,8 @@ def main(argv: list[str] | None = None) -> int:
                 settle_s=args.settle,
             )
         if args.verify_provenance:
+            if "provenance_lsb" not in manifest["required_gates"]:
+                manifest["required_gates"].append("provenance_lsb")
             _verify_provenance(
                 client,
                 manifest=manifest,

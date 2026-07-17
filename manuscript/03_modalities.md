@@ -1,7 +1,7 @@
 # The 3 Modality Control Matrices {#sec:modalities}
 
 Each deck exposes seven hardwired buttons — three common (the operational overlap
-with standard OBS) and four unique to the mode. The common triad —
+with standard OBS's host capabilities [@obsstudio]) and four unique to the mode. The common triad —
 `CREW_COLLAB_LINK`, `RECORD_WAVE_PASS`, `LAUNCH_STREAM` — is identical across all
 three decks; the twelve unique buttons are disjoint. The console model is encoded
 and structurally validated in the tested engine (`synthobs.console`).
@@ -35,6 +35,7 @@ flowchart TB
         S4["EMERGENCY_ABORT (safety)"]
     end
 ```
+<!-- alt: Three-mode console contract: one identical common triad fans into Observatory, Laboratory, and Expedition Ship decks, each with four disjoint unique controls and one explicit safety control. -->
 
 ## Observatory Mode — Inbound Alignment Matrix
 
@@ -52,7 +53,8 @@ inbound wavefield.*
 | `OBS_DUMP` | unique (safety) | Purge all raw inbound buffer queues and temporary frames to clear signal latency. |
 
 `SWO_SYNC` does not merely read a clock — it phase-locks the inbound wavefield to
-the live Sun. The gateway injects the measured solar-wind speed as a phase bias on
+the live Sun. The gateway consumes the NOAA real-time solar-wind product
+[@noaartsw] and injects the measured speed as a phase bias on
 the virtual 1030 nm reader, weighted by the EGS Fractal Constant
 $K_{\mathrm{EGS}}$, then reports how strongly the system is in phase. This is the
 gateway phase law (`synthobs.gateway.gateway_filter`):
@@ -61,14 +63,14 @@ $$
 \phi_{\text{bias}} = \left(2\pi \cdot \frac{v_{\text{wind}}}{v_{\text{ref}}} \cdot K_{\mathrm{EGS}}\right) \bmod 2\pi,
 \qquad
 \ell = \lvert\cos\phi_{\text{bias}}\rvert
-$$ {#eq:gateway-lock}
+$$ {#eq:modalities-gateway-lock}
 
 with reference wind $v_{\text{ref}} = 400\ \mathrm{km\,s^{-1}}$ and lock strength
 $\ell \in [0,1]$ ($1$ a perfect lock, $0$ fully out of phase). The gateway key
 itself anchors El Gran Sol's optical scale to the hydrogen line:
 
 $$
-K_{\mathrm{EGS}} = \varphi \cdot \frac{\lambda_{\text{reader}}}{\lambda_{\mathrm{H\alpha}}}
+K_{\mathrm{EGS}} = \varphi \cdot \frac{\lambda_{\text{reader}}}{\lambda_{\text{H-alpha}}}
 = \varphi \cdot \frac{1030}{656.28} \approx 2.539427
 $$ {#eq:egs-key}
 
@@ -143,4 +145,4 @@ The growth law of @eq:golden-spiral satisfies $r(\theta + \pi/2) = \varphi\,r(\t
 so the wipe front advances by one golden step each quarter-turn — the same $\varphi$
 that splits the canvas now drives the transition geometry (@fig:spiral).
 
-![The $\varphi$ spiral driving the `TRANS_WIPE_SEQUENCE` fractal transition. Sampled by `golden_spiral_points()`; radius grows by exactly $\varphi$ each quarter-turn. Robin's-egg markers fall on quarter-turn boundaries.](../output/figures/golden_spiral.png){#fig:spiral width=60%}
+![The $\varphi$ spiral driving the `TRANS_WIPE_SEQUENCE` fractal transition. The deterministic generator samples 64 points from $r(\theta)=a\,\varphi^{2\theta/\pi}$ and marks every fourth sample, so the 16 robin's-egg markers identify quarter-turn boundaries. The displayed radius grows by exactly $\varphi=1.618034$ per quarter-turn; the plotted curve is therefore a direct rendering of the tested `golden_spiral_points()` law rather than an illustrative freehand spiral.](../output/figures/golden_spiral.png){#fig:spiral width=62%}

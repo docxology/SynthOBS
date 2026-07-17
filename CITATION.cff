@@ -1,0 +1,59 @@
+cff-version: 1.2.0
+title: "SynthOBS & FractiSynth: A Golden-Ratio OBS Broadcast Console and Native Transducer"
+type: software
+message: "If you use SynthOBS or FractiSynth, cite the exact version or commit, this repository, and the supporting sources listed below. Add the archival DOI when the public release is deposited."
+authors:
+  - family-names: Friedman
+    given-names: Daniel Ari
+    affiliation: FractiAI / Active Inference Institute
+    orcid: "https://orcid.org/0000-0001-6232-9096"
+version: "1.618.0"
+repository-code: "https://github.com/docxology/SynthOBS"
+url: "https://github.com/docxology/SynthOBS"
+license: MIT
+keywords:
+  - OBS Studio
+  - libobs
+  - reproducible research software
+  - space-weather telemetry
+  - real-time digital signal processing
+  - software provenance
+  - software citation
+abstract: >-
+  A tested Python reference engine, native libobs plugin, and obspython bridge for
+  a telemetry-driven broadcast console. The repository includes deterministic
+  figures, a versioned live OBS evidence bundle, fail-closed telemetry contracts,
+  and a research-grade technical design manuscript.
+references:
+  - type: article
+    authors:
+      - family-names: Wilkinson
+        given-names: Mark D.
+    title: The FAIR Guiding Principles for scientific data management and stewardship
+    year: 2016
+    doi: 10.1038/sdata.2016.18
+  - type: article
+    authors:
+      - family-names: Wilson
+        given-names: Greg
+    title: Best Practices for Scientific Computing
+    year: 2014
+    doi: 10.1371/journal.pbio.1001745
+  - type: article
+    authors:
+      - family-names: Hunter
+        given-names: John D.
+    title: "Matplotlib: A 2D Graphics Environment"
+    year: 2007
+    doi: 10.1109/MCSE.2007.55
+  - type: article
+    authors:
+      - family-names: Smith
+        given-names: Arfon M.
+      - family-names: Katz
+        given-names: Daniel S.
+      - family-names: Niemeyer
+        given-names: Kyle E.
+    title: "Software Citation Principles"
+    year: 2016
+    doi: 10.7717/peerj-cs.86

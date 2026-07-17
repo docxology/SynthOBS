@@ -1,5 +1,5 @@
 """Tests for the EGS Gateway, holographic interference, solar-wind telemetry, and
-their engine integration (ISC-91..110). No mocks — real math + a local HTTP server.
+their engine integration (ISC-91..110). Real math + a local HTTP server.
 """
 
 from __future__ import annotations
@@ -91,6 +91,15 @@ def test_gateway_fails_closed_on_nonfinite_wind() -> None:
             gateway_filter(bad)
 
 
+@pytest.mark.parametrize(
+    "wind,reader",
+    [(True, C.LAMBDA_READER_NM), (400.0, float("nan")), (400.0, 0.0)],
+)
+def test_gateway_fails_closed_on_boolean_or_invalid_reader(wind, reader) -> None:
+    with pytest.raises(ValueError):
+        gateway_filter(wind, reader_wavelength_nm=reader)
+
+
 def test_egs_gateway_key_full_precision_anchor() -> None:
     # Pin the computed value to full precision so a silent λ-anchor regression is
     # caught, not just the loose 1e-5 literal.
@@ -170,15 +179,26 @@ def test_rsi_stability_criterion() -> None:
     assert abs(x) > 100.0
 
 
-# --- solar-wind telemetry (fail-closed, no mocks) ------------------------
+# --- solar-wind telemetry (fail-closed) -----------------------------------
 def _wind_feed(speed: str, *, when: datetime | None = None) -> str:
     when = when or datetime.now(timezone.utc)
-    ts = when.strftime("%Y-%m-%d %H:%M:%S")
+    ts = when.strftime("%Y-%m-%dT%H:%M:%SZ")
     return json.dumps(
         [
-            ["time_tag", "density", "speed", "temperature"],
-            ["2026-06-10 00:00:00", "3.1", "480.0", "1.0e5"],
-            [ts, "4.5", speed, "1.2e5"],
+            {
+                "time_tag": "2026-06-10T00:00:00Z",
+                "active": True,
+                "proton_density": 3.1,
+                "proton_speed": 480.0,
+                "proton_temperature": 1.0e5,
+            },
+            {
+                "time_tag": ts,
+                "active": True,
+                "proton_density": 4.5,
+                "proton_speed": speed,
+                "proton_temperature": 1.2e5,
+            },
         ]
     )
 
@@ -253,22 +273,20 @@ def test_parse_solar_wind_happy_path() -> None:
     assert wind.density == pytest.approx(4.5)
 
 
-def test_parse_solar_wind_uses_last_row() -> None:
+def test_parse_solar_wind_selects_latest_reading() -> None:
     wind = parse_noaa_solar_wind(_wind_feed("612.3"))
-    assert wind.speed_kms == pytest.approx(612.3)  # last row, not the 480 first row
+    assert wind.speed_kms == pytest.approx(612.3)
 
 
 def test_parse_solar_wind_selects_latest_by_timestamp_not_position() -> None:
-    # The most recent reading (by time_tag) is NOT the last array row here, and a
-    # duplicate-timestamp row is present. Selecting by array position (data[-1])
-    # would return the stale 400.0 reading; parsing timestamps must return 590.0.
+    # The most recent reading (by time_tag) is NOT the last array row here. Selecting
+    # by array position would return the stale 400.0 reading.
     now = datetime(2026, 6, 10, 12, 0, 0, tzinfo=timezone.utc)
     feed = json.dumps(
         [
-            ["time_tag", "density", "speed", "temperature"],
-            ["2026-06-10 11:59:00", "4.5", "590.0", "1.2e5"],  # newest, mid-array
-            ["2026-06-10 11:58:00", "4.2", "540.0", "1.1e5"],  # duplicate-ish older
-            ["2026-06-10 11:57:00", "4.0", "400.0", "1.0e5"],  # oldest, but LAST
+            {"time_tag": "2026-06-10T11:59:00Z", "active": True, "proton_density": 4.5, "proton_speed": 590.0, "proton_temperature": 1.2e5},
+            {"time_tag": "2026-06-10T11:58:00Z", "active": True, "proton_density": 4.2, "proton_speed": 540.0, "proton_temperature": 1.1e5},
+            {"time_tag": "2026-06-10T11:57:00Z", "active": True, "proton_density": 4.0, "proton_speed": 400.0, "proton_temperature": 1.0e5},
         ]
     )
     wind = parse_noaa_solar_wind(feed, now=now)
@@ -279,8 +297,13 @@ def test_parse_solar_wind_selects_latest_by_timestamp_not_position() -> None:
 def test_parse_solar_wind_bad_density_is_optional() -> None:
     feed = json.dumps(
         [
-            ["time_tag", "density", "speed", "temperature"],
-            [datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"), "not-density", "500.0", "1.0e5"],
+            {
+                "time_tag": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "active": True,
+                "proton_density": "not-density",
+                "proton_speed": 500.0,
+                "proton_temperature": 1.0e5,
+            }
         ]
     )
     wind = parse_noaa_solar_wind(feed)
@@ -288,17 +311,21 @@ def test_parse_solar_wind_bad_density_is_optional() -> None:
     assert wind.density is None
 
 
+def test_parse_solar_wind_rejects_non_object_rows() -> None:
+    with pytest.raises(TelemetryUnavailable):
+        parse_noaa_solar_wind([["time_tag", "proton_speed"], ["t", 400.0]])
+
+
 @pytest.mark.parametrize(
     "payload",
     [
         "not json",
         json.dumps([]),  # empty
-        json.dumps([["time_tag", "density", "speed", "temperature"]]),  # header only
-        json.dumps(["time_tag", ["2026-06-10 00:00:00", "1", "2"]]),  # malformed header
-        json.dumps([["time_tag", "density", "temperature"], ["t", "1", "2"]]),  # no speed col
-        json.dumps([["time_tag", "speed"], "not-row"]),  # malformed data row
-        json.dumps([["time_tag", "density", "speed"], ["2026-06-10 00:00:00", "1", "x"]]),  # non-numeric
-        json.dumps([["time_tag", "density", "speed"], ["2026-06-10 00:00:00", "1", "-5"]]),  # negative
+        json.dumps([{}]),  # missing fields
+        json.dumps([{"time_tag": "not-a-date", "active": True, "proton_speed": 500.0}]),
+        json.dumps([{"time_tag": "2026-06-10T11:59:00Z", "active": True}]),  # missing speed
+        json.dumps([{"time_tag": "2026-06-10T11:59:00Z", "active": True, "proton_speed": "x"}]),
+        json.dumps([{"time_tag": "2026-06-10T11:59:00Z", "active": True, "proton_speed": -5.0}]),
     ],
 )
 def test_parse_solar_wind_fails_closed(payload: str) -> None:

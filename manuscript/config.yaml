@@ -2,15 +2,17 @@
 
 paper:
   title: "SynthOBS & FractiSynth (v1.618)"
-  subtitle: "A Golden-Ratio Broadcast Console and Native Transducer Phase-Locked to the Living Solar Wavefield"
+  subtitle: "A Golden-Ratio Broadcast Console and Native Transducer Calibrated by Live Solar Telemetry"
   version: "1.618"
-  date: ""
+  date: "2026-07-17"
+  cover:
+    image: "assets/obs/obs_scene_render.png"
 
 authors:
   - name: "Daniel Ari Friedman"
     orcid: "0000-0001-6232-9096"
     email: "daniel@activeinference.institute"
-    affiliation: "Active Inference Institute"
+    affiliation: "FractiAI / Active Inference Institute"
     corresponding: true
 
 publication:
@@ -37,6 +39,9 @@ llm:
     enabled: false
   translations:
     enabled: false
+
+rendering:
+  cover_height_fraction: 0.58
 
 render:
   formats:

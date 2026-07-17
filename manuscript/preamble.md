@@ -10,6 +10,12 @@ This file contains LaTeX packages and commands that are automatically injected i
 \usepackage{amssymb}
 \usepackage{amsfonts}
 \usepackage{amsthm}
+% The renderer's breakable-code helper is also used inside inline equations.
+% Keep code readable there without switching \ttfamily directly in math mode.
+\protected\def\breaktt#1{\ifmmode\text{\ttfamily\seqsplit{#1}}\else\begingroup\ttfamily\seqsplit{#1}\endgroup\fi}
+\newtheorem{theorem}{Theorem}
+\newtheorem{remark}[theorem]{Remark}
+\newtheorem{example}[theorem]{Example}
 
 % Document layout
 \usepackage{geometry}
@@ -31,7 +37,7 @@ This file contains LaTeX packages and commands that are automatically injected i
 % Typography and formatting
 \usepackage{microtype}
 \usepackage{xcolor}
-\usepackage[binary-units]{siunitx}
+\usepackage{siunitx}
 
 % Cross-references and citations
 \usepackage{hyperref}
@@ -42,7 +48,7 @@ This file contains LaTeX packages and commands that are automatically injected i
 \usepackage[capitalise,noabbrev]{cleveref}
 \usepackage{natbib}
 
-% ── Unicode-capable mono font for code listings ──────────────────────
+% Code listings use a Unicode-capable mono font.
 % JuliaMono (TeX Live 2026) covers the full math/Greek glyph set used in
 % scientific code blocks; the default lmmono lacks \alpha/\mu/\partial/\nabla.
 %

@@ -8,18 +8,21 @@ the BLUE channel of an RGBA frame buffer. The embedded payload carries a 4-byte
 truncated-SHA-256 checksum so any accidental corruption — a single flipped bit, a
 rescale, a recompression — is detected on extraction.
 
-**Honest scope (epistemic tag).** This is a *corruption-detecting checksum*, NOT a
-forgery-resistant signature. The checksum is unkeyed: anyone who can write the
-payload can also recompute a matching checksum, so a deliberately fabricated record
-verifies as "intact". It proves the recovered bytes were not *accidentally* mangled
-in transit/compositing — it does NOT prove authenticity or provenance against a
-motivated forger. A real authenticity guarantee would require an HMAC/signature
-keyed by a secret the verifier holds; that is deliberately out of scope here.
+**Honest scope (epistemic tag).** The default payload is a *corruption-detecting
+checksum*, NOT a forgery-resistant signature. The checksum is unkeyed: anyone who can
+write the payload can also recompute a matching checksum, so a deliberately fabricated
+record verifies as "intact". It proves the recovered bytes were not *accidentally*
+mangled in transit/compositing — it does NOT prove authenticity or provenance against
+a motivated forger. Callers that need that stronger guarantee can explicitly use the
+opt-in HMAC-SHA-256 payload and verifier, keeping the secret outside the payload,
+manifest, and source tree.
 
-The native C plugin (``plugin/fractisynth``) mirrors this logic. To keep the
-mirror trivial the algorithm is integer/byte-exact, uses only stdlib, and the
-exact struct layout is documented on :func:`canonical_bytes`. There is one and
-only one wire layout; both implementations must agree byte-for-byte.
+The native C plugin (``plugin/fractisynth``) mirrors the default unkeyed payload
+logic. The opt-in HMAC mode is verifier-side Python functionality so the native
+HUD does not need access to an operator secret. To keep the mirror trivial the
+shared default algorithm is integer/byte-exact, uses only stdlib, and the exact
+struct layout is documented on :func:`canonical_bytes`. There is one and only one
+canonical record wire layout; both implementations must agree byte-for-byte.
 
 Design rules (mirrored from the rest of the engine):
 
@@ -27,12 +30,13 @@ Design rules (mirrored from the rest of the engine):
   no silent defaults, no NaN, no truncation.
 * **Byte-exact.** Floats are IEEE-754 ``float32``; integers are fixed-width
   little-endian. No locale, no text encoding, no padding ambiguity.
-* **Stdlib only.** ``struct`` and ``hashlib`` carry the whole module.
+* **Stdlib only.** ``struct``, ``hashlib``, and ``hmac`` carry the whole module.
 """
 
 from __future__ import annotations
 
 import hashlib
+import hmac
 import math
 import struct
 from dataclasses import dataclass
@@ -44,6 +48,8 @@ __all__ = [
     "RECORD_SIZE",
     "CHECKSUM_SIZE",
     "PAYLOAD_SIZE",
+    "AUTH_TAG_SIZE",
+    "AUTHENTICATED_PAYLOAD_SIZE",
     "LENGTH_PREFIX_SIZE",
     "SIGNATURE_HEX_SIZE",
     "canonical_bytes",
@@ -51,9 +57,11 @@ __all__ = [
     "short_signature",
     "signature_bits",
     "build_payload",
+    "build_authenticated_payload",
     "embed_lsb",
     "extract_lsb",
     "verify_payload",
+    "verify_authenticated_payload",
 ]
 
 
@@ -83,8 +91,11 @@ RECORD_STRUCT: struct.Struct = struct.Struct("<f i f f f I")
 RECORD_SIZE: int = RECORD_STRUCT.size  # == 24
 CHECKSUM_SIZE: int = 4
 PAYLOAD_SIZE: int = RECORD_SIZE + CHECKSUM_SIZE  # == 28
+AUTH_TAG_SIZE: int = hashlib.sha256().digest_size  # full HMAC-SHA-256 tag, 32 bytes
+AUTHENTICATED_PAYLOAD_SIZE: int = PAYLOAD_SIZE + AUTH_TAG_SIZE  # == 60
 LENGTH_PREFIX_SIZE: int = 2  # uint16 little-endian payload length
 SIGNATURE_HEX_SIZE: int = CHECKSUM_SIZE * 2
+_AUTHENTICITY_DOMAIN = b"SynthOBS provenance HMAC v1\0"
 
 
 @dataclass(frozen=True)
@@ -245,6 +256,32 @@ def build_payload(rec: TelemetryRecord) -> bytes:
     return body + checksum
 
 
+def _validated_auth_key(key: bytes | bytearray) -> bytes:
+    """Return a non-empty immutable HMAC key or fail closed."""
+    if not isinstance(key, (bytes, bytearray)) or not key:
+        raise ProvenanceError("HMAC key must be a non-empty bytes value")
+    return bytes(key)
+
+
+def build_authenticated_payload(rec: TelemetryRecord, key: bytes | bytearray) -> bytes:
+    """Return a checksum payload with an opt-in HMAC-SHA-256 authenticity tag.
+
+    The ordinary :func:`build_payload` wire format remains unchanged for the
+    native plugin and existing captures. This authenticated format appends a
+    full 32-byte HMAC over the canonical record, domain-separated from any
+    other use of the key. Keys are caller-owned and never serialized into the
+    payload or any manifest.
+    """
+    key_bytes = _validated_auth_key(key)
+    body_and_checksum = build_payload(rec)
+    tag = hmac.new(
+        key_bytes,
+        _AUTHENTICITY_DOMAIN + body_and_checksum[:RECORD_SIZE],
+        hashlib.sha256,
+    ).digest()
+    return body_and_checksum + tag
+
+
 def _blue_capacity(width: int, height: int) -> int:
     """Number of blue-channel LSB bits available in a ``width x height`` RGBA buffer."""
     return width * height
@@ -374,3 +411,32 @@ def verify_payload(payload: bytes) -> TelemetryRecord:
     if stored != expected:
         raise ProvenanceError("checksum mismatch — payload is corrupt or tampered")
     return _unpack_record(body)
+
+
+def verify_authenticated_payload(payload: bytes, key: bytes | bytearray) -> TelemetryRecord:
+    """Verify a checksum plus HMAC-SHA-256 authenticity tag.
+
+    A valid checksum alone only proves accidental-corruption detection. This
+    function additionally requires the verifier's secret key and rejects a
+    deliberately rewritten record whose checksum was recomputed without the
+    matching HMAC tag.
+    """
+    key_bytes = _validated_auth_key(key)
+    if not isinstance(payload, (bytes, bytearray)):
+        raise ProvenanceError(
+            f"authenticated payload must be bytes, got {type(payload).__name__}"
+        )
+    if len(payload) != AUTHENTICATED_PAYLOAD_SIZE:
+        raise ProvenanceError(
+            f"authenticated payload must be {AUTHENTICATED_PAYLOAD_SIZE} bytes, got {len(payload)}"
+        )
+    body_and_checksum = bytes(payload[:PAYLOAD_SIZE])
+    record = verify_payload(body_and_checksum)
+    expected = hmac.new(
+        key_bytes,
+        _AUTHENTICITY_DOMAIN + body_and_checksum[:RECORD_SIZE],
+        hashlib.sha256,
+    ).digest()
+    if not hmac.compare_digest(bytes(payload[PAYLOAD_SIZE:]), expected):
+        raise ProvenanceError("HMAC mismatch — payload authenticity could not be established")
+    return record

@@ -1,13 +1,24 @@
 # SynthOBS / FractiSynth — Documentation
 
 > **v1.618** — a golden-ratio OBS broadcast console and native transducer,
-> phase-locked to live solar telemetry. One constant, **φ = 1.6180339887…**,
-> governs every layout, every gain stage, and every shader displacement.
+> calibrated by live solar telemetry. The pinned golden-ratio constant governs
+> layout and DSP contracts; the separate EGS gateway key governs the phase bias.
 
-SynthOBS is built in three layers around a single irreducible constant. A tested
-Python **engine** is the source of truth; a native **libobs C plugin** mirrors it
-inside OBS Studio; an **obspython** console script bridges the two. This directory
-is the complete, standalone documentation for all three.
+SynthOBS is built in three layers around two pinned constants with separate roles. A tested
+Python **engine** is the source of truth; a native **libobs C plugin** implements the
+OBS-bound counterparts checked against it; an **obspython** console script bridges the
+two. This directory is the complete, standalone documentation for all three.
+
+## Public distribution
+
+The planned public v1 home is [`docxology/SynthOBS`](https://github.com/docxology/SynthOBS).
+That repository is intended to contain the complete source and operational path:
+the dependency-free engine, native OBS module, obspython bridge, tests, build/install
+instructions, usage guide, manuscript, citation metadata, and versioned evidence.
+The current sidecar is local to the FractiAI publication workflow; the release
+contract and clean-clone preflight are in [`../RELEASE.md`](../RELEASE.md).
+
+Author affiliation: **FractiAI / Active Inference Institute**.
 
 ## Documentation map
 
@@ -20,11 +31,13 @@ is the complete, standalone documentation for all three.
 | [engine.md](engine.md) | Use the Python engine: full API reference for all `src/synthobs` modules, including interaction targets, dashboard plans, provenance, and live-gate verification |
 | [telemetry.md](telemetry.md) | Fail-closed SWO + the live NOAA SWPC flux/sunspot/solar-wind feeds |
 | [command-grammar.md](command-grammar.md) | Drive the system from the terminal: `/mode`, `/transducer bind`, `/swo calibrate`, `/dashboard plan/build` |
-| [native-plugin.md](native-plugin.md) | Understand the C plugin: the two OBS filters, the telemetry thread, the lifecycle |
+| [native-plugin.md](native-plugin.md) | Understand the C plugin: three filters, the console source, telemetry thread, and lifecycle |
 | [build-and-install.md](build-and-install.md) | Build, sign, and install the plugin into OBS — with the verified load evidence |
 | [usage.md](usage.md) | Actually use FractiSynth inside OBS: add the filters, run the console script |
 | [formal-invariants.md](formal-invariants.md) | Build the Lean 4 invariant scaffold for console shape and fail-closed gates |
-| [testing.md](testing.md) | Understand the 1161-test, no-mocks, 98.51%-coverage suite and how to run it |
+| [testing.md](testing.md) | Understand the measured real-I/O coverage suite and how to run it |
+| [scholarship.md](scholarship.md) | Read the source hierarchy, claim-to-evidence policy, and citation ledger |
+| [../TODO.md](../TODO.md) | Track the scoped, evidence-backed future work |
 
 ## The 60-second tour
 
@@ -50,11 +63,13 @@ is the complete, standalone documentation for all three.
 
 | Aspect | State |
 | --- | --- |
-| Python engine | **Source of truth.** 1161 tests, 98.51 % coverage, no mocks. |
+| Python engine | **Source of truth.** 1217 tests, 96.09 % coverage, real I/O throughout; values are regenerated from the current source. |
 | Native C plugin | **Loads live in OBS 32.1.2.** Built, ad-hoc signed, installed; libcurl telemetry thread hits live NOAA SWPC. Seven feed targets, the layer rail, marker drops, X-ray/Kp graphing, graph axes, inspector modes, audio-reactive shader uniforms, and dock controls are statically pinned. See [build-and-install.md](build-and-install.md). |
 | obspython console | Imports guarded; drives the real engine via `apply_command`, including deterministic dashboard plan/build dry-runs outside OBS. |
 | Lean scaffold | `lean/SynthOBS/Invariants.lean` builds with Lake and rejects `sorry` / custom `axiom` placeholders in the default suite when Lake is available. |
-| Manuscript | 8-section brand-voice manuscript, 5 engine-generated figures, 23-page PDF. |
+| Manuscript | Expanded research-grade manuscript, 16 manifest figures (13 analytical + 3 live OBS captures) plus one operator-context asset, and evaluation/reproducibility chapter. |
 
-This is a **local-only research project**. It is intentionally not committed to the
-public template repository.
+This checkout is a **local publication sidecar** and is intentionally not committed
+to the public template repository. That boundary is separate from the planned public
+distribution at [`docxology/SynthOBS`](https://github.com/docxology/SynthOBS). Use
+[`../RELEASE.md`](../RELEASE.md) as the source of truth for public-v1 readiness.

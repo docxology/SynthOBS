@@ -10,7 +10,8 @@ from synthobs import SynthEngine, Mode, parse, PHI   # etc.
 
 The one exception, [`is_monotone_non_decreasing`](#dsp--φ-calibrated-transduction), is a
 test helper exported only from the `synthobs.dsp` submodule — it is **not** in the package
-root `__all__`. Every other symbol on this page is importable from `synthobs` directly.
+root `__all__`. Every other public symbol on this page is importable from `synthobs`
+directly, including `COMMON_BUTTONS` and the three Solar Graph series parsers.
 
 ## Module map
 
@@ -105,18 +106,7 @@ golden_spiral_points(n: int, *, a: float = 1.0, start_theta: float = 0.0) -> lis
 `assemble_viewport` splits the canvas horizontally (primary = major ≈ 61.8 % width), then
 splits the right column vertically (console = major height, telemetry = minor):
 
-```text
-┌───────────────────────────────┬───────────────┐
-│                               │    console    │   right column:
-│                               │  (major ≈61.8% │   golden_split(height)
-│            primary            │     height)    │
-│        (major ≈61.8% width)   ├───────────────┤
-│                               │   telemetry   │
-│                               │  (minor ≈38.2% │
-│                               │     height)    │
-└───────────────────────────────┴───────────────┘
- └──── golden_split(width) ─────┘└── deck_w ─────┘
-```
+![Rendered `assemble_viewport()` geometry for a 1920×1080 canvas. The exact regions are primary 1187×1080, console 733×667, and telemetry 733×413; their areas close over the full canvas and the footer records zero gap and zero overlap.](../output/figures/goldilocks_layout.png){#fig:engine-viewport width=92%}
 
 ### `class Region`
 
@@ -146,11 +136,11 @@ See [telemetry.md](telemetry.md) for the full fail-closed contract.
 ```python
 parse_noaa_f107_flux(data: Any) -> tuple[float, datetime]
 telemetry_from_payload(payload: Any, *, source="payload", max_age_s=DEFAULT_MAX_AGE_S, now=None) -> SolarTelemetry
-fetch_live_telemetry(url: str, *, max_age_s=DEFAULT_MAX_AGE_S, timeout=10.0, now=None, opener=None) -> SolarTelemetry
+fetch_live_telemetry(url: str, *, max_age_s=DEFAULT_MAX_AGE_S, timeout=10.0, now=None) -> SolarTelemetry
 parse_noaa_solar_regions(data: Any) -> int
 parse_noaa_solar_wind(data: Any, *, source="payload", max_age_s=DEFAULT_MAX_AGE_S, now=None) -> SolarWind
-fetch_live_solar_wind(url=NOAA_SOLAR_WIND_URL, *, max_age_s=DEFAULT_MAX_AGE_S, timeout=10.0, now=None, opener=None) -> SolarWind
-parse_noaa_plasma_series(data: Any) -> tuple[list[float], list[float], list[float]]
+fetch_live_solar_wind(url=NOAA_SOLAR_WIND_URL, *, max_age_s=DEFAULT_MAX_AGE_S, timeout=10.0, now=None) -> SolarWind
+parse_noaa_plasma_series(data: Any, *, max_age_s=DEFAULT_MAX_AGE_S, now=None) -> tuple[list[float], list[float], list[float]]
 parse_noaa_xray_flux(data: Any, band="0.1-0.8nm") -> list[float]
 parse_noaa_kp_index(data: Any) -> list[float]
 ```
@@ -186,11 +176,10 @@ Immutable snapshot of one verified live reading.
 - **`telemetry_from_payload(payload, …)`** → a `SolarTelemetry` built from a raw NOAA JSON
   dict, validating every field and the staleness window.
 - **`fetch_live_telemetry(url, …)`** → performs the live HTTP fetch and returns a
-  validated `SolarTelemetry`. (Tested with `pytest-httpserver` against local servers — no
-  mocks.) The `opener` keyword is injectable only to point tests at a local server.
+  validated `SolarTelemetry`. It is tested with `pytest-httpserver` against local servers.
 - **`parse_noaa_solar_regions(data)`** → active-region count for the latest observed
   date in NOAA `solar_regions.json`.
-- **`parse_noaa_plasma_series(data)`**, **`parse_noaa_xray_flux(data, band)`**, and
+- **`parse_noaa_plasma_series(data, …)`**, **`parse_noaa_xray_flux(data, band)`**, and
   **`parse_noaa_kp_index(data)`** → real-time graph series; malformed or fully invalid
   feeds raise `TelemetryUnavailable`.
 
@@ -377,9 +366,11 @@ provenance_digest(record) -> str
 short_signature(record) -> str
 signature_bits(signature) -> tuple[int, ...]
 build_payload(record) -> bytes
+build_authenticated_payload(record, key) -> bytes
 embed_lsb(rgba, width, height, payload) -> None
 extract_lsb(rgba, width, height) -> bytes
 verify_payload(payload) -> TelemetryRecord
+verify_authenticated_payload(payload, key) -> TelemetryRecord
 ```
 
 `TelemetryRecord` is the locked-overlay provenance record. It requires finite values,
@@ -388,6 +379,13 @@ positive flux, positive solar-wind speed, `sunspots` in signed-int32 range,
 fixed 24-byte little-endian record plus a 4-byte truncated SHA-256 checksum. LSB embed
 and extract functions raise `ProvenanceError` on malformed buffers, undersized frames,
 oversized payloads, checksum mismatch, or invalid recovered records.
+
+For deliberate-forgery resistance, `build_authenticated_payload` appends a full
+HMAC-SHA-256 tag over a versioned domain and the canonical record;
+`verify_authenticated_payload` requires a non-empty secret key and compares the tag in
+constant time. The key is an operator input, never part of the record, payload manifest,
+or source tree. The native HUD continues to emit the compact unkeyed payload unless a
+keyed transport is explicitly added.
 
 `signature_bits` converts the 8-hex on-screen signature into the 32-bit visible-strip
 contract mirrored by the native HUD. It is a fallback signal for captures where OBS
@@ -434,7 +432,7 @@ A snapshot dataclass of the engine's calibration health (amplitude + gateway pla
 
 ### `class SynthEngine`
 
-Constructed as `SynthEngine(*, mode=Mode.OBSERVATORY, demo_mode=False)`.
+Constructed as `SynthEngine(*, mode=Mode.OBSERVATORY)`.
 
 | Member                                | Signature                                  | Notes                                                              |
 | ------------------------------------- | ------------------------------------------ | ----------------------------------------------------------------- |
@@ -450,14 +448,14 @@ Constructed as `SynthEngine(*, mode=Mode.OBSERVATORY, demo_mode=False)`.
 | `phase_vector`                        | `property -> float \| None`                | current vector, or `None` pre-calibration                        |
 | `state()`                             | `-> EngineState`                           | full snapshot (a method, not a property)                         |
 | `layout(width, height)`               | `(int, int) -> Viewport`                   | the φ viewport for a frame                                       |
-| `modulate_video(width, height)`       | `(int, int) -> tuple[int, int]`            | calibrated dims; **raises before first calibration** unless demo  |
+| `modulate_video(width, height)`       | `(int, int) -> tuple[int, int]`            | calibrated dims; **raises before first calibration**              |
 | `modulate_audio(samples, threshold=1.0)` | `(Iterable, float) -> list[float]`      | φ soft-limited signal; same pre-calibration guard                |
 | `measure_audio(samples, threshold=1.0)` | `(Iterable, float) -> AudioEnvelope`    | post-limiter RMS/peak/reactivity; same pre-calibration guard     |
 
 **The pre-calibration guard is the engine's fail-closed core:** `modulate_video` and
 `modulate_audio` / `measure_audio` raise `TelemetryUnavailable` if the engine has never
-successfully calibrated — unless it was constructed in `demo_mode` (which returns a
-neutral unity vector). There is no path to "modulate with a guessed vector".
+successfully calibrated. There is no path to modulate with a guessed or synthetic
+vector.
 
 ```mermaid
 flowchart TD
@@ -468,8 +466,7 @@ flowchart TD
     HOLD --> MV
     NONE[never calibrated] --> MV
     MV -->|vector present| OUT[calibrated output]
-    MV -->|no vector and not demo| RAISE[raise TelemetryUnavailable]
-    MV -->|no vector and demo_mode| UNITY[neutral unity vector]
+    MV -->|no vector| RAISE[raise TelemetryUnavailable]
 ```
 
 ---
@@ -492,12 +489,12 @@ except Exception as exc:
 # Calibrate from a reading, then modulate (`source` is a required field):
 reading = SolarTelemetry(
     flux=142.0,
-    sunspots=601,
+    sunspots=6,
     source="override",
     observed_at=datetime.now(timezone.utc),
 )
 engine.update(reading)                      # True
-print(engine.phase_vector)                  # (142.0 / 601) · φ
+print(engine.phase_vector)                  # (142.0 / 6) · φ
 print(engine.modulate_video(1920, 1080))    # calibrated (w, h)
 
 # A bad subsequent reading holds the last good vector:

@@ -3,8 +3,8 @@
 SynthOBS replaces manual canvas configuration with a recursive golden-ratio
 layout engine. The active stream output (the *primary object of attention*) is
 allocated ``1/φ ≈ 61.8%`` of the canvas; the control & telemetry deck takes the
-remaining ``38.2%``. Every split here is a pure function — zero I/O — so the
-layout is identical whether computed by the Python engine or mirrored downstream.
+remaining ``38.2%``. Every split here is a pure function — zero I/O — and the
+native adapter is checked against the resulting layout contract.
 
 Integer-exactness rule: a golden split of an integer canvas dimension always
 partitions it with **no lost pixels** — ``major + minor == total`` exactly — by
@@ -81,6 +81,18 @@ class Viewport:
 
     def tiles_exactly(self) -> bool:
         """True iff the three decks partition the canvas with no overlap or gap."""
+        if self.canvas.width < 0 or self.canvas.height < 0:
+            return False
+        for region in self.regions():
+            if (
+                region.width < 0
+                or region.height < 0
+                or region.x < self.canvas.x
+                or region.y < self.canvas.y
+                or region.x + region.width > self.canvas.x + self.canvas.width
+                or region.y + region.height > self.canvas.y + self.canvas.height
+            ):
+                return False
         total = sum(r.area for r in self.regions())
         if total != self.canvas.area:
             return False

@@ -19,7 +19,7 @@ exception, or returns a ``sentinel``). Adding a new external-ingestion function 
 one ``Boundary(...)`` entry — that is the point: the contract is enumerable and
 extensible, not scattered across ad-hoc per-function tests.
 
-No mocks: every call uses real values and the real functions.
+Every call uses real values and the real functions.
 """
 
 from __future__ import annotations
@@ -82,18 +82,26 @@ def _f107(flux: float) -> Any:
 
 def _solarwind(speed: float) -> Any:
     return [
-        ["time_tag", "density", "speed", "temperature"],
-        ["2026-06-10T11:59:00", 5.0, speed, 1.0e5],
+        {
+            "time_tag": "2026-06-10T11:59:00Z",
+            "active": True,
+            "proton_density": 5.0,
+            "proton_speed": speed,
+            "proton_temperature": 1.0e5,
+        },
     ]
 
 
 def _plasma_series(density: float) -> Any:
     # Finite positive speed, but the bad scalar lands in density — the whole row
     # must be dropped, leaving no valid rows → fail closed (raises).
-    return [
-        ["time_tag", "density", "speed", "temperature"],
-        ["2026-06-10T11:59:00", density, 420.0, 1.0e5],
-    ]
+    return [{
+        "time_tag": "2026-06-10T11:59:00Z",
+        "active": True,
+        "proton_density": density,
+        "proton_speed": 420.0,
+        "proton_temperature": 1.0e5,
+    }]
 
 
 def _xray_series(flux: float) -> Any:
@@ -237,6 +245,7 @@ def test_xray_plus_inf_and_plasma_nan_density_are_load_bearing() -> None:
         telemetry.parse_noaa_plasma_series(_plasma_series(float("nan")))
     # and a clean series still parses (the guard didn't over-reject)
     good = telemetry.parse_noaa_plasma_series(
-        [["time_tag", "density", "speed", "temperature"], ["t", 5.0, 420.0, 1.0e5]]
+        [{"time_tag": "2026-06-10T11:59:00Z", "active": True, "proton_density": 5.0, "proton_speed": 420.0, "proton_temperature": 1.0e5}],
+        max_age_s=10**9,
     )
     assert good[1] == [420.0]

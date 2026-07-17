@@ -86,31 +86,45 @@ def _split_flags(tokens: list[str]) -> tuple[list[str], dict[str, str]]:
         if tok.startswith("--"):
             if "=" in tok:
                 key, _, val = tok.partition("=")
+                if key in flags:
+                    raise CommandError(f"duplicate flag {key!r}")
                 flags[key] = val
             else:
+                if tok in flags:
+                    raise CommandError(f"duplicate flag {tok!r}")
                 flags[tok] = ""
         else:
             positionals.append(tok)
     return positionals, flags
 
 
+def _reject_unknown_flags(flags: dict[str, str], allowed: set[str]) -> None:
+    unknown = sorted(set(flags) - allowed)
+    if unknown:
+        raise CommandError(f"unknown option(s): {unknown}")
+
+
 def _parse_mode(raw: str, positionals: list[str], flags: dict[str, str]) -> ModeCommand:
-    for flag in flags:
-        if flag in _MODE_FLAGS:
-            return ModeCommand(raw=raw, target=_MODE_FLAGS[flag])
-    # also accept bare positional like "/mode observatory"
-    for pos in positionals:
-        candidate = f"--{pos}"
-        if candidate in _MODE_FLAGS:
-            return ModeCommand(raw=raw, target=_MODE_FLAGS[candidate])
-    raise CommandError(f"/mode requires one of {sorted(_MODE_FLAGS)}; got {flags or positionals}")
+    _reject_unknown_flags(flags, set(_MODE_FLAGS))
+    if any(value for value in flags.values()):
+        raise CommandError("/mode flags do not accept values")
+    if len(positionals) > 1:
+        raise CommandError(f"/mode accepts one target, got {positionals!r}")
+    targets = [_MODE_FLAGS[flag] for flag in flags]
+    if positionals:
+        candidate = f"--{positionals[0]}"
+        if candidate not in _MODE_FLAGS:
+            raise CommandError(f"/mode requires one of {sorted(_MODE_FLAGS)}; got {positionals!r}")
+        targets.append(_MODE_FLAGS[candidate])
+    if len(targets) != 1:
+        raise CommandError(f"/mode requires exactly one target; got {flags or positionals}")
+    return ModeCommand(raw=raw, target=targets[0])
 
 
 def _parse_transducer(raw: str, positionals: list[str], flags: dict[str, str]) -> BindCommand:
-    if not positionals or positionals[0] != "bind":
+    _reject_unknown_flags(flags, {"--ratio"})
+    if len(positionals) != 2 or positionals[0] != "bind":
         raise CommandError("/transducer expects 'bind <source> --ratio=<f>'")
-    if len(positionals) < 2:
-        raise CommandError("/transducer bind requires a <source>")
     source = positionals[1]
     if "--ratio" not in flags:
         raise CommandError("/transducer bind requires --ratio=<float>")
@@ -124,7 +138,8 @@ def _parse_transducer(raw: str, positionals: list[str], flags: dict[str, str]) -
 
 
 def _parse_swo(raw: str, positionals: list[str], flags: dict[str, str]) -> CalibrateCommand:
-    if not positionals or positionals[0] != "calibrate":
+    _reject_unknown_flags(flags, {"--flux", "--spots", "--target"})
+    if positionals != ["calibrate"]:
         raise CommandError("/swo expects 'calibrate --flux=<f> --spots=<i> [--target=<id>]'")
     if "--flux" not in flags or "--spots" not in flags:
         raise CommandError("/swo calibrate requires --flux and --spots")
@@ -138,12 +153,15 @@ def _parse_swo(raw: str, positionals: list[str], flags: dict[str, str]) -> Calib
         raise CommandError(f"--flux must be finite and positive, got {flux}")
     if spots <= 0:
         raise CommandError(f"--spots must be positive, got {spots}")
+    if "--target" in flags and not flags["--target"].strip():
+        raise CommandError("--target must be non-empty when supplied")
     target = flags.get("--target") or None
     return CalibrateCommand(raw=raw, flux=flux, spots=spots, target=target)
 
 
 def _parse_dashboard(raw: str, positionals: list[str], flags: dict[str, str]) -> DashboardCommand:
-    if not positionals or positionals[0] not in {"plan", "build"}:
+    _reject_unknown_flags(flags, {"--name"})
+    if len(positionals) != 1 or positionals[0] not in {"plan", "build"}:
         raise CommandError("/dashboard expects 'plan --name=<scene>' or 'build --name=<scene>'")
     name = flags.get("--name", "").strip()
     if not name:
@@ -164,6 +182,8 @@ def parse(line: str) -> Command:
 
     Raises :class:`CommandError` on an empty line, unknown verb, or invalid args.
     """
+    if not isinstance(line, str):
+        raise CommandError(f"command line must be a string, got {type(line).__name__}")
     if not line or not line.strip():
         raise CommandError("empty command line")
     try:

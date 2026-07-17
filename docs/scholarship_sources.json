@@ -1,0 +1,267 @@
+{
+  "schema": "synthobs.scholarship_sources.v1",
+  "project": "SynthOBS / FractiSynth",
+  "version": "1.618.0",
+  "verified_on": "2026-07-17",
+  "policy": {
+    "claim_classes": [
+      "external-context",
+      "interface-contract",
+      "design-proposition",
+      "run-observation"
+    ],
+    "source_order": [
+      "primary interface or data documentation",
+      "standards and recommendations",
+      "peer-reviewed methods literature",
+      "historical or pedagogical context"
+    ],
+    "boundary": "External citations establish context and provenance; repository code, tests, manifests, and captures establish project behavior. A citation never substitutes for an executable verification artifact."
+  },
+  "sources": [
+    {
+      "key": "obsmodules",
+      "bib_key": "obsmodules",
+      "kind": "primary interface documentation",
+      "title": "OBS Module API Reference",
+      "url": "https://docs.obsproject.com/reference-modules",
+      "supports": ["OBS-001"]
+    },
+    {
+      "key": "obswebsocket",
+      "bib_key": "obswebsocket",
+      "kind": "primary protocol implementation",
+      "title": "obs-websocket: Remote-control protocol for OBS Studio",
+      "url": "https://github.com/obsproject/obs-websocket",
+      "supports": ["OBS-001"]
+    },
+    {
+      "key": "noaaswpc",
+      "bib_key": "noaaswpc",
+      "kind": "primary data catalogue",
+      "title": "NOAA Space Weather Prediction Center real-time JSON products",
+      "url": "https://services.swpc.noaa.gov/json/rtsw/",
+      "supports": ["TEL-001"]
+    },
+    {
+      "key": "noaaf107",
+      "bib_key": "noaaf107",
+      "kind": "primary data product",
+      "title": "F10.7 cm solar radio flux product",
+      "url": "https://services.swpc.noaa.gov/json/f107_cm_flux.json",
+      "supports": ["TEL-001"]
+    },
+    {
+      "key": "noaasunspot",
+      "bib_key": "noaasunspot",
+      "kind": "primary data product",
+      "title": "Active solar-region report product",
+      "url": "https://services.swpc.noaa.gov/json/solar_regions.json",
+      "supports": ["TEL-001"]
+    },
+    {
+      "key": "noaartsw",
+      "bib_key": "noaartsw",
+      "kind": "primary data product",
+      "title": "Real-time solar-wind products",
+      "url": "https://services.swpc.noaa.gov/json/rtsw/",
+      "supports": ["TEL-001"]
+    },
+    {
+      "key": "libcurl",
+      "bib_key": "libcurl",
+      "kind": "primary library documentation",
+      "title": "libcurl — the multiprotocol file transfer library",
+      "url": "https://curl.se/libcurl/",
+      "supports": ["TEL-001"]
+    },
+    {
+      "key": "nasem2019",
+      "bib_key": "nasem2019",
+      "kind": "reproducibility guidance",
+      "title": "Reproducibility and Replicability in Science",
+      "url": "https://doi.org/10.17226/25303",
+      "supports": ["REP-001"]
+    },
+    {
+      "key": "wilson2014",
+      "bib_key": "wilson2014",
+      "kind": "peer-reviewed software practice",
+      "title": "Best Practices for Scientific Computing",
+      "url": "https://doi.org/10.1371/journal.pbio.1001745",
+      "supports": ["REP-001"]
+    },
+    {
+      "key": "sandve2013",
+      "bib_key": "sandve2013",
+      "kind": "peer-reviewed software practice",
+      "title": "Ten Simple Rules for Reproducible Computational Research",
+      "url": "https://doi.org/10.1371/journal.pcbi.1003285",
+      "supports": ["REP-001"]
+    },
+    {
+      "key": "wilkinson2016fair",
+      "bib_key": "wilkinson2016fair",
+      "kind": "peer-reviewed data stewardship",
+      "title": "The FAIR Guiding Principles for scientific data management and stewardship",
+      "url": "https://doi.org/10.1038/sdata.2016.18",
+      "supports": ["REP-001", "PROV-001"]
+    },
+    {
+      "key": "smith2016softwarecitation",
+      "bib_key": "smith2016softwarecitation",
+      "kind": "peer-reviewed software scholarship",
+      "title": "Software Citation Principles",
+      "url": "https://force11.org/info/software-citation-principles-published-2016/",
+      "supports": ["CITE-001"]
+    },
+    {
+      "key": "cffschema",
+      "bib_key": "cffschema",
+      "kind": "software citation metadata specification",
+      "title": "Citation File Format schema guide",
+      "url": "https://github.com/citation-file-format/citation-file-format/blob/main/schema-guide.md",
+      "supports": ["CITE-001"]
+    },
+    {
+      "key": "prov2013",
+      "bib_key": "prov2013",
+      "kind": "standards recommendation",
+      "title": "PROV-O: The PROV Ontology",
+      "url": "https://www.w3.org/TR/prov-o/",
+      "supports": ["PROV-001"]
+    },
+    {
+      "key": "hunter2007matplotlib",
+      "bib_key": "hunter2007matplotlib",
+      "kind": "peer-reviewed visualization software",
+      "title": "Matplotlib: A 2D Graphics Environment",
+      "url": "https://doi.org/10.1109/MCSE.2007.55",
+      "supports": ["FIG-001"]
+    },
+    {
+      "key": "livio2002golden",
+      "bib_key": "livio2002golden",
+      "kind": "historical mathematical context",
+      "title": "The Golden Ratio: The Story of Phi, the World's Most Astonishing Number",
+      "url": "https://www.penguinrandomhouse.com/books/102878/the-golden-ratio-by-mario-livio/",
+      "supports": ["GEO-001"]
+    },
+    {
+      "key": "smith2007",
+      "bib_key": "smith2007",
+      "kind": "signal-processing foundation",
+      "title": "Digital Audio Signal Processing",
+      "url": "https://ccrma.stanford.edu/~jos/filters/",
+      "supports": ["DSP-001"]
+    },
+    {
+      "key": "gamma1994",
+      "bib_key": "gamma1994",
+      "kind": "software architecture foundation",
+      "title": "Design Patterns: Elements of Reusable Object-Oriented Software",
+      "url": "https://www.pearson.com/en-us/subject-catalog/p/design-patterns-elements-of-reusable-object-oriented-software/P200000003241",
+      "supports": ["ARCH-001"]
+    },
+    {
+      "key": "nisthalpha",
+      "bib_key": "nisthalpha",
+      "kind": "primary spectroscopy reference",
+      "title": "Hydrogen H-alpha wavelength reference",
+      "url": "https://tsapps.nist.gov/publication/get_pdf.cfm?pub_id=2388",
+      "supports": ["SPECT-001"]
+    }
+  ],
+  "claims": [
+    {
+      "id": "OBS-001",
+      "class": "interface-contract",
+      "statement": "The native integration is evaluated at the documented libobs module boundary and through the obs-websocket capture protocol.",
+      "sources": ["obsmodules", "obswebsocket"],
+      "source_of_truth": ["plugin/fractisynth/src/fractisynth.c", "scripts/obs_scenario_probe.py"],
+      "tests": ["tests/test_plugin_artifacts.py", "tests/test_obs_scenario_probe.py"],
+      "artifacts": ["manuscript/assets/obs/obs_manifest.json", "output/figures/plugin_lifecycle.png"]
+    },
+    {
+      "id": "TEL-001",
+      "class": "external-context",
+      "statement": "Telemetry provenance is tied to named NOAA products and transferred by libcurl; malformed, stale, or non-finite payloads fail closed.",
+      "sources": ["noaaswpc", "noaaf107", "noaasunspot", "noaartsw", "libcurl"],
+      "source_of_truth": ["src/synthobs/telemetry.py", "plugin/fractisynth/src/fractisynth.c"],
+      "tests": ["tests/test_telemetry.py", "tests/test_solar_series.py", "tests/test_fail_closed_fuzz.py"],
+      "artifacts": ["manuscript/assets/obs/obs_manifest.json", "output/figures/telemetry_pipeline.png"]
+    },
+    {
+      "id": "REP-001",
+      "class": "design-proposition",
+      "statement": "Versioned inputs, deterministic generators, explicit commands, and separated live gates make this artifact inspectable and rerunnable within stated boundaries.",
+      "sources": ["nasem2019", "wilson2014", "sandve2013", "wilkinson2016fair"],
+      "source_of_truth": ["manuscript/08_evaluation_reproducibility.md", "scripts/generate_figures.py"],
+      "tests": ["tests/test_docs_contracts.py"],
+      "artifacts": ["output/figures/figure_manifest.json", "manuscript/assets/obs/obs_manifest.json"]
+    },
+    {
+      "id": "CITE-001",
+      "class": "design-proposition",
+      "statement": "SynthOBS treats its versioned source, metadata, and evidence bundle as a citable software object: repository location identifies the live project, while the release version and future archive record identify the specific scholarly object used.",
+      "sources": ["smith2016softwarecitation", "cffschema"],
+      "source_of_truth": ["CITATION.cff", "RELEASE.md", "README.md", "docs/scholarship.md"],
+      "tests": ["tests/test_docs_contracts.py"],
+      "artifacts": ["CITATION.cff", "manuscript/08_evaluation_reproducibility.md"]
+    },
+    {
+      "id": "PROV-001",
+      "class": "interface-contract",
+      "statement": "The live evidence bundle records asset hashes, capture metadata, and a checksum-verifiable telemetry strip; it detects corruption but is not a keyed authenticity claim.",
+      "sources": ["wilkinson2016fair", "prov2013"],
+      "source_of_truth": ["src/synthobs/provenance.py", "scripts/verify_provenance_strip.py"],
+      "tests": ["tests/test_provenance.py", "tests/test_provenance_verify_tool.py"],
+      "artifacts": ["manuscript/assets/obs/obs_manifest.json", "manuscript/assets/obs/obs_telemetry_hud.png"]
+    },
+    {
+      "id": "FIG-001",
+      "class": "interface-contract",
+      "statement": "Analytical figures are generated from labelled source functions and accompanied by a machine-readable manifest rather than treated as decorative evidence.",
+      "sources": ["hunter2007matplotlib"],
+      "source_of_truth": ["scripts/generate_figures.py"],
+      "tests": ["tests/test_docs_contracts.py"],
+      "artifacts": ["output/figures/figure_manifest.json", "output/figures/architecture_layers.png"]
+    },
+    {
+      "id": "GEO-001",
+      "class": "design-proposition",
+      "statement": "Golden-ratio geometry is a declared design choice implemented as exact integer partitions and tested for coverage, gap, and overlap invariants.",
+      "sources": ["livio2002golden"],
+      "source_of_truth": ["src/synthobs/constants.py", "src/synthobs/layout.py"],
+      "tests": ["tests/test_constants_and_layout.py"],
+      "artifacts": ["output/figures/goldilocks_layout.png", "output/figures/golden_split.png"]
+    },
+    {
+      "id": "DSP-001",
+      "class": "design-proposition",
+      "statement": "The phi-knee limiter and spatial scale matrix are engineering constructions bounded and compared across Python and native implementations.",
+      "sources": ["smith2007"],
+      "source_of_truth": ["src/synthobs/dsp.py", "plugin/fractisynth/src/fractisynth.c"],
+      "tests": ["tests/test_swo_and_dsp.py", "tests/test_c_parity_behavioral.py"],
+      "artifacts": ["output/figures/phi_soft_limiter.png", "output/figures/phi_matrix.png"]
+    },
+    {
+      "id": "ARCH-001",
+      "class": "design-proposition",
+      "statement": "The separation between a dependency-free reference engine, native runtime mirror, and I/O-oriented scripts is an explicit architecture choice.",
+      "sources": ["gamma1994"],
+      "source_of_truth": ["AGENTS.md", "src/synthobs", "plugin/fractisynth", "scripts"],
+      "tests": ["tests/test_docs_contracts.py", "tests/test_plugin_artifacts.py"],
+      "artifacts": ["output/figures/architecture_layers.png", "output/figures/parity_bridge.png"]
+    },
+    {
+      "id": "SPECT-001",
+      "class": "external-context",
+      "statement": "The H-alpha visual anchor is labelled as a wavelength provenance reference, not as evidence that the overlay measures solar spectroscopy.",
+      "sources": ["nisthalpha"],
+      "source_of_truth": ["plugin/fractisynth/data/fractisynth.effect", "manuscript/00_abstract.md"],
+      "tests": ["tests/test_gateway_and_interference.py"],
+      "artifacts": ["output/figures/obs_scene_render.png"]
+    }
+  ]
+}

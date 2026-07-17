@@ -30,6 +30,12 @@ def test_initial_manifest_schema_and_required_sections() -> None:
     assert manifest["obs"] == {"connected": False}
     assert manifest["gates"] == {}
     assert manifest["captures"] == {}
+    assert manifest["required_gates"] == [
+        "connection",
+        "dashboard_fit_to_canvas",
+        "interaction_model",
+        "render_content",
+    ]
 
 
 def test_manifest_skip_semantics_are_non_fatal_unless_live_required(tmp_path: Path) -> None:
@@ -57,9 +63,26 @@ def test_manifest_requires_all_gates_to_pass_when_live_required() -> None:
         height=720,
     )
     set_gate(manifest, "connection", GateResult.passed("identified"))
+    set_gate(manifest, "dashboard_fit_to_canvas", GateResult.passed("fit"))
+    set_gate(manifest, "interaction_model", GateResult.passed("targets"))
+    set_gate(manifest, "render_content", GateResult.passed("nonblank"))
     set_gate(manifest, "audio_reactivity", GateResult.failed("delta below threshold"))
 
     assert manifest_exit_code(manifest, require_live=True) == 1
 
     set_gate(manifest, "audio_reactivity", GateResult.passed("delta passed"))
     assert manifest_exit_code(manifest, require_live=True) == 0
+
+
+def test_manifest_require_live_rejects_empty_or_missing_required_gates() -> None:
+    manifest = initial_manifest(
+        scene="SynthOBSVerify",
+        url="ws://localhost:4455",
+        width=1280,
+        height=720,
+    )
+
+    assert manifest_exit_code(manifest, require_live=True) == 1
+
+    manifest["required_gates"] = []
+    assert manifest_exit_code(manifest, require_live=True) == 1

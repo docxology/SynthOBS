@@ -10,7 +10,7 @@
 #   ./build.sh            # build + sign → build/FractiSynth.plugin
 #   ./build.sh --install  # also install into ~/Library/Application Support/obs-studio/plugins
 #
-# Requires: clang, git, an installed OBS.app, and (optional) libcurl for live telemetry.
+# Requires: clang, git, an installed OBS.app, and libcurl for live telemetry.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -67,7 +67,8 @@ if echo '#include <curl/curl.h>' | clang -fsyntax-only -xc - -I"$SDKROOT/usr/inc
 	CURL_LIB="-lcurl"
 	echo "==> libcurl found — live SWO telemetry thread enabled"
 else
-	echo "==> libcurl not found — SWO runs on its default vector"
+	echo "ERROR: libcurl headers not found; live NOAA telemetry is required for release builds." >&2
+	exit 1
 fi
 
 # --- 2. compile + link ----------------------------------------------------

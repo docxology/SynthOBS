@@ -1,17 +1,14 @@
-"""The SynthEngine — the unified wavefield that binds telemetry, the SWO, the
-Goldilocks layout, the FractiSynth DSP, and the modality console into one
-phase-locked system.
+"""The SynthEngine — the orchestration boundary for telemetry, SWO calibration,
+Goldilocks layout, FractiSynth DSP, and the modality console.
 
-Data flow (blueprint §6, §2.2)::
-
-    live telemetry → SWO calibration → system_phase_vector
-                                          ├── layout / font / transition scaling
-                                          └── audio LF modulation + video displacement
+Data flow: live telemetry enters SWO calibration, which produces
+``system_phase_vector``. The native plugin consumes that value for its visual and
+audio-reactive paths; the Python engine uses it to gate modulation until a verified
+or explicitly held calibration exists.
 
 When telemetry is unavailable the engine enters a smooth **Hold State**, frozen to
 the last verified vector until a live connection is re-established. It refuses to
-modulate before the first successful calibration unless explicitly placed in demo
-mode.
+modulate before the first successful calibration; no synthetic vector is available.
 """
 
 from __future__ import annotations
@@ -50,9 +47,8 @@ class EngineState:
 class SynthEngine:
     """The vessel console core. One instance drives one broadcast environment."""
 
-    def __init__(self, *, mode: Mode = Mode.OBSERVATORY, demo_mode: bool = False) -> None:
+    def __init__(self, *, mode: Mode = Mode.OBSERVATORY) -> None:
         self._mode = Mode(mode)
-        self._demo = demo_mode
         self._swo = SolarWavefieldOscillator()
         self._console = Console()
         self._console.validate()
@@ -160,8 +156,6 @@ class SynthEngine:
     def _require_vector(self) -> float:
         vec = self._swo.system_phase_vector
         if vec is None:
-            if self._demo:
-                return 1.0  # demo mode: a neutral unity vector
             raise TelemetryUnavailable(
                 "engine refuses to modulate before first successful calibration (ISC-54)"
             )

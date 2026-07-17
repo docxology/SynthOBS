@@ -24,7 +24,7 @@ pinning outside prose.
 ## Build
 
 ```bash
-cd projects/working/SynthOBS/lean
+cd lean
 lake build
 ```
 

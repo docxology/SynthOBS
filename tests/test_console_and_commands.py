@@ -163,6 +163,25 @@ def test_transducer_ratio_must_be_numeric() -> None:
         parse("/transducer bind cam --ratio=not-a-number")
 
 
+def test_ambiguous_or_trailing_command_tokens_fail_closed() -> None:
+    invalid = (
+        "/mode --observatory --lab",
+        "/mode --observatory --unknown",
+        "/mode --observatory=value",
+        "/transducer bind cam --ratio=1.6 extra",
+        "/transducer bind cam --ratio=1.6 --unknown=x",
+        "/transducer bind cam --ratio=1.6 --ratio=1.7",
+        "/swo calibrate --flux=130 --spots=3 --unknown=x",
+        "/swo calibrate --flux=130 --spots=3 --target=",
+        "/dashboard plan --name=Awareness trailing",
+        "/dashboard plan --name=Awareness --unknown=x",
+        "/dashboard plan --name=one --name=two",
+    )
+    for line in invalid:
+        with pytest.raises(CommandError):
+            parse(line)
+
+
 # --- obspython adapter fail-closed regression (SYNTHOBS-CONSOLE-1) ------------
 def _load_console_module():
     """Import the plugin's obspython adapter by path (it lives outside the package)."""

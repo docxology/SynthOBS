@@ -1,6 +1,8 @@
 # The Golden-Ratio Mathematics
 
-Everything in SynthOBS scales against one constant. This page documents the constant,
+The Python engine uses the golden ratio for its layout and DSP contracts. The EGS
+gateway key is a separate constant for the phase calculation. This page documents
+the golden-ratio constant,
 its derived ratios, and the three places they shape the system: spatial layout, the
 audio soft limiter, and the spatial scale matrix.
 
@@ -53,15 +55,7 @@ the two parts always sum back to `total` with no rounding gap — the major part
 `round(total · INV_PHI)` and the minor is the exact remainder. This is what lets a
 viewport tile without a one-pixel seam.
 
-```
-golden_split(total)
-                   │◄──────────────── total ─────────────────►│
-                   ┌───────────────────────────┬──────────────┐
-                   │  major = round(total·1/φ)  │    minor     │
-                   │       ≈ 61.8 %             │  ≈ 38.2 %    │
-                   └───────────────────────────┴──────────────┘
-                    major + minor == total   (exact, no seam)
-```
+![Rendered integer-exact golden split. The 1000-unit worked example produces major 618 and residual minor 382, with 618 + 382 = 1000 exactly; the visual percentages are diagnostic displays of the $1/\varphi$ and $1/\varphi^2$ shares, while the residual rule is what prevents a rounding seam.](../output/figures/golden_split.png){#fig:docs-golden-split width=90%}
 
 > **Invariant subtlety (documented gotcha).** Successive `REGION` sizes shrink by
 > **1/φ² per region**, *not* 1/φ. The true per-cut invariant is `major / remaining =
@@ -81,13 +75,9 @@ assemble_viewport(width: int, height: int) -> Viewport
   of sizes — the basis of nested φ panels. Each cut keeps the major share and re-splits
   the remainder:
 
-  ```
-  recursive_subdivision(total, depth=4)
-      ┌──────────────┬────────┬────┬───┐
-      │   major₀     │ major₁ │ m₂ │m₃ │   sizes = [major₀, major₁, major₂, minor₃]
-      └──────────────┴────────┴────┴───┘   Σ sizes == total   (exact, ISC-5)
-        ◄ 1/φ ►        ◄1/φ►            consecutive cuts → ratio 1/φ (ISC-6)
-  ```
+  The generated split figure also represents the recursive remainder path: each
+  successive cut takes the major share of the remaining span, and the final
+  remainder closes the exact sum required by ISC-5 and ISC-6.
 
 - `golden_spiral_points` samples a logarithmic golden spiral (growth factor φ per
   quarter-turn) — the geometric signature used in the figures.
@@ -98,18 +88,9 @@ assemble_viewport(width: int, height: int) -> Viewport
   (major ≈61.8 % height) and telemetry strip (minor ≈38.2 %). `tiles_exactly()` is `True`
   and `primary_fraction()` returns `primary.area / canvas.area`:
 
-  ```
-  assemble_viewport(width, height)
-      ┌──────────────────────────────┬───────────────────┐
-      │                              │   console deck     │  ◄ major
-      │                              │  (≈61.8% height)   │    ≈61.8%
-      │      primary output deck     ├───────────────────┤    height
-      │       (≈61.8% width)         │  telemetry strip   │  ◄ minor
-      │                              │  (≈38.2% height)   │    ≈38.2%
-      └──────────────────────────────┴───────────────────┘
-        ◄──── major ≈61.8% width ────►◄── minor ≈38.2% ──►
-        tiles_exactly() == True   (no overlap, no gap)
-  ```
+  See the rendered viewport partition in
+  [the layout figure](../output/figures/goldilocks_layout.png), which makes the
+  exact three-deck tiling visible without a diagrammatic text surrogate.
 
 ## 2. The audio soft limiter (`dsp.phi_soft_limit`)
 
@@ -125,19 +106,7 @@ it the excess is compressed by `headroom · tanh(excess / (headroom·φ))` — w
 `headroom = threshold − knee == threshold · 1/φ²` — so the magnitude approaches but
 **never hard-clips** the ceiling.
 
-```
- |out|
-threshold ┤ - - - - - - - - - - - - - · · · · ·   ← ceiling, asymptote (never reached)
-          │                      · ·
-          │                 · ·          ┌──────────────────────────────┐
-          │              ·               │ above knee: tanh compression  │
-   knee = ┤ - - - - - · ╮                │ excess = |x| − knee           │
-   thr/φ  │        ·    │                │ out = knee + headroom·tanh(…) │
-          │     ·       │ identity       └──────────────────────────────┘
-          │  ·          │ (out = x)
-        0 ┼·────────────┴──────────────────────────────►  |x|
-          0           knee=1/φ
-```
+![Rendered φ soft-limiter transfer curve at threshold 1. The identity band is $|x|\le1/\varphi=0.618034$; the smooth branch remains sign-preserving and bounded by the ceiling, while the dashed hard clip is shown as the rejected comparison.](../output/figures/phi_soft_limiter.png){#fig:phi-limiter width=88%}
 
 Properties the suite verifies (ISC-27..31):
 
@@ -176,14 +145,7 @@ spatial_scale_matrix(factor: float = PHI) -> list[list[float]]
   `1/φ` (the suite asserts `m[0][0] == m[1][1] ≈ INV_PHI`); the homogeneous entry
   `m[2][2]` stays `1.0`. A non-finite or zero `factor` raises `ValueError` (ISC-32):
 
-  ```
-  spatial_scale_matrix(φ)
-      ┌                      ┐
-      │ 1/φ    0      0      │   m[0][0] = 1/φ  (x scale)
-      │  0    1/φ     0      │   m[1][1] = 1/φ  (y scale)
-      │  0     0     1.0     │   m[2][2] = 1.0  (homogeneous)
-      └                      ┘
-  ```
+  ![Rendered homogeneous spatial scale matrix. The x/y diagonal is $1/\varphi=0.618034$, the homogeneous entry is 1, and 1920×1080 calibrates to 1187×667 pixels after integer rounding.](../output/figures/phi_matrix.png){#fig:docs-phi-matrix width=68%}
 
 ## Why integer-exactness matters
 

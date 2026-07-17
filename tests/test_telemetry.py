@@ -1,8 +1,9 @@
-"""Telemetry ingestion tests (ISC-11..18) — real HTTP via pytest-httpserver, no mocks."""
+"""Telemetry ingestion tests (ISC-11..18) — real HTTP via pytest-httpserver."""
 
 from __future__ import annotations
 
 import json
+import math
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -12,6 +13,7 @@ from synthobs.telemetry import (
     TelemetryUnavailable,
     fetch_live_telemetry,
     parse_noaa_f107_flux,
+    parse_noaa_solar_wind,
     telemetry_from_payload,
 )
 
@@ -99,6 +101,32 @@ def test_future_timestamp_fails_closed() -> None:
         telemetry_from_payload(_fresh_payload(time_tag=future), now=_now())
 
 
+@pytest.mark.parametrize(
+    "payload",
+    [
+        _fresh_payload(flux=True),
+        _fresh_payload(sunspots=True),
+        _fresh_payload(sunspots=3.9),
+    ],
+)
+def test_boolean_and_fractional_counts_fail_closed(payload: dict) -> None:
+    """JSON booleans are not measurements and counts must not be truncated."""
+    with pytest.raises(TelemetryUnavailable):
+        telemetry_from_payload(payload, now=_now())
+
+
+@pytest.mark.parametrize("window", [math.nan, math.inf, -1.0, True])
+def test_invalid_freshness_window_fails_closed(window) -> None:
+    with pytest.raises(TelemetryUnavailable):
+        telemetry_from_payload(_fresh_payload(), now=_now(), max_age_s=window)
+
+
+@pytest.mark.parametrize("timeout", [math.nan, math.inf, 0.0, -1.0, True])
+def test_invalid_http_timeout_fails_closed(timeout) -> None:
+    with pytest.raises(TelemetryUnavailable):
+        fetch_live_telemetry("https://example.invalid/swo", timeout=timeout, now=_now())
+
+
 def test_malformed_time_tag_fails_closed() -> None:
     with pytest.raises(TelemetryUnavailable):
         telemetry_from_payload(_fresh_payload(time_tag="not-a-date"), now=_now())
@@ -110,33 +138,6 @@ def test_connection_failure_fails_closed() -> None:
     # Nothing listening on this port → URLError → TelemetryUnavailable.
     with pytest.raises(TelemetryUnavailable):
         fetch_live_telemetry("http://127.0.0.1:1/swo", timeout=0.5, now=_now())
-
-
-def test_custom_opener_non_200_fails_closed() -> None:
-    class Response:
-        status = 204
-
-        def __enter__(self):
-            return self
-
-        def __exit__(self, exc_type, exc, tb) -> None:
-            return None
-
-        def getcode(self) -> int:
-            return self.status
-
-        def read(self) -> bytes:
-            return b""
-
-    def opener(url: str, *, timeout: float) -> Response:
-        assert url == "https://example.invalid/swo"
-        assert timeout == 1.0
-        return Response()
-
-    with pytest.raises(TelemetryUnavailable, match="non-200"):
-        fetch_live_telemetry(
-            "https://example.invalid/swo", timeout=1.0, now=_now(), opener=opener
-        )
 
 
 # --- NOAA F10.7 array parser --------------------------------------------
@@ -189,6 +190,11 @@ def test_parse_noaa_f107_missing_or_nonnumeric_flux_fails_closed(data: list[dict
         parse_noaa_f107_flux(data)
 
 
+def test_parse_noaa_f107_rejects_boolean_flux() -> None:
+    with pytest.raises(TelemetryUnavailable):
+        parse_noaa_f107_flux([{"time_tag": "2026-06-10T00:00:00", "flux": True}])
+
+
 # --- non-finite (NaN/Inf) fail-closed regression (boundary leak the bare `<= 0.0`
 #     guards missed; NaN/Inf are JSON-legal and slip past `x <= 0.0`) --------------
 _NONFINITE = ["NaN", "Infinity", "-Infinity"]
@@ -212,23 +218,44 @@ def test_parse_noaa_f107_rejects_nonfinite_flux(tok: str) -> None:
 
 @pytest.mark.parametrize("tok", _NONFINITE)
 def test_parse_noaa_solar_wind_rejects_nonfinite_speed(tok: str) -> None:
-    from synthobs.telemetry import parse_noaa_solar_wind
-
     raw = (
-        '[["time_tag","density","speed","temperature"],'
-        '["2026-06-10T11:59:00", 5.0, %s, 1.0e5]]' % tok
+        '[{"time_tag":"2026-06-10T11:59:00Z","active":true,'
+        '"proton_density":5.0,"proton_speed":%s,"proton_temperature":1.0e5}]' % tok
     )
     with pytest.raises(TelemetryUnavailable):
         parse_noaa_solar_wind(raw, now=_now())
 
 
+def test_parse_noaa_solar_wind_accepts_current_rtsw_object_schema() -> None:
+    feed = [
+        {
+            "time_tag": "2026-06-10T11:59:00",
+            "active": False,
+            "proton_speed": 999.0,
+            "proton_density": 99.0,
+            "proton_temperature": 1.0,
+        },
+        {
+            "time_tag": "2026-06-10T11:58:00",
+            "active": True,
+            "proton_speed": 420.0,
+            "proton_density": 5.5,
+            "proton_temperature": 100000,
+        },
+    ]
+
+    wind = parse_noaa_solar_wind(feed, now=_now())
+
+    assert wind.speed_kms == 420.0
+    assert wind.density == 5.5
+    assert wind.observed_at.isoformat() == "2026-06-10T11:58:00+00:00"
+
+
 @pytest.mark.parametrize("tok", _NONFINITE)
 def test_parse_noaa_solar_wind_nonfinite_density_held_to_none(tok: str) -> None:
-    from synthobs.telemetry import parse_noaa_solar_wind
-
     raw = (
-        '[["time_tag","density","speed","temperature"],'
-        '["2026-06-10T11:59:00", %s, 420.0, 1.0e5]]' % tok
+        '[{"time_tag":"2026-06-10T11:59:00Z","active":true,'
+        '"proton_density":%s,"proton_speed":420.0,"proton_temperature":1.0e5}]' % tok
     )
     wind = parse_noaa_solar_wind(raw, now=_now())
     assert wind.speed_kms == 420.0

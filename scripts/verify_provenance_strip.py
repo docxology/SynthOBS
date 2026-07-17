@@ -30,6 +30,7 @@ from synthobs.provenance import (  # noqa: E402
     TelemetryRecord,
     extract_lsb,
     short_signature,
+    verify_authenticated_payload,
     verify_payload,
 )
 
@@ -56,10 +57,13 @@ def _png_to_rgba_bytes(path: Path) -> tuple[bytes, int, int]:
     return arr.tobytes(order="C"), width, height
 
 
-def verify_png(path: str | Path) -> TelemetryRecord:
-    """Extract and verify the provenance record embedded in ``path``."""
+def verify_png(path: str | Path, *, hmac_key: bytes | bytearray | None = None) -> TelemetryRecord:
+    """Extract and verify a checksum payload, optionally requiring HMAC authenticity."""
     rgba, width, height = _png_to_rgba_bytes(Path(path))
-    return verify_payload(extract_lsb(rgba, width, height))
+    payload = extract_lsb(rgba, width, height)
+    if hmac_key is not None:
+        return verify_authenticated_payload(payload, hmac_key)
+    return verify_payload(payload)
 
 
 def record_summary(rec: TelemetryRecord) -> dict[str, Any]:
@@ -84,11 +88,24 @@ def main(argv: list[str] | None = None) -> int:
         "--expect-signature",
         help="Optional 8-hex on-screen signature that must match the recovered record",
     )
+    parser.add_argument(
+        "--hmac-key-env",
+        metavar="ENVVAR",
+        help="Require an authenticated payload using the non-empty UTF-8 key in ENVVAR",
+    )
     parser.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
     args = parser.parse_args(argv)
 
     try:
-        rec = verify_png(args.image)
+        hmac_key = None
+        if args.hmac_key_env:
+            raw_key = os.environ.get(args.hmac_key_env)
+            if raw_key is None:
+                raise ProvenanceError(
+                    f"HMAC key environment variable is not set: {args.hmac_key_env}"
+                )
+            hmac_key = raw_key.encode("utf-8")
+        rec = verify_png(args.image, hmac_key=hmac_key)
         summary = record_summary(rec)
         if args.expect_signature and summary["signature"] != args.expect_signature.lower():
             raise ProvenanceError(

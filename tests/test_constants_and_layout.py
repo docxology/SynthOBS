@@ -120,6 +120,12 @@ def test_viewport_tiles_exactly_rejects_area_mismatch_and_overlap() -> None:
         console=Region(4, 0, 5, 10),
         telemetry=Region(9, 0, 1, 10),
     ).tiles_exactly()
+    assert not Viewport(
+        canvas=canvas,
+        primary=Region(-1, 0, 4, 10),
+        console=Region(3, 0, 4, 10),
+        telemetry=Region(7, 0, 3, 10),
+    ).tiles_exactly()
 
 
 # --- golden spiral -------------------------------------------------------

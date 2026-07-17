@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import inspect
 
 import pytest
 from synthobs.console import Mode
@@ -74,10 +75,8 @@ def test_refuses_modulation_before_calibration() -> None:  # ISC-54
         eng.measure_audio([0.1, 0.2])
 
 
-def test_demo_mode_allows_modulation() -> None:  # ISC-54 (demo escape)
-    eng = SynthEngine(demo_mode=True)
-    cw, ch = eng.modulate_video(1000, 1000)
-    assert cw == 618 and ch == 618
+def test_constructor_exposes_only_operating_mode() -> None:  # ISC-54
+    assert tuple(inspect.signature(SynthEngine).parameters) == ("mode",)
 
 
 def test_mode_switching_constrained() -> None:  # ISC-53

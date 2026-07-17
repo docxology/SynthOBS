@@ -1,11 +1,11 @@
-"""The El Gran Sol (EGS) Gateway — solar-wind → hydrogen-line phase lock.
+"""The El Gran Sol (EGS) Gateway — solar-wind → modeled phase score.
 
 A faithful, fail-closed port of the FractiAI *Microsoft Silica EGS Gateway* core
 (``egs_gateway.py``). The gateway is the real-time translator between the Sun's
 energetic state and the FractiSynth phase plane: it injects the live solar-wind
 speed as a phase bias on the virtual 1030 nm reader, weighted by the EGS Fractal
 Constant (the gateway key ``K_EGS = φ·λ_reader/λ_Hα``), and reports how strongly
-the system is phase-locked right now.
+the modeled system score for the current admitted wind value.
 
 Where the :mod:`synthobs.swo` oscillator locks the *amplitude* plane from F10.7
 flux and active-region count, the gateway locks the *phase* plane from solar wind.
@@ -31,7 +31,7 @@ _TWO_PI = 2.0 * math.pi
 def egs_fractal_constant() -> float:
     """Return the EGS Fractal Constant / gateway key ``K_EGS`` (≈ 2.539427).
 
-    Exposed as a function to mirror the FractiAI gateway API; the value itself is
+    Exposed as a function matching the FractiAI gateway vocabulary; the value itself is
     :data:`synthobs.constants.EGS_GATEWAY_KEY`.
     """
     return EGS_GATEWAY_KEY
@@ -68,8 +68,19 @@ def gateway_filter(
     and hold the last good lock). Failing closed here, not only in the caller,
     keeps this public API honest for any consumer.
     """
-    if not math.isfinite(solar_wind_kms) or solar_wind_kms <= 0.0:
+    if isinstance(solar_wind_kms, bool) or isinstance(reader_wavelength_nm, bool):
+        raise ValueError("gateway inputs must be real, finite numbers")
+    try:
+        valid_wind = math.isfinite(solar_wind_kms) and solar_wind_kms > 0.0
+        valid_reader = math.isfinite(reader_wavelength_nm) and reader_wavelength_nm > 0.0
+    except (TypeError, ValueError):
+        valid_wind = valid_reader = False
+    if not valid_wind:
         raise ValueError(f"solar_wind_kms must be positive and finite, got {solar_wind_kms}")
+    if not valid_reader:
+        raise ValueError(
+            f"reader_wavelength_nm must be positive and finite, got {reader_wavelength_nm}"
+        )
 
     norm = solar_wind_kms / REFERENCE_SOLAR_WIND_KMS
     phase_bias = (_TWO_PI * norm * EGS_GATEWAY_KEY) % _TWO_PI

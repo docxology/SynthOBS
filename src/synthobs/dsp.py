@@ -1,12 +1,11 @@
 """FractiSynth DSP — φ-scaled audio harmonic balancing and video spatial scaling.
 
-These are the Python mirrors of the native FractiSynth audio/video filter callbacks.
+These are the tested Python reference kernels for the native FractiSynth audio/video
+filter callbacks.
 
-Audio: instead of harsh linear peak limiting that clips frequencies, sample buffers
-are compressed along a smooth recursive curve scaled by ``1/φ``. Below a knee the
-signal passes through untouched (no premature distortion); above it, the excess is
-soft-compressed so the output asymptotically approaches — but never exceeds — the
-ceiling, maximizing acoustic presence while preventing compression fatigue.
+Audio: sample buffers are compressed along a smooth curve scaled by ``1/φ``. Below
+the knee the signal passes through unchanged; above it, the excess is soft-compressed
+so the output approaches but does not exceed the configured ceiling.
 
 Video: before frames reach the hardware encoder, spatial bounds are scaled against
 the EGS fractal constant — ``calibrated = source / φ`` — establishing the harmonic

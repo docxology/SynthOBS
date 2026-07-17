@@ -10,8 +10,10 @@ template tree.)
   `infrastructure.*` and has zero I/O outside `telemetry.py`. All golden-ratio
   geometry, SWO calibration, DSP, console model, and command grammar live here and
   are tested directly.
-- `plugin/fractisynth/` (native C `libobs` plugin) and `plugin/synthobs/`
-  (`obspython` script) **mirror** the engine — they must not re-implement the math.
+- `plugin/fractisynth/` is a native C `libobs` adapter with local kernels for the
+  contracts that must execute inside OBS; its constants and selected behaviors are
+  checked against the Python engine. `plugin/synthobs/` is an `obspython` bridge
+  that imports the engine rather than maintaining a second command implementation.
 - `scripts/` are thin orchestrators: import the engine, do I/O + matplotlib only.
 
 ## Invariants (do not break)
@@ -23,7 +25,7 @@ template tree.)
 - **Console shape.** Exactly 3 modes × 7 buttons = 3 common + 4 unique; the 3 common
   ids are identical across modes; unique ids are disjoint. `Console.validate()` and
   `test_console_and_commands.py` enforce this — update both on any change.
-- **No mocks.** HTTP via `pytest-httpserver`; real numbers; fixed seeds.
+- **Real I/O only.** HTTP via `pytest-httpserver`; real numbers; fixed seeds.
 - **Coverage ≥ 90%** on `src/synthobs`.
 
 ## Commands

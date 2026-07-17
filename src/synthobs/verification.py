@@ -201,7 +201,11 @@ def _validate_dims(width: int, height: int) -> None:
 def _validate_roi(
     roi: tuple[int, int, int, int], width: int, height: int
 ) -> tuple[int, int, int, int]:
-    if len(roi) != 4:
+    try:
+        size = len(roi)
+    except TypeError as exc:
+        raise ValueError(f"roi must be (x, y, w, h), got {roi!r}") from exc
+    if size != 4:
         raise ValueError(f"roi must be (x, y, w, h), got {roi!r}")
     x, y, w, h = roi
     if not all(isinstance(v, int) for v in roi):

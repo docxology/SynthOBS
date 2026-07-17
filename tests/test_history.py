@@ -1,4 +1,4 @@
-"""Tests for synthobs.history — no mocks, real data and computation only."""
+"""Tests for synthobs.history using real data and computation only."""
 
 from __future__ import annotations
 

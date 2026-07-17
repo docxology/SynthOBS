@@ -4,6 +4,29 @@ The FractiSynth C plugin builds against your **installed OBS.app** on macOS and 
 verified to load live in **OBS 32.1.2**. This page is the build, install, and
 verification guide.
 
+## Public checkout and prerequisites
+
+For the eventual public v1 distribution, clone the canonical repository first:
+
+```bash
+git clone https://github.com/docxology/SynthOBS.git
+cd SynthOBS
+```
+
+The engine and documentation checks require [`uv`](https://docs.astral.sh/uv/). The
+native macOS path additionally requires OBS Studio, Xcode Command Line Tools, `git`,
+`clang`, and `libcurl`. The optional Qt dock requires a Qt `6.8.x` installation
+matching the Qt minor version used by OBS. From a clean checkout, run the Python
+verification before installing the native module:
+
+```bash
+uv sync --extra dev
+uv run python -m pytest tests --cov=synthobs --cov-fail-under=90
+```
+
+This public-root command is the primary path. The local template integration may
+instead invoke the same files through `projects/working/SynthOBS`.
+
 ## Quick path (macOS)
 
 ```bash
@@ -26,7 +49,7 @@ flowchart TD
     B["Fetch matching headers → .obs-sdk/<br/>sparse libobs checkout @ tag<br/>+ header-only SIMDe + generated obsconfig.h"]
     C{"libcurl?<br/>&lt;curl/curl.h&gt;"}
     D["compile -DHAVE_CURL,<br/>link -lcurl<br/>(live telemetry thread)"]
-    E["compile without curl<br/>(SWO on default vector,<br/>logs a warning)"]
+    E["fail the release build<br/>(no default-vector telemetry)"]
     F["Compile + link -bundle<br/>clang -std=gnu11 -O2 -Wall<br/>-framework libobs<br/>-undefined dynamic_lookup"]
     G["Assemble FractiSynth.plugin<br/>(see bundle layout below)"]
     H["Ad-hoc sign<br/>codesign --force --deep --sign -"]
@@ -34,7 +57,7 @@ flowchart TD
 
     A --> B --> C
     C -- yes --> D --> F
-    C -- no --> E --> F
+    C -- no --> E
     F --> G --> H --> I
 
     classDef d fill:#0f172a,stroke:#0f172a,color:#fff
@@ -49,7 +72,7 @@ Step detail (numbers match the comment headers in `build.sh`):
 | --- | --- | --- |
 | — | **Resolve OBS version** | `defaults read OBS.app/Contents/Info.plist CFBundleShortVersionString` (e.g. `32.1.2`; falls back to `32.1.2`). Override the app location with `OBS_APP=/path/to/OBS.app`. |
 | 1 | **Fetch matching headers** | A sparse `libobs` checkout of `obs-studio` at that tag into `.obs-sdk/obs-studio`, plus header-only SIMDe into `.obs-sdk/simde`, plus a minimal generated `obsconfig.h`. Cached after the first run. |
-| — | **Detect libcurl** | If `<curl/curl.h>` resolves, compiles with `-DHAVE_CURL` and links `-lcurl` (live telemetry thread). Otherwise the oscillator runs on its default vector and logs a warning — the plugin still builds and loads. |
+| — | **Detect libcurl** | If `<curl/curl.h>` resolves, compiles with `-DHAVE_CURL` and links `-lcurl` (live telemetry thread). Release builds fail when libcurl is missing so the oscillator cannot silently ship uncalibrated. |
 | 2 | **Compile + link** | `clang -c … -fPIC -std=gnu11 -O2 -Wall`, then `clang -bundle … -framework libobs` with `-Wl,-undefined,dynamic_lookup`. |
 | 3 | **Assemble the bundle** | Builds `FractiSynth.plugin` (layout below), including the `Info.plist` with `CFBundleIdentifier institute.activeinference.fractisynth` and version `1.618.0`. |
 | 4 | **Ad-hoc sign** | `codesign --force --deep --sign -` so a hardened OBS will load a local dev plugin. |
@@ -59,20 +82,16 @@ Step detail (numbers match the comment headers in `build.sh`):
 
 `build.sh` assembles the macOS plugin bundle as:
 
-```
-FractiSynth.plugin/
-└── Contents/
-    ├── Info.plist                     CFBundleIdentifier institute.activeinference.fractisynth
-    │                                   CFBundleExecutable FractiSynth · version 1.618.0
-    ├── MacOS/
-    │   └── FractiSynth                 the linked -bundle Mach-O
-    └── Resources/
-        ├── locale/
-        │   └── en-US.ini               filter display-name strings
-        ├── fractisynth.effect            φ video-calibration shader
-        ├── fractisynth_console.effect    wavefield-console shader (feeds + audio meter)
-        └── fractisynth_inspector.effect  Zoom Inspector loupe shader
-```
+The assembled bundle has this semantic structure:
+
+- `FractiSynth.plugin/Contents/`
+  - `Info.plist` — bundle identifier `institute.activeinference.fractisynth`, executable `FractiSynth`, version `1.618.0`.
+  - `MacOS/FractiSynth` — linked bundle Mach-O.
+  - `Resources/`
+    - `locale/en-US.ini` — filter display-name strings.
+    - `fractisynth.effect` — φ video-calibration shader.
+    - `fractisynth_console.effect` — wavefield-console shader with feeds and audio meter.
+    - `fractisynth_inspector.effect` — Zoom Inspector loupe shader.
 
 All three `data/*.effect` files and the `data/locale` directory are copied into
 `Contents/Resources/`.
@@ -106,7 +125,7 @@ newest log under `~/Library/Application Support/obs-studio/logs/` and look for:
 [fractisynth] loaded (φ=1.61803400517)
   Loaded Modules:
     FractiSynth
-[fractisynth] SWO locked: flux=145.0 spots=601 phase=0.3904
+[fractisynth] SWO locked: flux=145.0 spots=10 phase=23.46
 [fractisynth] gateway lock: wind=397.5 km/s lock=0.989 phase=3.290
 …
 [fractisynth] unloaded
@@ -157,7 +176,7 @@ gives the same live visuals as an in-canvas pane with no Qt build required.
 
 ## Using it after install
 
-Restart OBS. SynthOBS appears as **a source you can add**, **two filters**, an optional
+Restart OBS. SynthOBS appears as **a source you can add**, **three filters**, an optional
 **dock**, and a **script** — see [usage.md](usage.md). The headline additions:
 
 | Entry | Type | Locale key | Role |

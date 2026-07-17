@@ -1,9 +1,11 @@
 # FractiSynth Engine Specification (The Processing Core) {#sec:fractisynth}
 
 FractiSynth is compiled as a native, low-latency plugin module that hooks into the
-core processing pipelines of `libobs`. It exposes two filters — a video calibrator
-and an audio harmonic limiter — both phase-locked to the EGS fractal constant and
-the live Solar Wavefield Oscillator vector.
+core processing pipelines of `libobs`, using the host's documented module/plugin
+surface [@obsmodules]. It exposes three filters — a video calibrator, an audio
+harmonic limiter, and a Zoom Inspector — plus the interactive console source; all
+consume the pinned constants and the accepted Solar Wavefield Oscillator vector at
+the OBS boundary.
 
 ## Native Video Manipulation Pipeline
 
@@ -48,8 +50,11 @@ where $\tau$ is the ceiling and $h = \tau(1 - 1/\varphi) = \tau/\varphi^{2}$ is 
 headroom. The knee of @eq:fractisynth-phi-limiter sits at $\tau/\varphi$, so the
 identity region spans exactly the golden $1/\varphi$ fraction of the ceiling; the
 $\tanh$ branch is bounded by $h$, guaranteeing $\lvert y \rvert$ approaches but never
-crosses $\tau$. The curve is monotone, sign-preserving, and NaN/Inf-safe — maximizing
-acoustic presence while preventing compression fatigue (@fig:limiter).
+crosses $\tau$. This is a compact, explicitly specified transfer curve in the
+tradition of digital audio signal-processing design [@smith2007]. The curve is
+monotone, sign-preserving, and NaN/Inf-safe (@fig:limiter). These properties
+describe the transfer function; they do not establish a perceptual improvement or
+a preferred mastering outcome.
 
 The limiter now also emits its own visual pulse: after the same post-limiter samples are
 written back into OBS, the engine measures RMS, peak, and a $\varphi$-scaled reactivity
@@ -57,7 +62,9 @@ scalar. Those three values feed the Wavefield Console shader, the Telemetry HUD,
 gateway dock, so the visual surface breathes from the acoustic envelope without ever
 letting raw, non-finite audio poison the display.
 
-![The FractiSynth $\varphi$ harmonic limiter (robin's-egg) versus naive hard clipping (dashed charcoal). Below the knee at $1/\varphi$ (marigold guides) the signal is identity; above it the recursive $\varphi$-scaled curve approaches the ceiling smoothly instead of clipping. Generated from the tested `phi_soft_limit()` engine function.](../output/figures/phi_soft_limiter.png){#fig:limiter width=70%}
+![The FractiSynth $\varphi$ harmonic limiter (robin's-egg) versus naive hard clipping (dashed charcoal) for threshold $\tau=1$. Marigold guides mark the symmetric identity band $|x|\le 1/\varphi=0.618034$; outside that band the tested `phi_soft_limit()` curve remains monotone, sign-preserving, and bounded by $|y|\le\tau$ while approaching the ceiling smoothly. The statistics panel records the exact knee and the fail-closed handling of non-finite inputs.](../output/figures/phi_soft_limiter.png){#fig:limiter width=74%}
+
+![Homogeneous spatial transform matrix used by the calibrated video path. The two spatial axes are scaled by $1/\varphi=0.618034$, the homogeneous coordinate remains 1, and the worked 1920×1080 example rounds to 1187×667 pixels. Cell values and the color scale expose the diagonal-only transform implemented by `spatial_scale_matrix()`; the source footer identifies the companion `video_calibrated_dims()` calculation.](../output/figures/phi_matrix.png){#fig:phi-matrix width=62%}
 
 ## Single Source of Truth
 
@@ -78,17 +85,18 @@ flowchart TB
     PHI --> A["phi_soft_limit()<br/>knee at τ/φ, tanh branch"]
     KEGS --> S["phase_vector() + gateway lock<br/>lock_strength = |cos(phase_bias)|"]
 
-    V -.->|"mirrored by"| CV["C: fractisynth_video"]
-    A -.->|"mirrored by"| CA["C: fractisynth_audio"]
-    S -.->|"mirrored by"| CS["C: SWO telemetry thread"]
+    V -.->|"implemented at OBS boundary"| CV["C: fractisynth_video"]
+    A -.->|"implemented at OBS boundary"| CA["C: fractisynth_audio"]
+    S -.->|"implemented at OBS boundary"| CS["C: SWO telemetry thread"]
 
     LIT["Plugin-artifact tests<br/>pin C literals ↔ Python constants"]
     LIT -.->|"≥9 sig-digit / 1e-6 gate"| CV
     LIT -.-> CA
     LIT -.-> CS
 ```
+<!-- alt: Python-to-native parity map: the Python engine owns PHI, the EGS gateway key, and the tested kernels; C OBS filters and the telemetry thread implement those contracts, while artifact tests pin the shared literals. -->
 
-The two paths converge by contract: every formula — the video scaling of
+The two paths converge by contract: the Python engine defines the video scaling of
 @eq:fractisynth-calibrated-box, the audio knee of @eq:fractisynth-phi-limiter, and the
-SWO phase vector — is derived once in Python and mirrored field-for-field in C, with
-the literal-pinning gate standing guard against silent divergence.
+SWO phase vector; the native plugin implements the OBS-bound counterparts. Literal
+pinning and behavioral checks make material divergence visible.

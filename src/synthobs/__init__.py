@@ -19,7 +19,7 @@ from .commands import (
     ModeCommand,
     parse,
 )
-from .console import Button, Console, Mode
+from .console import COMMON_BUTTONS, Button, Console, Mode
 from .constants import (
     CRAB_PULSAR_HZ,
     DEFAULT_SOLAR_WIND_KMS,
@@ -68,8 +68,11 @@ from .layout import (
 from .swo import SolarWavefieldOscillator, phase_vector
 from .history import Sample, TelemetryHistory
 from .provenance import (
+    AUTH_TAG_SIZE,
+    AUTHENTICATED_PAYLOAD_SIZE,
     ProvenanceError,
     TelemetryRecord,
+    build_authenticated_payload,
     build_payload,
     canonical_bytes,
     embed_lsb,
@@ -77,10 +80,12 @@ from .provenance import (
     provenance_digest,
     short_signature,
     signature_bits,
+    verify_authenticated_payload,
     verify_payload,
 )
 from .telemetry import (
     DEFAULT_MAX_AGE_S,
+    DEFAULT_REGIONS_MAX_AGE_S,
     NOAA_SOLAR_WIND_URL,
     NOAA_SOLAR_REGIONS_URL,
     SolarTelemetry,
@@ -89,8 +94,11 @@ from .telemetry import (
     fetch_live_solar_wind,
     fetch_live_telemetry,
     parse_noaa_f107_flux,
+    parse_noaa_kp_index,
+    parse_noaa_plasma_series,
     parse_noaa_solar_wind,
     parse_noaa_solar_regions,
+    parse_noaa_xray_flux,
     telemetry_from_payload,
 )
 from .verification import (
@@ -147,11 +155,15 @@ __all__ = [
     "telemetry_from_payload",
     "fetch_live_telemetry",
     "DEFAULT_MAX_AGE_S",
+    "DEFAULT_REGIONS_MAX_AGE_S",
     "SolarWind",
     "parse_noaa_solar_wind",
     "fetch_live_solar_wind",
     "NOAA_SOLAR_WIND_URL",
     "parse_noaa_solar_regions",
+    "parse_noaa_plasma_series",
+    "parse_noaa_xray_flux",
+    "parse_noaa_kp_index",
     "NOAA_SOLAR_REGIONS_URL",
     # swo
     "SolarWavefieldOscillator",
@@ -167,6 +179,7 @@ __all__ = [
     "Mode",
     "Button",
     "Console",
+    "COMMON_BUTTONS",
     # commands
     "Command",
     "ModeCommand",
@@ -193,14 +206,18 @@ __all__ = [
     # provenance / steganography
     "ProvenanceError",
     "TelemetryRecord",
+    "AUTH_TAG_SIZE",
+    "AUTHENTICATED_PAYLOAD_SIZE",
     "canonical_bytes",
     "provenance_digest",
     "short_signature",
     "signature_bits",
     "build_payload",
+    "build_authenticated_payload",
     "embed_lsb",
     "extract_lsb",
     "verify_payload",
+    "verify_authenticated_payload",
     # live verification
     "AUDIO_METER_TOP_FRACTION",
     "GateResult",

@@ -1,21 +1,21 @@
 """Solar Wavefield Oscillator — live telemetry ingestion (fail-closed).
 
-The SWO is the digital bridge to the magnetosphere. It consumes **current, active**
+The SWO is the telemetry adapter at the application boundary. It consumes **current,
+active**
 space-weather streams (10.7 cm solar radio flux + active sunspot count) and refuses
-to run on anything else: the system completely bans historical databases, static
-baseline logs, and placeholder constants. Falling back to artificial averages causes
-phase drift, so on any failure — connectivity drop, non-200, malformed payload,
+to run on anything else: the system does not use historical databases or static
+baseline logs. On any failure — connectivity drop, non-200, malformed payload,
 non-positive flux/spots, or a stale timestamp — ingestion raises
 :class:`TelemetryUnavailable` and the engine holds its last verified vector.
 
 This module performs real HTTP (stdlib ``urllib``) so it is exercised in tests
-against a local ``pytest-httpserver`` instance — no mocks. The native FractiSynth C
-plugin hits the same NOAA SWPC endpoints via a libcurl background thread.
+against a local ``pytest-httpserver`` instance. The native FractiSynth C plugin
+hits the same NOAA SWPC endpoints via a libcurl background thread.
 
 NOAA SWPC reference endpoints (consumed by the C telemetry thread):
   - F10.7 flux:    https://services.swpc.noaa.gov/json/f107_cm_flux.json
   - Active regions: https://services.swpc.noaa.gov/json/solar_regions.json
-  - Solar wind:    https://services.swpc.noaa.gov/products/solar-wind/plasma-2-hour.json
+  - Solar wind:    https://services.swpc.noaa.gov/json/rtsw/rtsw_wind_1m.json
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, Callable
+from typing import Any
 
 __all__ = [
     "SolarTelemetry",
@@ -54,6 +54,81 @@ NOAA_SOLAR_REGIONS_URL: str = "https://services.swpc.noaa.gov/json/solar_regions
 # reading older than this is treated as a dead/stalled feed and fails closed rather
 # than silently driving the SWO phase vector with a week-old active-region count.
 DEFAULT_REGIONS_MAX_AGE_S: float = 3 * 24 * 60 * 60  # 3 days
+
+
+class TelemetryUnavailable(RuntimeError):
+    """Raised whenever live, valid telemetry cannot be obtained.
+
+    The exception is deliberately raised at the ingestion boundary. Callers can
+    then enter Hold State without having to guess whether a partially parsed value
+    is safe to publish.
+    """
+
+
+def _validated_age_window(max_age_s: float) -> float:
+    """Return a finite, non-negative freshness window or fail closed."""
+    if isinstance(max_age_s, bool):
+        raise TelemetryUnavailable("max_age_s must be a finite non-negative number")
+    try:
+        value = float(max_age_s)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise TelemetryUnavailable("max_age_s must be a finite non-negative number") from exc
+    if not math.isfinite(value) or value < 0.0:
+        raise TelemetryUnavailable(f"max_age_s must be finite and non-negative, got {max_age_s!r}")
+    return value
+
+
+def _validated_now(now: datetime | None) -> datetime:
+    """Normalize an optional comparison time to an aware UTC datetime."""
+    if now is None:
+        return datetime.now(timezone.utc)
+    if not isinstance(now, datetime):
+        raise TelemetryUnavailable(f"now must be a datetime, got {type(now).__name__}")
+    if now.tzinfo is None:
+        # Match the timestamp parser's explicit UTC treatment for naive fixtures.
+        return now.replace(tzinfo=timezone.utc)
+    try:
+        return now.astimezone(timezone.utc)
+    except (TypeError, ValueError) as exc:
+        raise TelemetryUnavailable("now must carry a valid timezone") from exc
+
+
+def _freshness_age(
+    observed: datetime,
+    *,
+    now: datetime | None,
+    max_age_s: float,
+    label: str,
+) -> float:
+    """Validate a timestamp against a finite two-sided freshness window."""
+    window = _validated_age_window(max_age_s)
+    age = (_validated_now(now) - observed).total_seconds()
+    if age > window:
+        raise TelemetryUnavailable(f"{label} is stale: age {age:.0f}s > max {window:.0f}s")
+    if age < -window:
+        raise TelemetryUnavailable(f"{label} timestamp is in the future by {-age:.0f}s")
+    return age
+
+
+def _finite_float(raw: Any, field: str) -> float:
+    """Coerce one external numeric value without treating bool as a number."""
+    if isinstance(raw, bool):
+        raise TelemetryUnavailable(f"{field} must be finite and numeric, got bool")
+    try:
+        value = float(raw)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise TelemetryUnavailable(f"{field} is not numeric") from exc
+    if not math.isfinite(value):
+        raise TelemetryUnavailable(f"{field} must be finite, got {value!r}")
+    return value
+
+
+def _positive_int(raw: Any, field: str) -> int:
+    """Parse an integral positive count without silently truncating fractions."""
+    value = _finite_float(raw, field)
+    if value <= 0.0 or not value.is_integer():
+        raise TelemetryUnavailable(f"{field} must be a positive integer, got {raw!r}")
+    return int(value)
 
 
 def parse_noaa_solar_regions(
@@ -110,16 +185,7 @@ def parse_noaa_solar_regions(
             "solar-regions payload missing a parseable observed_date"
         )
 
-    now = now or datetime.now(timezone.utc)
-    age = (now - latest_dt).total_seconds()
-    if age > max_age_s:
-        raise TelemetryUnavailable(
-            f"solar-regions is stale: age {age:.0f}s > max {max_age_s:.0f}s"
-        )
-    if age < -max_age_s:
-        raise TelemetryUnavailable(
-            f"solar-regions timestamp is in the future by {-age:.0f}s"
-        )
+    _freshness_age(latest_dt, now=now, max_age_s=max_age_s, label="solar-regions")
 
     # Count by parsed-date equality (not raw-string equality) so duplicate rows
     # that spell the same day differently still aggregate onto the latest date.
@@ -141,18 +207,11 @@ def parse_noaa_solar_regions(
 
 
 # NOAA SWPC real-time solar-wind plasma feed (the EGS gateway's phase driver).
-NOAA_SOLAR_WIND_URL: str = (
-    "https://services.swpc.noaa.gov/products/solar-wind/plasma-2-hour.json"
-)
+NOAA_SOLAR_WIND_URL: str = "https://services.swpc.noaa.gov/json/rtsw/rtsw_wind_1m.json"
 
 # Telemetry older than three hours is "stale" — the sun's disk has materially
 # rotated and the vector can no longer be trusted as "the present moment".
 DEFAULT_MAX_AGE_S: float = 3 * 60 * 60
-
-
-class TelemetryUnavailable(RuntimeError):
-    """Raised whenever live, valid telemetry cannot be obtained. Never swallowed
-    into a default — the caller must enter the Hold State."""
 
 
 @dataclass(frozen=True)
@@ -228,10 +287,10 @@ def parse_noaa_f107_flux(data: Any) -> tuple[float, datetime]:
     if "flux" not in latest:
         raise TelemetryUnavailable(f"F10.7 record missing flux: {latest!r}")
     try:
-        flux = float(latest["flux"])
-    except (TypeError, ValueError) as exc:
-        raise TelemetryUnavailable(f"F10.7 flux not numeric: {latest!r}") from exc
-    if not math.isfinite(flux) or flux <= 0.0:
+        flux = _finite_float(latest["flux"], "F10.7 flux")
+    except TelemetryUnavailable as exc:
+        raise TelemetryUnavailable(str(exc)) from exc
+    if flux <= 0.0:
         raise TelemetryUnavailable(f"F10.7 flux must be finite and positive, got {flux}")
     return flux, latest_time
 
@@ -265,29 +324,19 @@ def telemetry_from_payload(
     if "flux" not in payload or "sunspots" not in payload:
         raise TelemetryUnavailable("telemetry payload missing flux/sunspots")
     try:
-        flux = float(payload["flux"])
-        # int(float('inf')) raises OverflowError (NOT a ValueError) — without it a JSON-legal
-        # `Infinity` sunspots rides past this guard and crashes ingestion instead of failing
-        # closed. json.loads accepts the `Infinity` literal, so this boundary is load-bearing.
-        sunspots = int(payload["sunspots"])
-    except (TypeError, ValueError, OverflowError) as exc:
+        flux = _finite_float(payload["flux"], "telemetry flux")
+        sunspots = _positive_int(payload["sunspots"], "telemetry sunspots")
+    except TelemetryUnavailable as exc:
         raise TelemetryUnavailable(f"telemetry flux/sunspots not numeric or finite: {payload!r}") from exc
 
     # Fail-closed enforcement — block stale, default, zeroed, or non-finite indicators.
     # NaN/Inf are JSON-legal (json.loads accepts NaN/Infinity) and silently pass a bare
     # `<= 0.0` gate, so the finiteness check is load-bearing, not decorative.
-    if not math.isfinite(flux) or flux <= 0.0:
+    if flux <= 0.0:
         raise TelemetryUnavailable(f"flux must be finite and positive, got {flux}")
-    if sunspots <= 0:
-        raise TelemetryUnavailable(f"sunspots must be positive, got {sunspots}")
 
     observed = _parse_time_tag(payload.get("time_tag"))
-    now = now or datetime.now(timezone.utc)
-    age = (now - observed).total_seconds()
-    if age > max_age_s:
-        raise TelemetryUnavailable(f"telemetry is stale: age {age:.0f}s > max {max_age_s:.0f}s")
-    if age < -max_age_s:
-        raise TelemetryUnavailable(f"telemetry timestamp is in the future by {-age:.0f}s")
+    _freshness_age(observed, now=now, max_age_s=max_age_s, label="telemetry")
 
     regions_raw = payload.get("regions", [])
     regions = tuple(str(r) for r in regions_raw) if isinstance(regions_raw, (list, tuple)) else ()
@@ -311,6 +360,39 @@ class SolarWind:
         return (now - self.observed_at).total_seconds()
 
 
+def _plasma_record_time(record: dict[str, Any]) -> datetime | None:
+    raw_time = record.get("time_tag")
+    if not raw_time:
+        return None
+    try:
+        return _parse_time_tag(raw_time)
+    except TelemetryUnavailable:
+        return None
+
+
+def _plasma_record_float(record: dict[str, Any], field: str) -> float | None:
+    if isinstance(record.get(field), bool):
+        return None
+    try:
+        value = float(record[field])
+    except (TypeError, ValueError, OverflowError, KeyError):
+        return None
+    return value if math.isfinite(value) else None
+
+
+def _active_plasma_records(data: list[Any]) -> list[tuple[datetime, dict[str, Any]]]:
+    records: list[tuple[datetime, dict[str, Any]]] = []
+    for record in data:
+        if not isinstance(record, dict):
+            continue
+        if record.get("active") is False:
+            continue
+        observed = _plasma_record_time(record)
+        if observed is not None:
+            records.append((observed, record))
+    return records
+
+
 def parse_noaa_solar_wind(
     data: Any,
     *,
@@ -318,87 +400,46 @@ def parse_noaa_solar_wind(
     max_age_s: float = DEFAULT_MAX_AGE_S,
     now: datetime | None = None,
 ) -> SolarWind:
-    """Validate NOAA's ``plasma-2-hour.json`` feed, failing closed.
+    """Validate NOAA's real-time solar-wind feed, failing closed.
 
-    The feed is an array of arrays: row 0 is the header
-    ``["time_tag", "density", "speed", "temperature"]`` and subsequent rows are
-    data. The present reading is the row with the maximum parsed ``time_tag`` —
-    chosen by parsing timestamps rather than trusting the array's last position,
-    so a reordered feed cannot yield a stale-but-structurally-valid reading.
-    Raises :class:`TelemetryUnavailable` when: not a non-empty array of rows; the
-    speed column is missing/non-numeric; ``speed <= 0``; no row carries a valid
-    timestamp; or the latest reading is older than ``max_age_s``.
+    The SWPC feed is ``rtsw_wind_1m.json``: an array of objects with
+    ``time_tag``, ``active``, ``proton_speed``, ``proton_density``, and
+    ``proton_temperature``. The present reading is chosen by the maximum parsed
+    ``time_tag`` among active rows, never by array position.
     """
     if isinstance(data, (str, bytes)):
         try:
             data = json.loads(data)
         except json.JSONDecodeError as exc:
             raise TelemetryUnavailable("solar-wind payload is not valid JSON") from exc
-    if not isinstance(data, list) or len(data) < 2:
-        raise TelemetryUnavailable("solar-wind payload must be a header + data rows")
+    if not isinstance(data, list) or not data or not all(isinstance(row, dict) for row in data):
+        raise TelemetryUnavailable("solar-wind payload must be a non-empty object array")
 
-    header = data[0]
-    if not isinstance(header, list):
-        raise TelemetryUnavailable("solar-wind header row malformed")
+    records = _active_plasma_records(data)
+    if not records:
+        raise TelemetryUnavailable("solar-wind payload has no active record with a valid time_tag")
+    last_time, last_record = max(records, key=lambda item: item[0])
+    speed = _plasma_record_float(last_record, "proton_speed")
+    if speed is None or speed <= 0.0:
+        raise TelemetryUnavailable(
+            f"solar-wind proton_speed must be finite and positive, got {speed}"
+        )
+    density = _plasma_record_float(last_record, "proton_density")
+    _freshness_age(last_time, now=now, max_age_s=max_age_s, label="solar-wind")
+    return SolarWind(speed_kms=speed, density=density, source=source, observed_at=last_time)
+
+
+def _http_get(url: str, *, timeout: float) -> tuple[int, bytes]:
+    if isinstance(timeout, bool):
+        raise TelemetryUnavailable(f"timeout must be finite and positive, got {timeout!r}")
     try:
-        speed_col = header.index("speed")
-        time_col = header.index("time_tag")
-    except ValueError as exc:
-        raise TelemetryUnavailable(f"solar-wind header missing columns: {header!r}") from exc
-    density_col = header.index("density") if "density" in header else None
-
-    # Select the most recent data row by parsing its time_tag, not by array
-    # position, so a reordered feed cannot yield a stale-but-valid reading.
-    last: list[Any] | None = None
-    last_time: datetime | None = None
-    for row in data[1:]:
-        if not isinstance(row, list) or len(row) <= time_col:
-            continue
-        try:
-            observed = _parse_time_tag(row[time_col])
-        except TelemetryUnavailable:
-            continue
-        if last_time is None or observed > last_time:
-            last_time = observed
-            last = row
-    if last is None or last_time is None:
-        raise TelemetryUnavailable("solar-wind payload has no row with a valid time_tag")
-    if len(last) <= speed_col:
-        raise TelemetryUnavailable(f"solar-wind data row malformed: {last!r}")
-
+        timeout_value = float(timeout)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise TelemetryUnavailable(f"timeout must be finite and positive, got {timeout!r}") from exc
+    if not math.isfinite(timeout_value) or timeout_value <= 0.0:
+        raise TelemetryUnavailable(f"timeout must be finite and positive, got {timeout!r}")
     try:
-        speed = float(last[speed_col])
-    except (TypeError, ValueError) as exc:
-        raise TelemetryUnavailable(f"solar-wind speed not numeric: {last!r}") from exc
-    if not math.isfinite(speed) or speed <= 0.0:
-        raise TelemetryUnavailable(f"solar-wind speed must be finite and positive, got {speed}")
-
-    density: float | None = None
-    if density_col is not None and len(last) > density_col:
-        try:
-            density = float(last[density_col])
-        except (TypeError, ValueError):
-            density = None
-        # density is optional, so a non-finite reading fails closed to None (held),
-        # never propagated as a "verified" NaN/Inf.
-        if density is not None and not math.isfinite(density):
-            density = None
-
-    observed = last_time
-    now = now or datetime.now(timezone.utc)
-    age = (now - observed).total_seconds()
-    if age > max_age_s:
-        raise TelemetryUnavailable(f"solar-wind is stale: age {age:.0f}s > max {max_age_s:.0f}s")
-    if age < -max_age_s:
-        raise TelemetryUnavailable(f"solar-wind timestamp is in the future by {-age:.0f}s")
-
-    return SolarWind(speed_kms=speed, density=density, source=source, observed_at=observed)
-
-
-def _http_get(url: str, *, timeout: float, opener: Callable[..., Any] | None) -> tuple[int, bytes]:
-    get = opener or urllib.request.urlopen
-    try:
-        with get(url, timeout=timeout) as resp:  # type: ignore[call-arg]
+        with urllib.request.urlopen(url, timeout=timeout_value) as resp:
             status = getattr(resp, "status", None) or resp.getcode()
             body = resp.read()
     except urllib.error.HTTPError as exc:  # non-2xx
@@ -416,15 +457,13 @@ def fetch_live_telemetry(
     max_age_s: float = DEFAULT_MAX_AGE_S,
     timeout: float = 10.0,
     now: datetime | None = None,
-    opener: Callable[..., Any] | None = None,
 ) -> SolarTelemetry:
     """Fetch and validate live SWO telemetry from ``url`` (fail-closed).
 
     Performs a real HTTP GET; on any failure raises :class:`TelemetryUnavailable`
-    so the engine can hold its last verified vector. ``opener`` is injectable only
-    to point tests at a local server; production passes a real URL (ISC-17).
+    so the engine can hold its last verified vector (ISC-17).
     """
-    _status, body = _http_get(url, timeout=timeout, opener=opener)
+    _status, body = _http_get(url, timeout=timeout)
     return telemetry_from_payload(body, source=url, max_age_s=max_age_s, now=now)
 
 
@@ -434,49 +473,51 @@ def fetch_live_solar_wind(
     max_age_s: float = DEFAULT_MAX_AGE_S,
     timeout: float = 10.0,
     now: datetime | None = None,
-    opener: Callable[..., Any] | None = None,
 ) -> SolarWind:
     """Fetch and validate live NOAA solar-wind plasma (fail-closed).
 
     Performs a real HTTP GET against the SWPC plasma feed; on any failure raises
     :class:`TelemetryUnavailable` so the gateway holds its last verified lock.
-    ``opener`` is injectable only to point tests at a local server (ISC-17 twin).
     """
-    _status, body = _http_get(url, timeout=timeout, opener=opener)
+    _status, body = _http_get(url, timeout=timeout)
     return parse_noaa_solar_wind(body, source=url, max_age_s=max_age_s, now=now)
 
 
-def parse_noaa_plasma_series(data: Any) -> tuple[list[float], list[float], list[float]]:
-    """Parse the full NOAA ``plasma-2-hour`` series into (density, speed, temperature).
+def parse_noaa_plasma_series(
+    data: Any,
+    *,
+    max_age_s: float = DEFAULT_MAX_AGE_S,
+    now: datetime | None = None,
+) -> tuple[list[float], list[float], list[float]]:
+    """Parse NOAA real-time plasma series into (density, speed, temperature).
 
-    The feed is an array of arrays; the first row is the header
-    ``["time_tag","density","speed","temperature"]``. Returns three parallel
-    lists in chronological order, skipping the header and any row whose speed is
-    non-positive/non-numeric. Mirrors the native ``parse_plasma_series`` so the
-    realtime graphs match. Fail-closed on an empty/malformed feed.
+    Accepts the current ``rtsw_wind_1m.json`` object feed, returns chronological
+    parallel lists, and drops malformed, inactive, stale, non-finite, or
+    non-positive-speed rows. ``max_age_s`` and ``now`` use the same freshness
+    contract as :func:`parse_noaa_solar_wind`, so the native parser and the Python
+    source of truth make the same current-record decision.
     """
     if isinstance(data, (str, bytes)):
         try:
             data = json.loads(data)
         except json.JSONDecodeError as exc:
             raise TelemetryUnavailable("plasma series is not valid JSON") from exc
-    if not isinstance(data, list) or len(data) < 2:
-        raise TelemetryUnavailable("plasma series must have a header + >=1 row")
+    if not isinstance(data, list) or not data or not all(isinstance(row, dict) for row in data):
+        raise TelemetryUnavailable("plasma series must be a non-empty object array")
+    window = _validated_age_window(max_age_s)
+    comparison_now = _validated_now(now)
     density: list[float] = []
     speed: list[float] = []
     temp: list[float] = []
-    for row in data[1:]:
-        if not isinstance(row, list) or len(row) < 4:
+
+    for observed, record in sorted(_active_plasma_records(data), key=lambda item: item[0]):
+        age = (comparison_now - observed).total_seconds()
+        if age > window or age < -window:
             continue
-        try:
-            d, s, t = float(row[1]), float(row[2]), float(row[3])
-        except (TypeError, ValueError):
-            continue
-        # Drop the whole row unless every plotted field is finite AND speed positive:
-        # a bare `s > 0.0` lets a NaN/Inf density or temperature ride along into the
-        # series and corrupt the HUD sparkline / Solar Graph (NaN<=0 and Inf<=0 both
-        # False, so the old guard never rejected them).
-        if math.isfinite(d) and s > 0.0 and math.isfinite(s) and math.isfinite(t):
+        d = _plasma_record_float(record, "proton_density")
+        s = _plasma_record_float(record, "proton_speed")
+        t = _plasma_record_float(record, "proton_temperature")
+        if d is not None and s is not None and t is not None and s > 0.0:
             density.append(d)
             speed.append(s)
             temp.append(t)
@@ -504,12 +545,10 @@ def parse_noaa_xray_flux(data: Any, band: str = "0.1-0.8nm") -> list[float]:
         if not isinstance(r, dict) or r.get("energy") != band:
             continue
         try:
-            v = float(r["flux"])
-        except (TypeError, ValueError, KeyError):
+            v = _finite_float(r["flux"], "xray flux")
+        except (TelemetryUnavailable, KeyError):
             continue
-        # `+Inf > 0.0` is True, so a bare positivity gate admits +Infinity into the
-        # log-scaled X-ray graph; require finiteness explicitly.
-        if math.isfinite(v) and v > 0.0:
+        if v > 0.0:
             out.append(v)
     if not out:
         raise TelemetryUnavailable(f"xray series has no rows for band {band!r}")
@@ -539,8 +578,8 @@ def parse_noaa_kp_index(data: Any) -> list[float]:
         if not isinstance(r, dict) or "estimated_kp" not in r:
             continue
         try:
-            v = float(r["estimated_kp"])
-        except (TypeError, ValueError):
+            v = _finite_float(r["estimated_kp"], "estimated_kp")
+        except TelemetryUnavailable:
             continue
         if 0.0 <= v <= 12.0:
             out.append(v)

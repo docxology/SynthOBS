@@ -11,22 +11,29 @@ its output matches :func:`synthobs.dsp.phi_soft_limit_sample` across an adversar
 grid (identity region, knee boundary, large, negative, and non-finite inputs).
 
 If no C compiler is available the test SKIPS (mirrors the Lean-build gate) — a skip
-is honest "not exercised here", never a silent pass. No mocks: real compilation,
-real ctypes call, real numbers.
+is honest "not exercised here", never a silent pass. The test uses real compilation,
+real ctypes calls, and real numbers.
 """
 
 from __future__ import annotations
 
 import ctypes
+import json
 import re
 import shutil
 import subprocess
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
 
 from synthobs.constants import PHI
 from synthobs.dsp import phi_soft_limit_sample
+from synthobs.telemetry import (
+    TelemetryUnavailable,
+    parse_noaa_plasma_series,
+    parse_noaa_solar_wind,
+)
 
 _C_SOURCE = Path(__file__).resolve().parents[1] / "plugin" / "fractisynth" / "src" / "fractisynth.c"
 
@@ -105,6 +112,81 @@ _GRID = [
     (0.9, 2.0),
     (123.4, 1.0),  # large input -> ceiling-bounded
 ]
+
+
+def test_native_rtsw_parser_matches_python_current_and_rejected_rows(tmp_path: Path) -> None:
+    """Execute the shipped native RTSW parser against the Python fixtures.
+
+    This keeps the C parser as a real standalone unit: no token scan or retyped
+    implementation can satisfy the check. The same shuffled, inactive, stale,
+    and future rows exercise latest-record selection and freshness rejection in
+    both layers.
+    """
+    cc = shutil.which("cc") or shutil.which("clang") or shutil.which("gcc")
+    if cc is None:
+        pytest.skip("no C compiler available — native RTSW parity not exercised")
+
+    harness = tmp_path / "rtsw_harness.c"
+    harness.write_text(
+        '#include <stdio.h>\n'
+        '#include <stdlib.h>\n'
+        '#include "rtsw_parser.h"\n'
+        'int main(int argc, char **argv) {\n'
+        '  if (argc != 3) return 2;\n'
+        '  double max_age = strtod(argv[1], NULL);\n'
+        '  float d[8] = {0}, s[8] = {0}, t[8] = {0};\n'
+        '  float wind = synthobs_extract_rtsw_wind_speed(argv[2], max_age);\n'
+        '  int n = synthobs_parse_rtsw_plasma_series(argv[2], d, s, t, 8, max_age);\n'
+        '  printf("%.3f %d %.3f %.3f %.3f %.3f\\n", wind, n, d[0], d[1], s[0], s[1]);\n'
+        '  return 0;\n'
+        '}\n',
+        encoding="utf-8",
+    )
+    binary = tmp_path / "rtsw_harness"
+    result = subprocess.run(
+        [cc, "-std=gnu11", "-O2", "-I", str(_C_SOURCE.parent), "-o", str(binary), str(harness)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        pytest.skip(f"native RTSW harness did not compile: {result.stderr[:300]}")
+
+    now = datetime.now(timezone.utc).replace(microsecond=0)
+    stamp = lambda value: value.strftime("%Y-%m-%dT%H:%M:%SZ")
+    feed = [
+        {"time_tag": stamp(now + timedelta(seconds=60)), "active": False, "proton_density": 99.0, "proton_speed": 999.0, "proton_temperature": 999.0},
+        {"time_tag": stamp(now - timedelta(seconds=60)), "active": True, "proton_density": 2.0, "proton_speed": 470.0, "proton_temperature": 100000.0},
+        {"time_tag": stamp(now), "active": True, "proton_density": 3.0, "proton_speed": 480.0, "proton_temperature": 110000.0},
+    ]
+
+    def run(rows: list[dict], max_age: float = 3600.0) -> list[str]:
+        completed = subprocess.run(
+            [str(binary), str(max_age), json.dumps(rows, separators=(",", ":"))],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return completed.stdout.strip().split()
+
+    wind = parse_noaa_solar_wind(feed, now=now, max_age_s=3600.0)
+    density, speed, _temp = parse_noaa_plasma_series(feed, now=now, max_age_s=3600.0)
+    native = run(feed)
+    assert float(native[0]) == pytest.approx(wind.speed_kms, abs=0.01)
+    assert int(native[1]) == len(speed) == 2
+    assert [float(native[2]), float(native[3])] == pytest.approx(density)
+    assert [float(native[4]), float(native[5])] == pytest.approx(speed)
+
+    stale = [{**feed[2], "time_tag": stamp(now - timedelta(hours=2))}]
+    future = [{**feed[2], "time_tag": stamp(now + timedelta(hours=2))}]
+    for rejected in (stale, future):
+        with pytest.raises(TelemetryUnavailable):
+            parse_noaa_solar_wind(rejected, now=now, max_age_s=3600.0)
+        with pytest.raises(TelemetryUnavailable):
+            parse_noaa_plasma_series(rejected, now=now, max_age_s=3600.0)
+        native_rejected = run(rejected)
+        assert float(native_rejected[0]) == -1.0
+        assert int(native_rejected[1]) == 0
 
 
 @pytest.mark.parametrize("x,threshold", _GRID)

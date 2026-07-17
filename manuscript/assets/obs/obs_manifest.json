@@ -1,0 +1,142 @@
+{
+  "schema": "synthobs.live_scenario.v2",
+  "source_run": "20260717T153649Z",
+  "created_at": "2026-07-17T15:36:49.326317+00:00",
+  "scene": "SynthOBSVerify-20260717T153649Z",
+  "url": "ws://127.0.0.1:4455",
+  "obs": {
+    "base_canvas": {
+      "height": 2000,
+      "width": 3200
+    },
+    "connected": true,
+    "obs_version": "32.1.2",
+    "websocket_version": "5.7.3"
+  },
+  "capture_size": {
+    "height": 720,
+    "width": 1280
+  },
+  "assets": {
+    "scene_render": {
+      "path": "obs_scene_render.png",
+      "sha256": "6ba6019ec491b2e99804e4f6dccb40eee41a5a5ff23786b296891ad9fb315887",
+      "media_type": "image/png",
+      "width": 1280,
+      "height": 720
+    },
+    "telemetry_hud": {
+      "path": "obs_telemetry_hud.png",
+      "sha256": "5f2c21c2632eac29453370377e2bbda225ae0d42194799d2900e940de6beb82f",
+      "media_type": "image/png",
+      "width": 1280,
+      "height": 720
+    },
+    "audio_tone": {
+      "path": "obs_audio_tone.png",
+      "sha256": "9f5234adaa3323cd35f2dca3cb179ddd60641380c4c312bf2a72988250672842",
+      "media_type": "image/png",
+      "width": 1280,
+      "height": 720
+    },
+    "audio_silent": {
+      "path": "obs_audio_silent.png",
+      "sha256": "2525025ac904a0b950d38a8f851a3c73e1b724332360dd53090d80d152df7a66",
+      "media_type": "image/png",
+      "width": 1280,
+      "height": 720
+    },
+    "controlled_tone": {
+      "path": "controlled_tone.wav",
+      "sha256": "4942835581a82ba0a4fe604050495933c992325b528c984ca361fa5cb705f729",
+      "sample_rate_hz": 48000,
+      "channels": 1,
+      "sample_width_bits": 16,
+      "frames": 96000,
+      "media_type": "audio/wav"
+    }
+  },
+  "required_gates": [
+    "connection",
+    "dashboard_fit_to_canvas",
+    "interaction_model",
+    "render_content",
+    "audio_reactivity",
+    "provenance_lsb"
+  ],
+  "gates": {
+    "audio_reactivity": {
+      "metrics": {
+        "channels": 4,
+        "compared_pixels": 42240,
+        "height": 720,
+        "max_abs_delta": 180,
+        "mean_abs_delta": 48.557402146464646,
+        "roi_height": 33,
+        "roi_width": 1280,
+        "roi_x": 0,
+        "roi_y": 687,
+        "threshold": 8.0,
+        "width": 1280
+      },
+      "reason": "silent/tone audio-meter ROI delta passed",
+      "status": "pass"
+    },
+    "connection": {
+      "metrics": {},
+      "reason": "OBS websocket identified",
+      "status": "pass"
+    },
+    "dashboard_fit_to_canvas": {
+      "metrics": {
+        "positionX": 0.0,
+        "positionY": 0.0,
+        "scaleX": 2.5,
+        "scaleY": 2.7777777777777777
+      },
+      "reason": "console source scaled to OBS base canvas",
+      "status": "pass"
+    },
+    "interaction_model": {
+      "metrics": {
+        "live_obs_click": false,
+        "transport": "engine_resolver"
+      },
+      "reason": "engine-level interaction resolver covers feed tabs, layer rail, and marker drop; OBS click transport not exercised",
+      "status": "pass"
+    },
+    "provenance_lsb": {
+      "metrics": {
+        "flux": 140.0,
+        "lock_strength": 0.5124873518943787,
+        "observed_unix": 1784302615,
+        "phase_bias_rad": 2.108875274658203,
+        "signature": "8b1f58c1",
+        "solar_wind_kms": 367.8999938964844,
+        "sunspots": 6
+      },
+      "reason": "Telemetry HUD LSB strip verified from live capture",
+      "status": "pass"
+    },
+    "render_content": {
+      "metrics": {
+        "dynamic_range": 161.9278106689453,
+        "height": 720,
+        "mean_channel_std": 19.49281120300293,
+        "non_black_fraction": 1.0,
+        "width": 1280
+      },
+      "reason": "OBS scene screenshot contains nonblank rendered content",
+      "status": "pass"
+    }
+  },
+  "sources": {
+    "console": "SynthOBS Scenario Console 20260717T153649Z"
+  },
+  "fallbacks": {},
+  "promotion": {
+    "source_directory": "output/live/20260717T-final",
+    "target_directory": "manuscript/assets/obs",
+    "method": "scripts/promote_obs_evidence.py"
+  }
+}

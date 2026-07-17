@@ -1,5 +1,11 @@
 # Using FractiSynth in OBS
 
+The public distribution target is [`docxology/SynthOBS`](https://github.com/docxology/SynthOBS).
+From a clean checkout, follow [`build-and-install.md`](build-and-install.md) first;
+this page describes the actual OBS source, filter, dock, and obspython workflows
+after the module is installed. Author affiliation: **FractiAI / Active Inference
+Institute**.
+
 SynthOBS shows up in OBS Studio four ways, from most to least visible:
 
 | Way it appears | What it is | Where in OBS |
@@ -152,7 +158,7 @@ importable — and unit-testable — on a normal Python interpreter. Its `_IN_OB
 `False` outside OBS, the engine-driving functions (`apply_command`,
 `viewport_for_canvas`) work anywhere, and the OBS-only callbacks (`script_load`,
 `script_properties`, scene sync) are no-ops without OBS. This is why the bridge can be
-covered by the test suite with no mocks.
+covered by the real-input test suite.
 
 ## The three operator modes
 

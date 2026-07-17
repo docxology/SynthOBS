@@ -1,16 +1,14 @@
 """Foundational constants for SynthOBS / FractiSynth — the v1.618 calibration core.
 
-At the heart of the system is **El Gran Sol's Fractal Constant** (the EGS fractal
-constant, ``1.618…``) — the golden key that governs every downstream operation.
-When visual frames are cropped, audio signals are balanced, or UI elements are
-stacked, they are scaled natively by this constant so the final transmission
-mirrors the natural geometry of universal design rather than artificial digital
-noise. Mathematically it is the golden ratio ``φ = (1 + √5) / 2``; in this system
-it is the Goldilocks Calibration Standard that keeps the wavefield phase-locked.
+The module defines the golden-ratio constant used by the layout and DSP contracts.
+The separate EGS gateway key below maps the declared optical anchors into the
+solar-wind phase calculation. Neither constant is a telemetry fallback or a claim
+about perception or broadcast quality. The brand vocabulary remains available to
+the UI, while the numeric definitions and their cross-language pins are explicit.
 
-This module has zero I/O and imports nothing from ``infrastructure`` — it is the
-irreducible numeric core that both the Python engine and the native FractiSynth C
-plugin scale against, from a single verifiable definition site.
+This module has zero I/O and imports nothing from ``infrastructure``. It is the
+canonical numeric definition site for the Python engine; the native FractiSynth C
+plugin pins the exported literals and is checked against them.
 """
 
 from __future__ import annotations
@@ -38,12 +36,9 @@ PHI_C_LITERAL: str = "1.61803398875"
 #  El Gran Sol Gateway anchors — the canonical FractiAI EGS Fractal Constant.   #
 # --------------------------------------------------------------------------- #
 #
-# In the FractiAI corpus, "El Gran Sol's Fractal Constant" is NOT the bare golden
-# ratio: it is the dimensionless *gateway key* K_EGS = φ · (λ_reader / λ_Hα) that
-# bridges El Gran Sol's optical scale (a 1030 nm silica reader) to hydrogen's
-# H-alpha geometry — a scale-invariant solar↔hydrogen lock (see the Microsoft
-# Silica EGS Gateway simulation). φ remains the golden ratio used for *layout*;
-# K_EGS is the constant that governs *phase locking* to live solar telemetry.
+# In the FractiAI design vocabulary, the EGS gateway key is distinct from the
+# golden ratio: K_EGS = φ · (λ_reader / λ_Hα). It is the phase-plane constant;
+# PHI remains the layout/DSP constant.
 
 LAMBDA_READER_NM: float = 1030.0
 """El Gran Sol effective optical reader wavelength (nm) — the silica voxel reader."""

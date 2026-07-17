@@ -1,7 +1,7 @@
-"""Real-data tests for :mod:`synthobs.provenance` (no mocks).
+"""Real-data tests for :mod:`synthobs.provenance`.
 
 Every test exercises actual byte packing, real SHA-256, and real RGBA
-bytearrays. There are no mocks, no patches, and no stubbed I/O.
+bytearrays. All computation and file buffers are real.
 """
 
 from __future__ import annotations
@@ -12,12 +12,14 @@ import struct
 import pytest
 
 from synthobs.provenance import (
+    AUTHENTICATED_PAYLOAD_SIZE,
     CHECKSUM_SIZE,
     LENGTH_PREFIX_SIZE,
     PAYLOAD_SIZE,
     RECORD_SIZE,
     ProvenanceError,
     TelemetryRecord,
+    build_authenticated_payload,
     build_payload,
     canonical_bytes,
     embed_lsb,
@@ -25,6 +27,7 @@ from synthobs.provenance import (
     provenance_digest,
     short_signature,
     signature_bits,
+    verify_authenticated_payload,
     verify_payload,
 )
 
@@ -160,6 +163,33 @@ def test_build_payload_size_and_checksum() -> None:
     body, checksum = payload[:RECORD_SIZE], payload[RECORD_SIZE:]
     assert body == canonical_bytes(rec)
     assert checksum == hashlib.sha256(body).digest()[:CHECKSUM_SIZE]
+
+
+def test_authenticated_payload_round_trips_with_secret_key() -> None:
+    key = b"local verifier key, never serialized"
+    payload = build_authenticated_payload(_record(), key)
+    assert len(payload) == AUTHENTICATED_PAYLOAD_SIZE
+    recovered = verify_authenticated_payload(payload, key)
+    assert recovered == verify_payload(payload[:PAYLOAD_SIZE])
+
+
+def test_authenticated_payload_rejects_wrong_key_and_recomputed_checksum() -> None:
+    key = b"correct key"
+    payload = build_authenticated_payload(_record(), key)
+    with pytest.raises(ProvenanceError, match="HMAC mismatch"):
+        verify_authenticated_payload(payload, b"wrong key")
+
+    forged_record = TelemetryRecord(999.0, 87, 421.0, 0.73, 1.04, 1_718_000_000)
+    forged = build_payload(forged_record) + payload[PAYLOAD_SIZE:]
+    assert verify_payload(forged[:PAYLOAD_SIZE]).flux == pytest.approx(999.0)
+    with pytest.raises(ProvenanceError, match="HMAC mismatch"):
+        verify_authenticated_payload(forged, key)
+
+
+@pytest.mark.parametrize("bad_key", [b"", bytearray(), "text"])
+def test_authenticated_payload_rejects_empty_or_non_bytes_key(bad_key) -> None:
+    with pytest.raises(ProvenanceError, match="HMAC key"):
+        build_authenticated_payload(_record(), bad_key)  # type: ignore[arg-type]
 
 
 # --- embed / extract round-trip --------------------------------------------- #

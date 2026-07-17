@@ -16,11 +16,11 @@ $$
 $$ {#eq:command_grammar-1}
 
 where $\Sigma^{*}$ is the set of all input lines, $\mathcal{C}$ is the closed set of
-typed commands $\{\textsf{ModeCommand}, \textsf{BindCommand}, \textsf{CalibrateCommand}\}$,
-and $\bot$ is the fail-closed outcome — raised in code as `CommandError`. There is no
-fourth branch. Equation @eq:command_grammar-1 is the safety spine of the console: the
-image of every line is either a fully-validated command or an explicit refusal, never
-a silent no-op.
+typed commands $\{\textsf{ModeCommand},\textsf{BindCommand},\textsf{CalibrateCommand},
+\textsf{DashboardCommand}\}$, and $\bot$ is the fail-closed outcome — raised in code
+as `CommandError`. Equation @eq:command_grammar-1 is the safety spine of the console:
+the image of every line is either a fully-validated command or an explicit refusal,
+never a silent no-op.
 
 The fail-closed branch is reached precisely when the line is empty, the verb is
 unknown, or any argument falls outside its admissible range:
@@ -36,12 +36,11 @@ v(\ell) \notin V
 $$ {#eq:command_grammar-2}
 
 with $\varepsilon$ the empty line, $v(\ell)$ the leading verb, and
-$V = \{\,\texttt{/mode},\ \texttt{/transducer},\ \texttt{/swo}\,\}$ the registered
-verb set. Equation @eq:command_grammar-2 is enforced verb-by-verb below.
+$V = \{\,\texttt{/mode},\ \texttt{/transducer},\ \texttt{/swo},\ \texttt{/dashboard}\,\}$
+the registered verb set. Equation @eq:command_grammar-2 is enforced verb-by-verb
+below and rendered in Figure @fig:command-parser-pipeline.
 
-This spine preserves the stable command-grammar anchor. The macro/filter-routing material and telemetry/parse-pipeline material now live in adjacent modules for easier maintenance.
-
-Modular command grammar files:
-
-- `06a_command_macros_and_filter_routing.md`
-- `06b_command_telemetry_parse_pipeline_and_summary.md`
+The complete grammar, including dashboard planning/building and telemetry examples,
+lives in [the parse-pipeline module](06b_command_telemetry_parse_pipeline_and_summary.md).
+The macro/filter-routing material lives in
+[the adjacent command module](06a_command_macros_and_filter_routing.md).

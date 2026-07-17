@@ -19,6 +19,8 @@ import argparse
 import base64
 import hashlib
 import json
+import os
+from pathlib import Path
 import sys
 import time
 
@@ -57,7 +59,7 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--scene", default="FractiSynthTest")
     ap.add_argument("--out", default="output/live/obs_scene.png")
-    ap.add_argument("--password", default="***REDACTED-DEFAULT-PASSWORD***")
+    ap.add_argument("--password", default=os.environ.get("OBS_WEBSOCKET_PASSWORD", ""))
     ap.add_argument("--url", default="ws://localhost:4455")
     args = ap.parse_args()
 
@@ -119,10 +121,10 @@ def main() -> int:
         print(f"FAIL screenshot: {shot}", file=sys.stderr)
         return 1
     img_b64 = shot["responseData"]["imageData"].split(",", 1)[-1]
-    import os
-
-    os.makedirs(os.path.dirname(args.out), exist_ok=True)
-    with open(args.out, "wb") as fh:
+    out_path = Path(args.out)
+    if out_path.parent != Path("."):
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+    with out_path.open("wb") as fh:
         fh.write(base64.b64decode(img_b64))
     print(f"SCENE SCREENSHOT -> {args.out} ({len(img_b64)} b64 chars)")
     ws.close()

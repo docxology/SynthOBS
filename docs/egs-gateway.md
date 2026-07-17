@@ -5,7 +5,7 @@ real-time translator between the Sun's energetic state and the FractiSynth phase
 plane. This page documents the gateway key, the solar-wind phase lock, and how it
 sits alongside the Solar Wavefield Oscillator.
 
-Engine: [`src/synthobs/gateway.py`](../src/synthobs/gateway.py). Native mirror:
+Engine: [`src/synthobs/gateway.py`](../src/synthobs/gateway.py). Native implementation:
 `synchronize_gateway_lock()` in [`fractisynth.c`](../plugin/fractisynth/src/fractisynth.c).
 
 ## The EGS Fractal Constant — the gateway key
@@ -13,18 +13,15 @@ Engine: [`src/synthobs/gateway.py`](../src/synthobs/gateway.py). Native mirror:
 In the FractiAI corpus, **"El Gran Sol's Fractal Constant" is not the bare golden
 ratio.** It is the dimensionless *gateway key*:
 
-```
-┌───────────────────────────────────────────────────────────────┐
-│  K_EGS = φ · (λ_reader / λ_Hα)                                │
-│        = φ · (1030 nm / 656.28 nm)                            │
-│        ≈ 1.6180339887 · 1.569452                              │
-│        ≈ 2.539427                                             │
-└───────────────────────────────────────────────────────────────┘
-```
+$$
+K_{\mathrm{EGS}} = \varphi\,\frac{\lambda_{\mathrm{reader}}}{\lambda_{\mathrm{H}\alpha}}
+= \varphi\,\frac{1030\ \mathrm{nm}}{656.28\ \mathrm{nm}}
+\approx 2.539427.
+$$
 
-It bridges El Gran Sol's optical scale (a 1030 nm silica reader) to hydrogen's
-H-alpha geometry — a scale-invariant solar↔hydrogen lock. Two constants now live in
-the engine, with distinct jobs:
+It defines a project-specific dimensionless ratio between the declared optical and
+H-alpha anchors. It is a control parameter, not evidence of a physical solar↔hydrogen
+coupling. Two constants now live in the engine, with distinct jobs:
 
 | Constant             | Symbol            | Value          | Governs                                              |
 | -------------------- | ----------------- | -------------- | ---------------------------------------------------- |
@@ -42,19 +39,17 @@ gateway code.)
 The gateway takes the **live solar-wind speed** (km/s) and injects it as a phase bias
 on the virtual 1030 nm reader, weighted by `K_EGS`:
 
-```
-┌────────────────┬──────────────────────────────────────┬───────────┐
-│ Quantity       │ Definition                           │ Range     │
-├────────────────┼──────────────────────────────────────┼───────────┤
-│ norm           │ wind / 400 km/s                      │ > 0       │
-│ phase_bias     │ (2π · norm · K_EGS) mod 2π           │ [0, 2π)   │
-│ lock_strength  │ |cos(phase_bias)|                    │ [0, 1]    │
-└────────────────┴──────────────────────────────────────┴───────────┘
-```
+| Quantity | Definition | Range |
+| --- | --- | --- |
+| `norm` | `wind / 400 km/s` | `> 0` |
+| `phase_bias` | `(2π · norm · K_EGS) mod 2π` | `[0, 2π)` |
+| `lock_strength` | `|cos(phase_bias)|` | `[0, 1]` |
 
-`lock_strength` is how strongly the system is phase-locked *right now*: 1.0 is a
-perfect lock, 0.0 is fully out of phase. The divisor `REFERENCE_SOLAR_WIND_KMS` is
-400 km/s; the FractiAI nominal (`DEFAULT_SOLAR_WIND_KMS`) is 551.7 km/s.
+`lock_strength` is the current model score: 1.0 is a cosine maximum and 0.0 is a
+quadrature point. The divisor `REFERENCE_SOLAR_WIND_KMS` is
+400 km/s; the documented FractiAI design reference (`DEFAULT_SOLAR_WIND_KMS`) is
+551.7 km/s. It is not a telemetry fallback and is not substituted when live input
+is unavailable.
 
 ```python
 from synthobs.gateway import gateway_filter
@@ -107,10 +102,10 @@ eng.state().verdict              # holographic interference verdict (see interfe
 ## Live telemetry
 
 The native plugin polls a **third** NOAA SWPC endpoint alongside flux and sunspots —
-`https://services.swpc.noaa.gov/products/solar-wind/plasma-2-hour.json` —
-a header + data-row feed whose last row's `speed` column is the live wind. The Python
-side parses the same feed with `parse_noaa_solar_wind` / `fetch_live_solar_wind` (see
-[telemetry.md](telemetry.md)). Verified live in OBS 32.1.2:
+`https://services.swpc.noaa.gov/json/rtsw/rtsw_wind_1m.json` — an object feed whose
+active rows expose `proton_speed`, `proton_density`, and `proton_temperature`. The
+Python side parses the same feed with `parse_noaa_solar_wind` /
+`fetch_live_solar_wind` (see [telemetry.md](telemetry.md)). Verified live in OBS 32.1.2:
 
 ```
 [fractisynth] gateway lock: wind=397.5 km/s lock=0.989 phase=3.290

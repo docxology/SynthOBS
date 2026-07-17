@@ -1,39 +1,18 @@
 # Architecture
 
-SynthOBS is three layers around one constant. Each layer is independently testable,
-and each scales against **φ** from a single definition site within that layer. The
-layers mirror one another deliberately: the Python engine is the specification, the C
-plugin is the production transducer, and the obspython script is the bridge.
+SynthOBS has three independently testable layers around two pinned constants with
+separate roles. The Python engine defines the portable contracts, the C plugin
+implements native counterparts at the OBS boundary, and the obspython script is the
+bridge. The adapters are checked against the engine; they do not duplicate every
+Python operation that has no OBS-bound equivalent.
 
-```
-                  ┌───────────────────────────────────────────────────┐
-                  │   φ = (1 + √5) / 2   —  El Gran Sol's Fractal      │
-                  │   Constant (the golden-ratio LAYOUT constant)     │
-                  └───────────────────────────────────────────────────┘
-                          │                               │
-        defined once as   │                               │   pinned once as
-        PHI in            ▼                               ▼   #define EGS_PHI
-        ┌──────────────────────────────┐       ┌──────────────────────────────┐
-        │ LAYER 1 — Python engine      │ mirror│ LAYER 2 — native libobs      │
-        │ src/synthobs/                │◀─────▶│ plugin                       │
-        │ source of truth              │ ISC-60│ plugin/fractisynth/src/      │
-        │ 1161 tests, no mocks         │       │ fractisynth.c (loads in OBS) │
-        └──────────────────────────────┘       └──────────────────────────────┘
-                          ▲                               ▲
-            drives the    │                               │   registers the two
-            real engine   │                               │   OBS filters
-            via           │                               │
-                  ┌───────┴───────────────────────────────┴───────┐
-                  │ LAYER 3 — obspython bridge                     │
-                  │ plugin/synthobs/synthobs_console.py            │
-                  └───────────────────────────────────────────────┘
-```
+![Three-layer SynthOBS architecture and evidence path. The upper constant surface feeds the tested Python engine, native libobs adapter, and obspython bridge; the adapters converge in the live OBS runtime. The figure reports the current 1217-test, 96.09%-coverage baseline and OBS target so the diagram separates source authority from integration evidence.](../output/figures/architecture_layers.png){#fig:docs-architecture-layers width=90%}
 
 ## Layer 1 — the Python engine (`src/synthobs/`)
 
 The engine is the **source of truth**. It has zero OBS dependency and zero network
-dependency in its core, which is exactly what makes it testable without mocks. Fifteen
-modules, each one responsibility:
+dependency in its core, which is exactly what makes it testable without external services. Fifteen
+public modules plus the package initializer, each with one responsibility:
 
 | Module            | Responsibility                                                                                              |
 | ----------------- | ----------------------------------------------------------------------------------------------------------- |
@@ -49,7 +28,7 @@ modules, each one responsibility:
 | `interaction.py`  | Seven feed-tab targets, layer-toggle rail geometry, and marker-drop resolution.                             |
 | `layers.py`       | Deterministic OBS dashboard/layer plans for Wavefield, Telemetry HUD, and Solar Graph metrics.              |
 | `history.py`      | Bounded telemetry history ring buffer feeding the HUD waveform sparklines (mirrors the C ring).             |
-| `provenance.py`   | Telemetry-record packing, SHA-256 (unkeyed) corruption-detecting checksum, LSB/visible-signature embedding, and integrity validation (detects accidental corruption, not forgery). |
+| `provenance.py`   | Telemetry-record packing, default unkeyed corruption-detecting checksum, opt-in HMAC-SHA-256 authenticity, LSB/visible-signature embedding, and fail-closed validation. |
 | `engine.py`       | `SynthEngine` — orchestrates calibration, layout, and modulation; refuses to modulate before calibration.    |
 | `verification.py` | Pure live-gate oracle: audio-meter ROI scoring (`uv.y > 0.955`) and `GateResult` pass/fail/skip contracts.   |
 | `__init__.py`     | Public package surface.                                                                                      |
@@ -74,11 +53,13 @@ See [formal-invariants.md](formal-invariants.md).
 
 ## Layer 2 — the native plugin (`plugin/fractisynth/`)
 
-A real `libobs` plugin in C that registers two OBS filters (`fractisynth_video` and
-`fractisynth_audio`). It is a **faithful mirror** of Layer 1: the φ literal, the SWO
-phase formula `φ · (flux / spots)`, and the fail-closed rule are identical. It owns
-one extra responsibility the pure-Python engine cannot: a background **libcurl
-telemetry thread** that polls live NOAA SWPC from inside the OBS process.
+A real `libobs` plugin in C that registers three OBS filters (`fractisynth_video`,
+`fractisynth_audio`, and `fractisynth_inspector`) plus the generated
+`fractisynth_console` source. It implements selected Layer 1 contracts: the φ literal,
+the SWO phase formula `φ · (flux / spots)`, and the fail-closed rule are pinned by
+static and behavioral checks. It owns one extra responsibility the pure-Python engine
+cannot: a background **libcurl telemetry thread** that polls live NOAA SWPC from
+inside the OBS process.
 
 This layer is verified to load in **OBS 32.1.2**. Details and the live load log are in
 [native-plugin.md](native-plugin.md) and [build-and-install.md](build-and-install.md).
@@ -150,6 +131,7 @@ flowchart TB
 ```
 
 Inside OBS the same flow runs natively: the libcurl thread replaces the Python
-telemetry fetch, `synchronize_swo_calibration` replaces `calibrate`, and the two OBS
-filters (`fractisynth_video` / `fractisynth_audio`) replace `modulate_video` /
-`modulate_audio`.
+telemetry fetch, `synchronize_swo_calibration` replaces `calibrate`, and the video and
+audio filters (`fractisynth_video` / `fractisynth_audio`) replace `modulate_video` /
+`modulate_audio`; the inspector is an independent video filter over the same source
+boundary.

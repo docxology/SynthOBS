@@ -5,6 +5,8 @@ from __future__ import annotations
 
 import importlib.util
 import py_compile
+import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -13,16 +15,24 @@ from synthobs.constants import PHI
 
 PLUGIN = Path(__file__).resolve().parents[1] / "plugin"
 FRACTI_C = PLUGIN / "fractisynth" / "src" / "fractisynth.c"
+RTSW_PARSER_H = PLUGIN / "fractisynth" / "src" / "rtsw_parser.h"
 FRACTI_DOCK = PLUGIN / "fractisynth" / "src" / "fractisynth_dock.cpp"
 CMAKE = PLUGIN / "fractisynth" / "CMakeLists.txt"
 CONSOLE_PY = PLUGIN / "synthobs" / "synthobs_console.py"
 CONSOLE_EFFECT = PLUGIN / "fractisynth" / "data" / "fractisynth_console.effect"
 LOCALE = PLUGIN / "fractisynth" / "data" / "locale" / "en-US.ini"
+OBS_SDK = PLUGIN / "fractisynth" / ".obs-sdk" / "obs-studio"
+SIMDE = PLUGIN / "fractisynth" / ".obs-sdk" / "simde"
 
 
 @pytest.fixture(scope="module")
 def c_source() -> str:
     return FRACTI_C.read_text(encoding="utf-8")
+
+
+@pytest.fixture(scope="module")
+def rtsw_parser_source() -> str:
+    return RTSW_PARSER_H.read_text(encoding="utf-8")
 
 
 @pytest.fixture(scope="module")
@@ -37,6 +47,51 @@ def test_cmake_exists_and_links_obs_curl() -> None:  # ISC-55
     assert "OBS::libobs" in text
     assert "CURL" in text
     assert "fractisynth.c" in text
+
+
+def test_native_c_syntax_compiles_when_matching_sdk_is_available() -> None:
+    """Static token probes are not enough; compile the real native source when possible."""
+    clang = shutil.which("clang")
+    header = OBS_SDK / "libobs" / "obs-module.h"
+    xcrun = shutil.which("xcrun")
+    sdkroot = ""
+    if xcrun:
+        sdk_result = subprocess.run(
+            [xcrun, "--show-sdk-path"], capture_output=True, text=True, check=False
+        )
+        if sdk_result.returncode == 0:
+            sdkroot = sdk_result.stdout.strip()
+    if not clang or not header.exists() or not SIMDE.exists() or not sdkroot:
+        pytest.skip("matching OBS/SIMDe/libcurl headers are not available")
+    curl_probe = subprocess.run(
+        [clang, "-fsyntax-only", "-xc", "-", "-DHAVE_CURL", "-I", f"{sdkroot}/usr/include"],
+        input="#include <curl/curl.h>\n",
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if curl_probe.returncode != 0:
+        pytest.skip("matching OBS/SIMDe/libcurl headers are not available")
+    result = subprocess.run(
+        [
+            clang,
+            "-fsyntax-only",
+            "-std=gnu11",
+            "-DHAVE_CURL",
+            "-I",
+            str(OBS_SDK / "libobs"),
+            "-I",
+            str(SIMDE),
+            "-I",
+            str(FRACTI_C.parent),
+            "-I",
+            f"{sdkroot}/usr/include",
+            str(FRACTI_C),
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
 
 
 def test_registers_video_filter(c_source: str) -> None:  # ISC-56
@@ -142,13 +197,25 @@ def test_solar_graph_xray_kp_wiring_is_pinned(c_source: str) -> None:
     assert "MetricXray" in locale and "MetricKp" in locale
 
 
-def test_native_fail_closed_finiteness_guards_are_pinned(c_source: str) -> None:
+def test_native_fail_closed_finiteness_guards_are_pinned(c_source: str, rtsw_parser_source: str) -> None:
+    parser_source = c_source + rtsw_parser_source
     assert "if (!isfinite(current_flux) || current_flux <= 0.0f || active_spots <= 0)" in c_source
     assert "if (!isfinite(solar_wind_kms) || solar_wind_kms <= 0.0f)" in c_source
-    assert "end != p && isfinite(val) && val > 0.0f" in c_source
-    assert "end == p || !isfinite(val) || val <= 0.0f" in c_source
+    assert "end == p || end > oend || !isfinite(value)" in parser_source
+    assert "isfinite(d) && isfinite(s) && isfinite(t)" in parser_source
     assert "if (isfinite(v) && v >= 0.0f && v <= 12.0f)" in c_source
     assert "if (!isfinite(f->threshold) || f->threshold <= 0.0f)" in c_source
+
+
+def test_native_telemetry_freshness_and_latest_record_guards_are_pinned(c_source: str) -> None:
+    assert "TELEMETRY_MAX_AGE_SECONDS" in c_source
+    assert "REGIONS_MAX_AGE_SECONDS" in c_source
+    assert "timestamp_is_fresh" in c_source
+    assert 'json_string_field(p, oend, "time_tag"' in c_source
+    assert "timestamp_is_fresh(time_tag, TELEMETRY_MAX_AGE_SECONDS)" in c_source
+    assert "timestamp_is_fresh(maxdate, REGIONS_MAX_AGE_SECONDS)" in c_source
+
+
 
 
 def test_solar_graph_metric_time_axes_are_pinned(c_source: str) -> None:

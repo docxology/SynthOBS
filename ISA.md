@@ -54,7 +54,7 @@ the geometry was always real, only the metaphysics needed honest tagging.
 - Fail closed: invalid, stale, zeroed, or absent telemetry → Hold State, never a guess.
 - Thin orchestrator: all math lives in `src/synthobs/`; scripts only do I/O and viz.
 - The Python engine is the tested source of truth; the C plugin mirrors it.
-- No mocks: HTTP via pytest-httpserver, real numeric examples, fixed seeds.
+- Real I/O only: HTTP via pytest-httpserver, real numeric examples, fixed seeds.
 
 ## Constraints
 
@@ -99,7 +99,7 @@ project tests green at ≥90% coverage.
 - [x] ISC-14: Anti: malformed/empty JSON raises `TelemetryUnavailable`.
 - [x] ISC-15: Anti: `flux <= 0` in payload raises `TelemetryUnavailable`.
 - [x] ISC-16: Anti: `spots <= 0` in payload raises `TelemetryUnavailable`.
-- [x] ISC-17: telemetry fetch is tested against a real local HTTP server (pytest-httpserver), not a mock.
+- [x] ISC-17: telemetry fetch is tested against a real local HTTP server (pytest-httpserver).
 - [x] ISC-18: a stale telemetry timestamp older than `max_age_s` raises `TelemetryUnavailable`.
 
 ### Solar Wavefield Oscillator (calibration)
@@ -302,7 +302,7 @@ the project's standalone documentation set.
 - [x] ISC-79: `docs/architecture.md` documents the three-layer design and φ single-source-of-truth.
 - [x] ISC-80: `docs/engine.md` is an accurate API reference for all 9 `src/synthobs` modules (every public symbol present, signatures match source).
 - [x] ISC-81: `docs/golden-ratio.md`, `docs/telemetry.md`, `docs/command-grammar.md` document the φ math, fail-closed SWO/NOAA telemetry, and command grammar respectively.
-- [x] ISC-82: `docs/native-plugin.md`, `docs/build-and-install.md`, `docs/usage.md`, `docs/testing.md` document the C plugin, verified build/install, OBS usage, and the 859-test/no-mocks suite.
+- [x] ISC-82: `docs/native-plugin.md`, `docs/build-and-install.md`, `docs/usage.md`, `docs/testing.md` document the C plugin, verified build/install, OBS usage, and the 1205-test real-input suite.
 - [x] ISC-83: Anti: no doc page invents an API, flag, file, or count not present in source — self-verification caught 3 invented test-file names (`test_layout/console/commands.py`) and they were corrected to the real `test_constants_and_layout.py` / `test_console_and_commands.py`.
 - [x] ISC-84: Anti: no truncation — all 10 doc pages on disk; suite stays `859 passed`.
 
@@ -500,7 +500,7 @@ and verified."
 
 ### Criteria (iteration 7)
 - [x] ISC-128: **live telemetry VERIFIED against NOAA**: F10.7 flux=145.0 (exact match);
-  solar wind ~389–397 km/s (live, matches plasma-2-hour feed); both flowing every 60s.
+  solar wind ~389–397 km/s (live, matches the current RTSW object feed); both flowing every 60s.
 - [x] ISC-129: **SUNSPOT-COUNT BUG FIXED** — the C plugin counted `sunspot_report.json`'s
   601 per-station observation records as "spots", over-dividing the SWO phase vector. Now
   uses `solar_regions.json` and counts regions on the **latest observed_date** (the true

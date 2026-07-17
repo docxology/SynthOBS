@@ -1,7 +1,8 @@
 /*
  * FractiSynth — the native transducer core for SynthOBS (v1.618).
  *
- * A libobs plugin exposing two filters bound natively to El Gran Sol's Fractal
+ * A libobs plugin exposing three filters and an interactive console source bound
+ * natively to El Gran Sol's Fractal
  * Constant, φ = 1.61803398875f (the Goldilocks Calibration Standard):
  *
  *   - fractisynth_video : intercepts the render loop and scales spatial bounds
@@ -9,7 +10,7 @@
  *   - fractisynth_audio : soft-limits sample buffers along a recursive 1/φ knee
  *                          curve (no harsh clipping; presence without fatigue).
  *
- * Both filters read a single, process-global Solar Wavefield Oscillator (SWO)
+ * The filters and console read a single, process-global Solar Wavefield Oscillator (SWO)
  * calibration struct. A background libcurl thread polls live NOAA SWPC space
  * weather (10.7 cm flux + active sunspot count) and phase-locks the oscillator.
  * The system bans historical/averaged fallbacks: on any telemetry failure the
@@ -38,6 +39,7 @@
 
 #include "text8x8.h"   /* embedded bitmap font + RGBA draw helpers (Telemetry HUD) */
 #include "sha256.h"    /* FIPS-180-4 SHA-256 — provenance signature, matches Python */
+#include "rtsw_parser.h" /* current NOAA RTSW object feed; standalone-testable mirror */
 
 #ifdef HAVE_CURL
 #include <curl/curl.h>
@@ -66,10 +68,12 @@ OBS_MODULE_USE_DEFAULT_LOCALE("fractisynth", "en-US")
  * latest day's regions (the true active-region count, ~10), NOT sunspot_report
  * .json's hundreds of per-station observation records. */
 #define NOAA_SUNSPOT_URL "https://services.swpc.noaa.gov/json/solar_regions.json"
-#define NOAA_SOLARWIND_URL "https://services.swpc.noaa.gov/products/solar-wind/plasma-2-hour.json"
+#define NOAA_SOLARWIND_URL "https://services.swpc.noaa.gov/json/rtsw/rtsw_wind_1m.json"
 #define NOAA_XRAY_URL "https://services.swpc.noaa.gov/json/goes/primary/xrays-6-hour.json"
 #define NOAA_KP_URL "https://services.swpc.noaa.gov/json/planetary_k_index_1m.json"
 #define TELEMETRY_POLL_SECONDS 60
+#define TELEMETRY_MAX_AGE_SECONDS (3 * 60 * 60)
+#define REGIONS_MAX_AGE_SECONDS (3 * 24 * 60 * 60)
 #define M_TWO_PI 6.28318530717958647692f
 #define FCV_FEED_COUNT 7
 #define FCV_TAB_CELLS 7.0f
@@ -173,7 +177,7 @@ static int history_series(int field, float *out, int max)
 
 /* ------------------------------------------------------------------ */
 /*  Live NOAA time-series store (real 1-min cadence) for realtime      */
-/*  solar-data graphs. Populated from the full plasma-2-hour feed.     */
+/*  solar-data graphs. Populated from the live NOAA RTSW wind feed.     */
 /* ------------------------------------------------------------------ */
 #define SERIES_MAX 256
 enum { SER_WIND = 0, SER_DENS = 1, SER_TEMP = 2, SER_XRAY = 3, SER_KP = 4, SER_COUNT = 5 };
@@ -445,29 +449,30 @@ static char *telemetry_http_get(const char *url)
 	return buf.data;
 }
 
-/*
- * Minimal dependency-free extractor for the last "flux" value in NOAA's
- * F10.7 JSON array. A production build should link jansson and parse properly;
- * this keeps the plugin buildable without an extra hard dependency while still
- * doing real work. Returns -1.0f when no positive flux is found (fail closed).
- */
 static float extract_last_flux(const char *json)
 {
 	if (!json)
 		return -1.0f;
-	float last = -1.0f;
+	float latest_flux = -1.0f;
+	char latest_time[32] = {0};
 	const char *p = json;
-	while ((p = strstr(p, "\"flux\"")) != NULL) {
-		p += 6;
-		while (*p && (*p == ':' || *p == ' ' || *p == '\t'))
-			p++;
-		char *end = NULL;
-		float val = strtof(p, &end);
-		if (end != p && isfinite(val) && val > 0.0f)
-			last = val; /* keep the most recent positive reading */
-		p = (end && end != p) ? end : p + 1;
+	while ((p = strchr(p, '{')) != NULL) {
+		const char *oend = synthobs_json_object_end(p);
+		if (!oend)
+			break;
+		char time_tag[32] = {0};
+		float flux = -1.0f;
+		if (synthobs_json_string_field(p, oend, "time_tag", time_tag, sizeof(time_tag)) &&
+		    synthobs_json_number_field(p, oend, "flux", &flux) && flux > 0.0f &&
+		    synthobs_timestamp_is_fresh(time_tag, TELEMETRY_MAX_AGE_SECONDS) &&
+		    (latest_time[0] == '\0' || strcmp(time_tag, latest_time) > 0)) {
+			memcpy(latest_time, time_tag, sizeof(latest_time));
+			latest_time[sizeof(latest_time) - 1] = '\0';
+			latest_flux = flux;
+		}
+		p = oend + 1;
 	}
-	return last;
+	return latest_flux;
 }
 
 /* Read the 10-char "observed_date":"YYYY-MM-DD" value at p into out[11]. */
@@ -488,9 +493,9 @@ static int read_observed_date(const char *p, char *out)
  * Count the number of ACTIVE SOLAR REGIONS from NOAA's solar_regions.json — one
  * record per numbered region per observed date. We take the count for the LATEST
  * observed_date (the regions currently on the disk), NOT the raw record count:
- * the feed spans ~a month, so counting all records (or all "Region" keys in the
- * separate sunspot_report.json) wildly over-counts the active-region divisor and
- * corrupts the SWO phase vector. Dependency-free; returns -1 when no region is
+ * the feed spans ~a month, so counting all historical records or station rows
+ * wildly over-counts the active-region divisor and corrupts the SWO phase vector.
+ * Dependency-free; returns -1 when no region is
  * found (fail closed). Verified live: 10 regions vs the old 601-record over-count.
  */
 static int extract_active_region_count(const char *json)
@@ -509,6 +514,8 @@ static int extract_active_region_count(const char *json)
 	}
 	if (maxdate[0] == '\0')
 		return -1;
+	if (!synthobs_timestamp_is_fresh(maxdate, REGIONS_MAX_AGE_SECONDS))
+		return -1;
 
 	/* pass 2: count records whose observed_date equals the latest */
 	int count = 0;
@@ -523,104 +530,23 @@ static int extract_active_region_count(const char *json)
 }
 
 /*
- * Extract the bulk solar-wind speed (km/s) from NOAA's plasma-2-hour.json — an
- * array of arrays whose header is ["time_tag","density","speed","temperature"]
- * and whose LAST data row is the present reading; speed is column index 2.
- * Coarse dependency-free parser (mirrors extract_last_flux's style). Returns
- * -1.0f when no positive speed is found (fail closed). A header-only feed reads
- * the literal "speed" at index 2 → strtof yields 0 → rejected.
+ * Extract the bulk solar-wind speed (km/s) from NOAA's current object feed.
+ * Returns -1.0f when no positive speed is found (fail closed).
  */
 static float extract_last_wind_speed(const char *json)
 {
-	if (!json)
-		return -1.0f;
-	/* locate the last row's opening bracket */
-	const char *last_open = NULL;
-	for (const char *q = json; *q; q++) {
-		if (*q == '[')
-			last_open = q;
-	}
-	if (!last_open)
-		return -1.0f;
-
-	/* walk to column index 2 (speed): stop after the 2nd top-level comma */
-	const char *p = last_open + 1;
-	int field = 0;
-	while (*p && *p != ']') {
-		if (field == 2)
-			break;
-		if (*p == ',')
-			field++;
-		p++;
-	}
-	if (field != 2)
-		return -1.0f;
-
-	while (*p && (*p == '"' || *p == ' ' || *p == '\t'))
-		p++;
-	char *end = NULL;
-	float val = strtof(p, &end);
-	if (end == p || !isfinite(val) || val <= 0.0f)
-		return -1.0f;
-	return val;
+	return synthobs_extract_rtsw_wind_speed(json, TELEMETRY_MAX_AGE_SECONDS);
 }
 
-/*
- * Parse the FULL NOAA plasma-2-hour series (real ~1-min cadence) into three
- * arrays: density (col 1), speed (col 2), temperature (col 3). The feed is an
- * array of arrays, all values JSON strings; the first row is the header. Returns
- * the number of valid rows parsed (rows with non-positive speed are skipped).
- * Dependency-free; used to drive the realtime solar-data graphs.
- */
+static int parse_rtsw_plasma_series(const char *json, float *density, float *speed, float *temp, int max)
+{
+	return synthobs_parse_rtsw_plasma_series(json, density, speed, temp, max,
+							TELEMETRY_MAX_AGE_SECONDS);
+}
+
 static int parse_plasma_series(const char *json, float *density, float *speed, float *temp, int max)
 {
-	if (!json)
-		return 0;
-	const char *p = strchr(json, '['); /* outer array */
-	if (!p)
-		return 0;
-	p++;
-	p = strchr(p, '['); /* header row */
-	if (!p)
-		return 0;
-	p = strchr(p, ']'); /* end of header */
-	if (!p)
-		return 0;
-	p++;
-	int n = 0;
-	while (n < max) {
-		const char *row = strchr(p, '[');
-		if (!row)
-			break;
-		const char *rend = strchr(row, ']');
-		if (!rend)
-			break;
-		/* extract the 4 quoted tokens: 0=time, 1=density, 2=speed, 3=temp */
-		const char *q = row;
-		float v[4] = {0, 0, 0, 0};
-		int ok = 1;
-		for (int t = 0; t < 4; t++) {
-			q = strchr(q, '"');
-			if (!q || q > rend) { ok = 0; break; }
-			q++;
-			const char *qe = strchr(q, '"');
-			if (!qe || qe > rend) { ok = 0; break; }
-			if (t >= 1)
-				v[t] = strtof(q, NULL); /* "null"/empty -> 0 */
-			q = qe + 1;
-		}
-		/* require a real speed AND finite density/temp: strtof("nan"/"inf") rides
-		 * past a bare >0 gate (NaN<=0 and Inf<=0 are both false) and corrupts the
-		 * sparkline / Solar Graph. Mirrors Python parse_noaa_plasma_series. */
-		if (ok && v[2] > 0.0f && isfinite(v[1]) && isfinite(v[2]) && isfinite(v[3])) {
-			density[n] = v[1];
-			speed[n] = v[2];
-			temp[n] = v[3];
-			n++;
-		}
-		p = rend + 1;
-	}
-	return n;
+	return parse_rtsw_plasma_series(json, density, speed, temp, max);
 }
 
 /*
@@ -787,10 +713,10 @@ static void telemetry_thread_start(void)
 		/* Creation failed: never join an indeterminate pthread_t. */
 		atomic_store(&g_telemetry_run, false);
 		g_thread_started = false;
-		blog(LOG_WARNING, "[fractisynth] telemetry thread spawn failed — SWO on default vector");
+		blog(LOG_WARNING, "[fractisynth] telemetry thread spawn failed — SWO remains uncalibrated");
 	}
 #else
-	blog(LOG_WARNING, "[fractisynth] built without libcurl — SWO runs on default vector");
+	blog(LOG_WARNING, "[fractisynth] built without libcurl — live telemetry disabled; SWO remains uncalibrated");
 #endif
 }
 
@@ -2420,7 +2346,7 @@ MODULE_EXPORT const char *obs_module_name(void)
 MODULE_EXPORT const char *obs_module_description(void)
 {
 	return "Golden-ratio (EGS φ) transducer: φ-scaled video calibration + soft-limiter "
-	       "audio, phase-locked to live solar telemetry.";
+	       "audio, calibrated by live solar telemetry.";
 }
 
 bool obs_module_load(void)

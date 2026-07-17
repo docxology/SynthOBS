@@ -1,10 +1,10 @@
 """The Solar Wavefield Oscillator (SWO) calibration core.
 
 The SWO calibrates the software matrix exclusively from current space telemetry and
-emits a single phase-locked harmonic variable — the ``system_phase_vector`` — used
-by both the SynthOBS interface layers and the FractiSynth core filters. This is a
-faithful Python mirror of the blueprint's C ``synchronize_swo_calibration`` routine
-(see ``plugin/fractisynth/src/fractisynth.c``), with identical fail-closed behaviour:
+emits the ``system_phase_vector`` used by the SynthOBS interface layers and the
+FractiSynth core filters. The native C routine implements the same declared
+calibration contract (see ``plugin/fractisynth/src/fractisynth.c``), with the same
+fail-closed behaviour:
 
     system_phase_vector = (current_flux / active_spots) · φ
 
@@ -38,7 +38,7 @@ def phase_vector(flux: float, spots: int) -> float:
 class SolarWavefieldOscillator:
     """Stateful calibrator. Starts un-calibrated; holds last good vector on failure.
 
-    Fields mirror the C ``SolarWavefieldOscillator`` struct one-to-one:
+    Fields correspond to the native C ``SolarWavefieldOscillator`` struct:
     ``active_f107_flux``, ``monitored_sunspots``, ``system_phase_vector``,
     ``is_calibrated``.
     """
@@ -61,7 +61,13 @@ class SolarWavefieldOscillator:
         non-positive/non-finite reading. Independent of amplitude calibration —
         the gateway can hold while the oscillator re-locks, and vice-versa.
         """
-        if not math.isfinite(solar_wind_kms) or solar_wind_kms <= 0.0:
+        if isinstance(solar_wind_kms, bool):
+            return False
+        try:
+            valid_wind = math.isfinite(solar_wind_kms) and solar_wind_kms > 0.0
+        except (TypeError, ValueError):
+            valid_wind = False
+        if not valid_wind:
             return False
         self.gateway = gateway_filter(solar_wind_kms)
         return True
@@ -86,7 +92,14 @@ class SolarWavefieldOscillator:
         never emits NaN.
         """
         # ENFORCEMENT: block any stale, default, or zeroed indicator (fail closed).
-        if not math.isfinite(current_flux) or current_flux <= 0.0 or active_spots <= 0:
+        if isinstance(current_flux, bool) or isinstance(active_spots, bool) or not isinstance(active_spots, int):
+            self.is_calibrated = False
+            return False
+        try:
+            valid_inputs = math.isfinite(current_flux) and current_flux > 0.0 and active_spots > 0
+        except (TypeError, ValueError):
+            valid_inputs = False
+        if not valid_inputs:
             self.is_calibrated = False
             return False
 

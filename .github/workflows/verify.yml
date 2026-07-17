@@ -1,0 +1,33 @@
+name: SynthOBS verification
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  engine:
+    name: Engine, figures, and package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+      - run: uv sync --extra dev
+      - run: uv run python -m pytest tests --cov=synthobs --cov-fail-under=90
+      - run: uv run python scripts/generate_figures.py
+      - run: uv build
+      - run: uv run python scripts/package_smoke.py
+
+  native-parser:
+    name: Native parser behavioral parity
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+      - run: uv sync --extra dev
+      - run: uv run python -m pytest tests/test_c_parity_behavioral.py -q
+

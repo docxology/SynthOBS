@@ -1,4 +1,4 @@
-"""Tests for the realtime solar-data series parsers (no mocks — real structures).
+"""Tests for the realtime solar-data series parsers using real structures.
 
 These mirror the native C parsers (parse_plasma_series / parse_xray_series /
 parse_kp_series) that drive the Solar Graph feed, so the realtime graphs match
@@ -8,6 +8,7 @@ the tested Python reference.
 from __future__ import annotations
 
 import json
+from datetime import datetime, timezone
 
 import pytest
 from synthobs.telemetry import (
@@ -17,35 +18,102 @@ from synthobs.telemetry import (
     parse_noaa_xray_flux,
 )
 
+_HISTORICAL_NOW = datetime(2026, 7, 16, 2, 30, tzinfo=timezone.utc)
 
-# --- plasma-2-hour (density / speed / temperature) -----------------------
-def test_plasma_series_parses_columns_and_skips_header() -> None:
+
+def _parse_series(feed):
+    return parse_noaa_plasma_series(feed, max_age_s=10**9, now=_HISTORICAL_NOW)
+
+
+# --- real-time solar wind (density / speed / temperature) -----------------
+def test_plasma_series_parses_current_rtsw_object_schema_chronologically() -> None:
     feed = [
-        ["time_tag", "density", "speed", "temperature"],
-        ["2026-06-11 00:00:00", "5.1", "410.0", "120000"],
-        ["2026-06-11 00:01:00", "5.3", "412.5", "121000"],
+        {
+            "time_tag": "2026-07-16T02:18:00",
+            "active": False,
+            "proton_density": 99.0,
+            "proton_speed": 999.0,
+            "proton_temperature": 999.0,
+        },
+        {
+            "time_tag": "2026-07-16T02:17:00",
+            "active": True,
+            "proton_density": 3.14,
+            "proton_speed": 451.0,
+            "proton_temperature": 190801,
+        },
+        {
+            "time_tag": "2026-07-16T02:16:00",
+            "active": True,
+            "proton_density": 2.71,
+            "proton_speed": 449.0,
+            "proton_temperature": 188000,
+        },
     ]
-    dens, speed, temp = parse_noaa_plasma_series(feed)
+
+    dens, speed, temp = _parse_series(feed)
+
+    assert dens == [2.71, 3.14]
+    assert speed == [449.0, 451.0]
+    assert temp == [188000.0, 190801.0]
+
+
+def test_plasma_series_parses_current_object_rows() -> None:
+    feed = [
+        {"time_tag": "2026-06-11T00:00:00Z", "active": True, "proton_density": 5.1, "proton_speed": 410.0, "proton_temperature": 120000},
+        {"time_tag": "2026-06-11T00:01:00Z", "active": True, "proton_density": 5.3, "proton_speed": 412.5, "proton_temperature": 121000},
+    ]
+    dens, speed, temp = _parse_series(feed)
     assert speed == [410.0, 412.5]
     assert dens == [5.1, 5.3]
     assert temp == [120000.0, 121000.0]
 
 
+def test_plasma_series_rejects_non_object_rows() -> None:
+    with pytest.raises(TelemetryUnavailable):
+        _parse_series([["time_tag", "proton_speed"], ["t", 400.0]])
+
+
 def test_plasma_series_skips_bad_speed_rows() -> None:
     feed = [
-        ["time_tag", "density", "speed", "temperature"],
-        ["t", "5.0", "0", "100"],  # zero speed -> skipped
-        ["t", "6.0", "null", "100"],  # non-numeric -> skipped
-        ["t", "7.0", "400", "100"],  # kept
+        {"time_tag": "2026-06-11T00:00:00Z", "active": True, "proton_density": 5.0, "proton_speed": 0.0, "proton_temperature": 100},
+        {"time_tag": "2026-06-11T00:01:00Z", "active": True, "proton_density": 6.0, "proton_speed": "null", "proton_temperature": 100},
+        {"time_tag": "2026-06-11T00:02:00Z", "active": True, "proton_density": 7.0, "proton_speed": 400.0, "proton_temperature": 100},
     ]
-    dens, speed, temp = parse_noaa_plasma_series(feed)
+    dens, speed, temp = _parse_series(feed)
     assert speed == [400.0] and dens == [7.0]
 
 
-@pytest.mark.parametrize("bad", ["not json", "[]", json.dumps([["h", "d", "s", "t"]])])
+def test_plasma_series_fails_closed_on_overflowing_object_measurement() -> None:
+    feed = [
+        {
+            "time_tag": "2026-07-16T02:17:00",
+            "active": True,
+            "proton_density": 10**1000,
+            "proton_speed": 451.0,
+            "proton_temperature": 190801,
+        }
+    ]
+    with pytest.raises(TelemetryUnavailable):
+        _parse_series(feed)
+
+
+@pytest.mark.parametrize("bad", ["not json", "[]", json.dumps([{"time_tag": "t"}])])
 def test_plasma_series_fails_closed(bad: str) -> None:
     with pytest.raises(TelemetryUnavailable):
-        parse_noaa_plasma_series(bad)
+        _parse_series(bad)
+
+
+def test_plasma_series_rejects_stale_rows() -> None:
+    feed = [{
+        "time_tag": "2026-07-15T00:00:00Z",
+        "active": True,
+        "proton_density": 5.0,
+        "proton_speed": 400.0,
+        "proton_temperature": 100000.0,
+    }]
+    with pytest.raises(TelemetryUnavailable, match="no valid rows"):
+        parse_noaa_plasma_series(feed, max_age_s=3600.0, now=_HISTORICAL_NOW)
 
 
 # --- GOES X-ray flux -----------------------------------------------------
@@ -66,6 +134,11 @@ def test_xray_skips_nonpositive_and_bad() -> None:
         {"flux": 5.0e-7, "energy": "0.1-0.8nm"},
     ]
     assert parse_noaa_xray_flux(feed) == [5.0e-7]
+
+
+def test_xray_and_kp_reject_boolean_measurements() -> None:
+    assert parse_noaa_xray_flux([{"flux": True, "energy": "0.1-0.8nm"}, {"flux": 1e-8, "energy": "0.1-0.8nm"}]) == [1e-8]
+    assert parse_noaa_kp_index([{"estimated_kp": True}, {"estimated_kp": 2.0}]) == [2.0]
 
 
 @pytest.mark.parametrize("bad", ["not json", "[]", json.dumps([{"flux": 1.0, "energy": "x"}])])

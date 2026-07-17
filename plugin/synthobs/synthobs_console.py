@@ -263,7 +263,7 @@ def _on_command_modified(props, prop, settings):  # pragma: no cover - needs OBS
 def script_description() -> str:
     return (
         "SynthOBS Console v1.618 — Goldilocks golden-ratio layout + 3-mode console "
-        "(Observatory / Laboratory / Expedition), phase-locked to live solar telemetry "
+        "(Observatory / Laboratory / Expedition), calibrated by live solar telemetry "
         "via the FractiSynth Solar Wavefield Oscillator."
     )
 

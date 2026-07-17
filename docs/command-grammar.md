@@ -9,16 +9,12 @@ Parser: [`src/synthobs/commands.py`](../src/synthobs/commands.py), entry point `
 
 ## The four verbs
 
-```text
-┌──────────────┬──────────────────────────────────────────────────────────────┐
-│ VERB         │ GRAMMAR                                                        │
-├──────────────┼──────────────────────────────────────────────────────────────┤
-│ /mode        │ --observatory | --lab | --ship                                │
-│ /transducer  │ bind <source> --ratio=<float>                                 │
-│ /swo         │ calibrate --flux=<float> --spots=<int> [--target=<id>]         │
-│ /dashboard   │ plan --name=<scene> | build --name=<scene>                    │
-└──────────────┴──────────────────────────────────────────────────────────────┘
-```
+| Verb | Grammar | Typed result |
+| --- | --- | --- |
+| `/mode` | `--observatory \| --lab \| --ship` | `ModeCommand` |
+| `/transducer` | `bind <source> --ratio=<float>` | `BindCommand` |
+| `/swo` | `calibrate --flux=<float> --spots=<int> [--target=<id>]` | `CalibrateCommand` |
+| `/dashboard` | `plan \| build --name=<scene>` | `DashboardCommand` |
 
 `parse(line)` tokenizes with `shlex`, dispatches on the leading verb, and returns a
 typed, frozen `Command` dataclass. Anything else raises `CommandError` (a `ValueError`
@@ -33,7 +29,7 @@ flowchart TD
     C -- tokens --> D{verb in<br/>/mode /transducer /swo /dashboard?}
     D -- no --> E
     D -- yes --> F["_split_flags(rest)<br/>positionals + --key=value flags"]
-    F --> G["_parse_mode / _parse_transducer / _parse_swo"]
+    F --> G["_parse_mode / _parse_transducer / _parse_swo / _parse_dashboard"]
     G -- valid --> H["frozen Command dataclass"]
     G -- bad arg / out of range --> E
 ```
@@ -124,23 +120,10 @@ The obspython console script (`plugin/synthobs/synthobs_console.py`) exposes
 engine** with the result — returning a status string on success or an `ERROR: …` string
 on `CommandError` (never a crash):
 
-```text
-            apply_command(line)
-                    │
-         ┌──────────┴──────────┐
-      parse OK?             CommandError
-         │                     │
-         ▼                     ▼
-  drive ENGINE          return "ERROR: …"
-         │
-  ┌──────┼───────────────┐
-  ▼      ▼               ▼
-ModeCommand  BindCommand  CalibrateCommand  DashboardCommand
-  │            │               │                │
-  ▼            ▼               ▼                ▼
-"mode → …"  "transducer    "SWO calibrated:  "dashboard …:
-            bound … @       phase_vector=…"   7 layers …"
-            ratio …"
-```
+![Rendered parser and rejection path used by `apply_command(line)`. Four verbs (`/mode`, `/transducer`, `/swo`, `/dashboard`) pass through balanced tokenization, dispatch, and verb-specific validation into four typed command classes; malformed tokenization, unknown verbs, and invalid values converge on one explicit `CommandError` sink.](../output/figures/command_parse_pipeline.png){#fig:docs-apply-command width=92%}
+
+`apply_command(line)` consumes the same four typed results shown in the figure.
+Successful commands drive the engine and return a status string; `CommandError`
+returns `ERROR: ...` without mutating engine state.
 
 See [usage.md](usage.md).

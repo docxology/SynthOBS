@@ -5,8 +5,8 @@ outcome* at named holographic nodes: constructive interference at the AR14409 so
 node reads as "true", a destructive hydrogen phase-flip reads as "false", and a tie
 is "mixed". This module ports that logic (``holographic_gate`` from the FractiAI
 ``egs_gateway.py``) plus Recursive Sourced Interference (RSI), the corpus's core
-feedback motor, whose single step contracts toward a stable coherence node exactly
-when ``gain · scale < 1``.
+feedback motor, whose repeated step contracts toward zero exactly when
+``|gain · scale| < 1``.
 
 These are real, deterministic operations on complex amplitudes — the cosmic framing
 is the brand voice; the arithmetic is plain wave superposition.
@@ -111,8 +111,8 @@ def rsi_step(x: float, gain: float, scale: float) -> float:
     """One Recursive Sourced Interference step: ``gain · scale · x``.
 
     The FractiAI core motor — an output fed back as a scale-shifted input.
-    Contracts toward a stable coherence node when ``gain·scale < 1`` and diverges
-    when ``gain·scale > 1`` (see :func:`rsi_is_stable`).
+    Repeated application contracts toward zero when ``|gain·scale| < 1`` and
+    diverges in magnitude when ``|gain·scale| > 1`` (see :func:`rsi_is_stable`).
     """
     return gain * scale * x
 

@@ -7,6 +7,7 @@ byte-exact provenance module used by the native plugin mirror.
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -19,6 +20,7 @@ from scripts.verify_provenance_strip import verify_png
 from synthobs.provenance import (
     ProvenanceError,
     TelemetryRecord,
+    build_authenticated_payload,
     build_payload,
     embed_lsb,
     short_signature,
@@ -39,10 +41,17 @@ def _record() -> TelemetryRecord:
     )
 
 
-def _write_embedded_png(path: Path, rec: TelemetryRecord, *, rgb: bool = False) -> None:
+def _write_embedded_png(
+    path: Path,
+    rec: TelemetryRecord,
+    *,
+    rgb: bool = False,
+    hmac_key: bytes | None = None,
+) -> None:
     width, height = 64, 64
     rgba = bytearray([80, 120, 160, 255] * (width * height))
-    embed_lsb(rgba, width, height, build_payload(rec))
+    payload = build_authenticated_payload(rec, hmac_key) if hmac_key is not None else build_payload(rec)
+    embed_lsb(rgba, width, height, payload)
     arr = np.frombuffer(bytes(rgba), dtype=np.uint8).reshape((height, width, 4))
     if rgb:
         arr = arr[:, :, :3]
@@ -116,3 +125,33 @@ def test_verifier_cli_rejects_signature_mismatch(tmp_path: Path) -> None:
 
     assert result.returncode == 1
     assert "signature mismatch" in result.stderr
+
+
+def test_verifier_hmac_mode_requires_secret_key(tmp_path: Path) -> None:
+    rec = _record()
+    key = b"capture verifier secret"
+    path = tmp_path / "hud_authenticated.png"
+    _write_embedded_png(path, rec, hmac_key=key)
+
+    assert short_signature(verify_png(path, hmac_key=key)) == short_signature(rec)
+    env = os.environ.copy()
+    env["SYNTHOBS_TEST_HMAC_KEY"] = key.decode()
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(VERIFY_SCRIPT),
+            str(path),
+            "--hmac-key-env",
+            "SYNTHOBS_TEST_HMAC_KEY",
+            "--json",
+        ],
+        cwd=ROOT,
+        env=env,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert json.loads(result.stdout)["signature"] == short_signature(rec)
+
+    with pytest.raises(ProvenanceError, match="HMAC mismatch"):
+        verify_png(path, hmac_key=b"wrong")

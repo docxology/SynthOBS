@@ -58,6 +58,25 @@ def test_calibrate_bad_spots_holds(spots) -> None:  # ISC-21
     assert math.isfinite(swo.system_phase_vector)
 
 
+@pytest.mark.parametrize("spots", [True, 3.5, "3"])
+def test_calibrate_rejects_non_integral_spot_counts(spots) -> None:
+    swo = SolarWavefieldOscillator()
+    swo.calibrate(100.0, 2)
+    good = swo.system_phase_vector
+    assert swo.calibrate(120.0, spots) is False
+    assert swo.system_phase_vector == good
+    assert swo.is_calibrated is False
+
+
+@pytest.mark.parametrize("wind", [True, "400", float("nan")])
+def test_lock_gateway_rejects_non_numeric_or_nonfinite_wind(wind) -> None:
+    swo = SolarWavefieldOscillator()
+    assert swo.lock_gateway(400.0) is True
+    good = swo.gateway
+    assert swo.lock_gateway(wind) is False
+    assert swo.gateway == good
+
+
 def test_calibrate_nonfinite_vector_holds() -> None:
     swo = SolarWavefieldOscillator()
     swo.calibrate(100.0, 2)

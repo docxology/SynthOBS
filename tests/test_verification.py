@@ -136,6 +136,8 @@ def test_roi_delta_rejects_bad_dims_channels_and_after_buffer() -> None:
 def test_roi_delta_rejects_malformed_roi() -> None:
     img = bytes(_rgba(8, 8, (0, 0, 0, 255)))
     with pytest.raises(ValueError, match="roi must be"):
+        score_roi_delta(img, img, 8, 8, roi=None, threshold=1.0)  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="roi must be"):
         score_roi_delta(img, img, 8, 8, roi=(0, 0, 8), threshold=1.0)  # type: ignore[arg-type]
     with pytest.raises(ValueError, match="roi values must be integers"):
         score_roi_delta(img, img, 8, 8, roi=(0, 0, 8.0, 8), threshold=1.0)  # type: ignore[arg-type]

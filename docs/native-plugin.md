@@ -1,9 +1,11 @@
 # The Native libobs Plugin
 
 [`plugin/fractisynth/`](../plugin/fractisynth) is a real OBS Studio plugin written in C
-against `libobs`. It is the production transducer — a faithful native mirror of the
-tested Python engine — and it is **verified to load and run live in OBS 32.1.2**. This
-page documents its structure, the two filters, the telemetry thread, and the lifecycle.
+against `libobs`. It is the production transducer: an OBS-bound implementation of
+the tested Python contracts, **verified to load and run live in OBS 32.1.2**. This
+page documents its structure, the three filters, console source, telemetry thread, and lifecycle.
+The Python source-of-truth baseline is 1217 tests at 96.09% coverage; native acceptance
+is reported separately through the live OBS gates below.
 
 Source: [`plugin/fractisynth/src/fractisynth.c`](../plugin/fractisynth/src/fractisynth.c)
 (≈2100 lines). Effects: `data/fractisynth.effect` and
@@ -129,9 +131,9 @@ typedef struct fractisynth_swo {
 
 A background libcurl thread polls the NOAA SWPC flux, active-region, solar-wind plasma,
 GOES X-ray, and Kp endpoints every 60 s and locks the oscillator plus the Solar Graph
-series store. Built without libcurl (`-DHAVE_CURL` off), the oscillator simply runs on
-its default vector and a warning is logged. See [telemetry.md](telemetry.md) for the
-feeds and the fail-closed contract.
+series store. Release builds require libcurl, so the module cannot silently ship with
+live telemetry disabled. See [telemetry.md](telemetry.md) for the feeds and the
+fail-closed contract.
 
 The thread is built to never hang OBS shutdown — these protections were added after an
 adversarial (cross-vendor) review of the exact paths a live smoke-load cannot exercise:
@@ -150,21 +152,7 @@ cleanly** with no shutdown delay (see [build-and-install.md](build-and-install.m
 
 ## Lifecycle summary
 
-```
-obs_module_load()
-  ├─ obs_register_source(&fractisynth_video_filter)
-  ├─ obs_register_source(&fractisynth_audio_filter)
-  ├─ obs_register_source(&fractisynth_inspector_filter)   // Zoom Inspector loupe
-  ├─ obs_register_source(&fractisynth_console_source)     // φ Wavefield Console input
-  ├─ curl_global_init(CURL_GLOBAL_DEFAULT)        // once, here (HAVE_CURL)
-  └─ telemetry_thread_start()                     // spawns the libcurl poller
-
-… runtime: filters read swo_read(); telemetry thread re-locks every 60 s …
-
-obs_module_unload()
-  ├─ telemetry_thread_stop()                      // signal + bounded join (abort cb)
-  └─ curl_global_cleanup()                        // once, here (HAVE_CURL)
-```
+![Rendered FractiSynth load, runtime, and unload lifecycle. The five states show source registration, curl/mutex initialization, concurrent video/audio/inspector rendering plus telemetry operation, bounded stop/join, and cleanup. The annotation distinguishes four registered OBS source surfaces—three filters plus the console source—from the optional Qt dock, so the figure does not count a frontend dock as an OBS source registration.](../output/figures/plugin_lifecycle.png){#fig:docs-plugin-lifecycle width=92%}
 
 ## Console feeds and targets
 
@@ -192,26 +180,28 @@ the same deterministic bitmap text path as the Telemetry HUD.
 
 ## Relationship to the Python engine
 
-The C plugin is a *mirror*, not the source of truth. The φ literal, the SWO formula
-(`φ · flux/spots`), the fail-closed rule, and the soft-limiter curve are identical to
-[`src/synthobs`](../src/synthobs), and the pin between them is a **test** — drift is a
-failure, not a silent divergence. When in doubt about intended behavior, the Python
-engine and its 1161-test suite are authoritative; the C plugin makes that behavior run
-natively inside OBS.
+The C plugin is not a second source of truth. The φ literal, the SWO formula
+(`φ · flux/spots`), the fail-closed rule, and the soft-limiter curve are the declared
+contracts shared with [`src/synthobs`](../src/synthobs), and static/behavioral tests
+check those boundaries. When intended behavior is unclear, the Python engine and its
+1217-test suite are authoritative; the C plugin supplies the native OBS execution.
 
 The Telemetry HUD provenance strip can be checked from a captured PNG:
 
 ```bash
-uv run python scripts/verify_provenance_strip.py output/live/telemetry_hud.png --json
+uv run python scripts/verify_provenance_strip.py \
+  manuscript/assets/obs/obs_telemetry_hud.png --json --expect-signature 8b1f58c1
 ```
 
 The verifier uses the same length prefix, blue-channel LSB extraction, checksum, and
-record validation as `src/synthobs/provenance.py`. It is tested on real RGB/RGBA PNG
+record validation as `src/synthobs/provenance.py`. `--hmac-key-env ENVVAR` additionally
+requires the opt-in HMAC-SHA-256 payload mode and reads the secret only from the operator
+environment. It is tested on real RGB/RGBA PNG
 round-trips, and live OBS scene-compositor survival is now an **automated gate**:
 `scripts/obs_scenario_probe.py --verify-provenance` drives real OBS over obs-websocket,
 captures the Telemetry HUD, and passes only when the LSB signature decodes from the live
 capture and matches the canonical 24-byte telemetry digest (verified against OBS 32.1.2,
-2026-06-18). The HUD also draws a redundant 32-cell visible signature strip from the same
+2026-07-17). The HUD also draws a redundant 32-cell visible signature strip from the same
 digest prefix, giving the scenario harness a survivable fallback signal if row-0 LSBs are
 destroyed.
 
@@ -235,22 +225,26 @@ shader broken-but-compiling during development:
 Two traps make plugin verification deceptive:
 
 - **`[fractisynth] loaded` in the log does NOT mean OBS survived.** A `get_width`
-  recursion (or any bad callback) crashes OBS at *scene load*, milliseconds after the
-  module-load line. The acceptance gate counts OBS `.ips` crash reports
-  (`~/Library/Logs/DiagnosticReports/OBS*.ips`) before/after and asserts OBS stays
-  alive through scene load — never just the load log.
+  recursion (or any bad callback) can crash OBS at *scene load*, milliseconds after
+  the module-load line. The current six-gate scenario probe does not claim to count
+  platform crash reports or prove process liveness; on macOS, a separate operator
+  check can compare `~/Library/Logs/DiagnosticReports/OBS*.ips` before/after and
+  observe OBS through scene load. Never treat the load log alone as survival evidence.
 - **Window screenshots are unreliable** (z-order, Spaces, screen-recording permission).
   Use **obs-websocket** `GetSourceScreenshot` on the **scene** (the real compositor) to
   get the rendered pixels independent of window state. Note: `GetSourceScreenshot` of a
   `CUSTOM_DRAW` *source directly* returns black — a measurement artifact — so screenshot
   the **scene** that contains it, and validate the method with a known `color_source`.
 
-`scripts/obs_scenario_probe.py` automates exactly this. Against real OBS 32.1.2 it now
-passes all five gates — connection, dashboard fit-to-canvas, interaction model,
-**audio reactivity** (`--verify-audio`: a controlled silent-vs-tone capture scores
+`scripts/obs_scenario_probe.py` automates the versioned scenario path. Against real OBS
+32.1.2 it now passes all six required gates — connection, dashboard fit-to-canvas,
+engine-level interaction model,
+render content, **audio reactivity** (`--verify-audio`: a controlled silent-vs-tone capture scores
 `mean_abs_delta ≈ 49` against a threshold of 8 — the silent meter band is uniform dark
 and a 440 Hz tone lights the left ~40%, matching live `AUDIO REACT 0.401`), and
-**provenance survival** (`--verify-provenance`, above). Closing the audio gate required
+**provenance survival** (`--verify-provenance`, above). The interaction result verifies
+the engine resolver's feed/layer/marker geometry; it is not a claim about click transport
+through an OBS Interact window. Closing the audio gate required
 three fixes found only by driving live OBS: the probe's controlled tone needed an
 **absolute** `local_file` (`is_local_file=true`) because OBS resolves relative paths
 against its own working directory; the bottom meter needed the dark-track/φ-ring-fill

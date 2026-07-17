@@ -52,8 +52,9 @@ Status legend: ✅ shipped · 🚧 in progress · 📋 planned
 
 ## Phase E — Interactive on-screen targets / menu destinations  ✅(core)
 - ✅ Console source is **interactive** (OBS_SOURCE_INTERACTION + mouse_click): a
-  clickable 7-cell feed-tab strip painted across the top switches the synthetic
-  feed on click (via OBS's Interact window / interactive projector).
+  clickable 7-cell feed-tab strip painted across the top and registers the native
+  OBS interaction handler; transported click evidence remains scoped to
+  `SYNTHOBS-OBS-INTERACTION`.
 - ✅ Target actions defined in `src/synthobs/interaction.py` and mirrored natively:
   feed switch, layer toggle rail, and transient marker drop.
 
@@ -64,7 +65,7 @@ Status legend: ✅ shipped · 🚧 in progress · 📋 planned
   websocket scene-shot verification (never trust the load log alone).
 
 ## Phase F — Realtime solar-data graphs + multi-source dashboard  ✅(core)
-- ✅ Parse the FULL NOAA plasma-2-hour series (real 1-min cadence) → wind speed /
+- ✅ Parse the FULL NOAA RTSW wind series (real 1-min cadence) → wind speed /
   density / temperature time-series store.
 - ✅ **Solar Graph feed** (feed 6) with a metric selector: a big realtime graph of
   the chosen real metric (current value + min/max + sample count). Drop several
@@ -75,13 +76,14 @@ Status legend: ✅ shipped · 🚧 in progress · 📋 planned
 - ✅ Time-axis labels: -2H for plasma, -6H for X-ray, dynamic minute horizon for Kp, all ending at NOW.
 
 ## Phase G — Live-functional verification + fail-closed hardening  ✅ (2026-06-12)
-- ✅ **Live in-scene verification (closes the long-standing SYNTHOBS-VISUAL-1 residual).**
-  Drove a real OBS 32.1.2 process over obs-websocket and screenshotted every feed
-  rendering with live NOAA data: Wavefield / Hex Tunnel / Interference / Spectral /
-  Spiral, the Telemetry HUD (FLUX/WIND/LOCK/GATE/PROVENANCE), the Solar Graph (live
-  Kp), and the `fractisynth_video` + `fractisynth_inspector` (loupe) filters on a real
-  color source. Probe: `scripts/obs_ws_probe.py`. Gate: `.ips` crash-count + OBS-alive,
-  not the load log alone.
+- ✅ **Live compositor verification for the documented scenario path.** Drove a real
+  OBS 32.1.2 process over obs-websocket, fitted the `fractisynth_console` source to
+  the base canvas, captured the compositor render, Telemetry HUD, and controlled-tone
+  audio state, and verified the LSB provenance strip. The versioned six-gate manifest
+  records these exact surfaces. The interaction gate is deliberately engine-level;
+  it does not claim that an Interact-window click was transported. Per-feed/filter
+  screenshots and platform-specific crash-report/liveness checks remain separate
+  acceptance work. Probe: `scripts/obs_scenario_probe.py`.
 - ✅ **Fail-closed boundary hardening (cross-vendor-audited).** A `<= 0.0` guard
   silently accepts `NaN`/`Inf` (NaN comparisons are always False; `json.loads` accepts
   the `NaN`/`Infinity` literals). Fixed the four boundary leaks the green suite missed:
@@ -94,7 +96,7 @@ Status legend: ✅ shipped · 🚧 in progress · 📋 planned
   a 0-width target) and the loupe inset clamped to the frame on wide aspects.
 - ✅ **Fail-closed fuzz harness** (`tests/test_fail_closed_fuzz.py`): one extensible
   battery sweeps every external-ingestion boundary with `NaN`/`±Inf`; adding a boundary
-  is one `Boundary(...)` entry. The current suite is 1161 passing / 98.51%.
+  is one `Boundary(...)` entry. The current suite is 1217 passing / 96.09%.
 
 ## Phase H — Formal + provenance verification scaffold  ✅
 - ✅ Lean invariant scaffold — `lean/SynthOBS/Invariants.lean` builds with Lake and
@@ -132,5 +134,14 @@ Status legend: ✅ shipped · 🚧 in progress · 📋 planned
   reports `provenance_lsb.status == "pass"`; the signature decodes from the live HUD capture and
   matches the canonical telemetry digest. The manifest still records any failure and the
   render-target/visible-strip fallback path remains available.
-- 📋 Cross-platform live verification — the scenario harness is OS-agnostic; wire it
-  into Linux/Windows OBS CI smoke once a headless OBS target exists.
+- 📋 Cross-platform live verification — scoped as `SYNTHOBS-OBS-CI` and
+  `SYNTHOBS-LIVE-MATRIX` in [`TODO.md`](TODO.md); the scenario harness is OS-agnostic,
+  but no cross-platform CI claim is made yet.
+
+## Phase J — Parser parity, authenticity, and clean packaging ✅ (2026-07-17)
+- ✅ Standalone dependency-free C RTSW parser header with executable parity tests against
+  the Python parser over current, shuffled, inactive, stale, future, and malformed rows.
+- ✅ Opt-in HMAC-SHA-256 provenance payload/verifier mode with negative controls for missing,
+  empty, wrong, and recomputed keys; secrets never enter payloads, manifests, or source.
+- ✅ Reproducible wheel smoke gate and workflow: build, install with no index/dependencies,
+  import in isolated mode, run the measured suite, and regenerate figures.

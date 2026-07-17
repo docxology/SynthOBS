@@ -36,7 +36,7 @@ class Button:
 
 
 # The three common buttons — identical id/label/kind across every mode. They bridge
-# legacy OBS capability: Crew Collaboration, Local Recording, Live Broadcasting.
+# established OBS capability: Crew Collaboration, Local Recording, Live Broadcasting.
 COMMON_BUTTONS: tuple[Button, ...] = (
     Button("CREW_COLLAB_LINK", "Crew Collab Link", "common", "Inbound remote ingestion portal for external crew/observatory streams."),
     Button("RECORD_WAVE_PASS", "Record Wave Pass", "common", "Commit raw/synthesized wavefield data to local disk (φ-optimized sectors)."),
