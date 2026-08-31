@@ -58,3 +58,8 @@ exclude_lines = [
     "if __name__ == .__main__.:",
     "raise NotImplementedError",
 ]
+
+[dependency-groups]
+dev = [
+    "matplotlib>=3.10.9",
+]
