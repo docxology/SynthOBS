@@ -33,7 +33,7 @@ The project uses the strongest available source for each claim class:
 
 Every URL in the ledger was fetched and content-checked during the 2026-07-17
 scholarship pass. The BibTeX records used by the manuscript are in
-[`manuscript/references.bib`](../manuscript/references.bib); repository-level reuse
+[`docs/manuscript/references.bib`](../docs/manuscript/references.bib); repository-level reuse
 metadata is in [`CITATION.cff`](../CITATION.cff).
 
 ## Software citation and version identity

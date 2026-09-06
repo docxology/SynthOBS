@@ -35,7 +35,7 @@ The public repository must include, in one inspectable source tree:
 - `plugin/synthobs/` — the obspython console bridge;
 - `tests/`, `scripts/`, and `lean/` — executable verification and reproduction paths;
 - `README.md`, `docs/`, `TODO.md`, `ROADMAP.md`, `CITATION.cff`, and the manuscript;
-- `manuscript/assets/obs/` — the hashed, versioned live OBS evidence bundle.
+- `docs/manuscript/assets/obs/` — the hashed, versioned live OBS evidence bundle.
 
 `output/` is regeneratable and ignored by source control. The final PDF and HTML
 should be regenerated from the committed tree and attached to the GitHub release.
@@ -51,7 +51,7 @@ DOI should be the one with the DOI printed on it. The correct order:
    deposit lineage; the concept DOI is fixed at first-version creation and
    never changes across later versions, so once one exists it can be embedded
    safely in every future render).
-2. **Embed** that DOI in `manuscript/config.yaml`'s `publication.doi` field —
+2. **Embed** that DOI in `docs/manuscript/config.yaml`'s `publication.doi` field —
    the render pipeline's `_publication_doi_line()` (`infrastructure/rendering/
    _pdf_title_page_publishing.py`) prints it on the PDF cover automatically.
    Do not hand-edit LaTeX for this.
@@ -81,7 +81,7 @@ release.
 
 The public release must preserve the software's identity as well as its executable
 behavior. Before tagging, run the scholarship audit and confirm that every manuscript
-citation resolves to `manuscript/references.bib`. Figures must exist first — the
+citation resolves to `docs/manuscript/references.bib`. Figures must exist first — the
 audit and `test_docs_contracts.py` both check that manuscript claims resolve to
 real files under `output/figures/`:
 

@@ -14,10 +14,10 @@ import struct
 import sys
 from pathlib import Path
 
-from scripts.audit_scholarship import validate_scholarship_ledger
 from scripts.generate_figures import CONTEXTUAL_ASSETS, FIGURE_FILES, FIGURE_SOURCES
 from scripts.obs_scenario_probe import _image_content_gate, _png_to_rgba_bytes
 from scripts.verify_provenance_strip import record_summary, verify_png
+from synthobs.scholarship import validate_scholarship_ledger
 from synthobs.verification import score_audio_meter_delta
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -96,7 +96,7 @@ def _markdown_files() -> list[Path]:
     # preamble.md is renderer input, not a manuscript section; its LaTeX macro
     # arguments use ``{#1}``, which must not be interpreted as a document label.
     files.extend(
-        path for path in sorted((ROOT / "manuscript").glob("*.md"))
+        path for path in sorted((ROOT / "docs" / "manuscript").glob("*.md"))
         if path.name != "preamble.md"
     )
     return files
@@ -122,7 +122,7 @@ def test_figure_references_match_generator_manifest() -> None:
     manifest = set(FIGURE_FILES)
     docs_text = "\n".join(
         p.read_text(encoding="utf-8")
-        for directory in (ROOT / "docs", ROOT / "manuscript")
+        for directory in (ROOT / "docs", ROOT / "docs" / "manuscript")
         for p in sorted(directory.glob("*.md"))
     )
     refs = set(re.findall(r"\.\./output/figures/([A-Za-z0-9_.-]+\.png)", docs_text))
@@ -151,7 +151,7 @@ def test_figure_references_match_generator_manifest() -> None:
 
 
 def test_contextual_manuscript_assets_are_not_promoted_figures() -> None:
-    asset_dir = ROOT / "manuscript" / "assets" / "obs"
+    asset_dir = ROOT / "docs" / "manuscript" / "assets" / "obs"
     figure_dir = ROOT / "output" / "figures"
     for name in CONTEXTUAL_ASSETS:
         assert (asset_dir / name).is_file()
@@ -165,7 +165,7 @@ def test_contextual_manuscript_assets_are_not_promoted_figures() -> None:
 def test_manuscript_and_docs_contain_no_box_drawing_diagrams() -> None:
     box_chars = "┌┐└┘├┤┬┴┼─│━┃╭╮╰╯═║╔╗╚╝"
     offenders = []
-    for directory in (ROOT / "docs", ROOT / "manuscript"):
+    for directory in (ROOT / "docs", ROOT / "docs" / "manuscript"):
         for path in sorted(directory.glob("*.md")):
             text = path.read_text(encoding="utf-8")
             if any(char in text for char in box_chars):
@@ -174,7 +174,7 @@ def test_manuscript_and_docs_contain_no_box_drawing_diagrams() -> None:
 
 
 def test_versioned_live_obs_evidence_is_schema_valid_and_hashed() -> None:
-    asset_dir = ROOT / "manuscript" / "assets" / "obs"
+    asset_dir = ROOT / "docs" / "manuscript" / "assets" / "obs"
     manifest_path = asset_dir / "obs_manifest.json"
     data = json.loads(manifest_path.read_text(encoding="utf-8"))
     assert data["schema"] == "synthobs.live_scenario.v2"
@@ -217,19 +217,19 @@ def test_versioned_live_obs_evidence_is_schema_valid_and_hashed() -> None:
 
 
 def test_cover_uses_the_versioned_real_obs_scene_capture() -> None:
-    config = (ROOT / "manuscript" / "config.yaml").read_text(encoding="utf-8")
+    config = (ROOT / "docs" / "manuscript" / "config.yaml").read_text(encoding="utf-8")
     assert 'image: "assets/obs/obs_scene_render.png"' in config
     assert "cover_height_fraction: 0.58" in config
-    assert (ROOT / "manuscript" / "assets" / "obs" / "obs_scene_render.png").exists()
+    assert (ROOT / "docs" / "manuscript" / "assets" / "obs" / "obs_scene_render.png").exists()
 
 
 def test_manuscript_citations_resolve_to_bibliography_keys() -> None:
-    bib = (ROOT / "manuscript" / "references.bib").read_text(encoding="utf-8")
+    bib = (ROOT / "docs" / "manuscript" / "references.bib").read_text(encoding="utf-8")
     entries = re.findall(r"@(?!(?:comment|string)\b)(\w+)\{([A-Za-z][A-Za-z0-9_-]*),", bib)
     keys = {key for _, key in entries}
     assert len(keys) == len(entries), "duplicate bibliography keys or unsupported entry parsing"
     used: set[str] = set()
-    for path in sorted((ROOT / "manuscript").glob("*.md")):
+    for path in sorted((ROOT / "docs" / "manuscript").glob("*.md")):
         text = path.read_text(encoding="utf-8")
         used.update(re.findall(r"@([A-Za-z][A-Za-z0-9_-]*)(?![A-Za-z0-9_:-])", text))
     assert used <= keys, f"undefined manuscript citations: {sorted(used - keys)}"
@@ -256,7 +256,15 @@ def test_referenceable_labels_are_unique_and_references_resolve() -> None:
 
 
 def test_scholarship_ledger_and_repository_citation_metadata_are_contracts() -> None:
-    result = validate_scholarship_ledger()
+    ledger_path = ROOT / "docs" / "scholarship_sources.json"
+    bib = (ROOT / "docs" / "manuscript" / "references.bib").read_text(encoding="utf-8")
+
+    def path_exists(raw_path: str) -> bool:
+        return (ROOT / raw_path).exists()
+
+    result = validate_scholarship_ledger(
+        json.loads(ledger_path.read_text(encoding="utf-8")), bib, path_exists
+    )
     assert result["passed"], result["errors"]
     assert result["source_count"] == 19
     assert result["claim_count"] == 10
@@ -265,9 +273,9 @@ def test_scholarship_ledger_and_repository_citation_metadata_are_contracts() -> 
         assert token in cff
     assert cff.count("doi:") >= 3
 
-    mutant = json.loads((ROOT / "docs" / "scholarship_sources.json").read_text(encoding="utf-8"))
+    mutant = json.loads(ledger_path.read_text(encoding="utf-8"))
     mutant["sources"][0]["url"] = "https://example.invalid/fabricated"
-    assert validate_scholarship_ledger(mutant)["passed"] is False
+    assert validate_scholarship_ledger(mutant, bib, path_exists)["passed"] is False
 
 
 def test_public_distribution_metadata_and_install_contract_are_complete() -> None:
@@ -277,8 +285,8 @@ def test_public_distribution_metadata_and_install_contract_are_complete() -> Non
         ROOT / "docs" / "README.md",
         ROOT / "docs" / "build-and-install.md",
         ROOT / "docs" / "usage.md",
-        ROOT / "manuscript" / "00_abstract.md",
-        ROOT / "manuscript" / "08_evaluation_reproducibility.md",
+        ROOT / "docs" / "manuscript" / "00_abstract.md",
+        ROOT / "docs" / "manuscript" / "08_evaluation_reproducibility.md",
         ROOT / "RELEASE.md",
     )
     for path in public_surfaces:
@@ -286,7 +294,7 @@ def test_public_distribution_metadata_and_install_contract_are_complete() -> Non
             f"{path.relative_to(ROOT)} must identify the canonical public repository"
         )
 
-    for path in (ROOT / "CITATION.cff", ROOT / "manuscript" / "config.yaml", ROOT / "manuscript" / "00_abstract.md"):
+    for path in (ROOT / "CITATION.cff", ROOT / "docs" / "manuscript" / "config.yaml", ROOT / "docs" / "manuscript" / "00_abstract.md"):
         assert "FractiAI" in path.read_text(encoding="utf-8"), (
             f"{path.relative_to(ROOT)} must carry the FractiAI affiliation"
         )
@@ -306,8 +314,8 @@ def test_command_documentation_lists_all_implemented_verbs_and_types() -> None:
         (ROOT / path).read_text(encoding="utf-8")
         for path in (
             "docs/command-grammar.md",
-            "manuscript/06_command_grammar.md",
-            "manuscript/06b_command_telemetry_parse_pipeline_and_summary.md",
+            "docs/manuscript/06_command_grammar.md",
+            "docs/manuscript/06b_command_telemetry_parse_pipeline_and_summary.md",
         )
     )
     for token in ("/mode", "/transducer", "/swo", "/dashboard", "DashboardCommand"):
@@ -370,8 +378,8 @@ def test_current_status_docs_do_not_contain_stale_baselines() -> None:
         ROOT / "docs" / "native-plugin.md",
         ROOT / "docs" / "architecture.md",
         ROOT / "docs" / "scholarship.md",
-        ROOT / "manuscript" / "07_implementation.md",
-        ROOT / "manuscript" / "02_architecture.md",
+        ROOT / "docs" / "manuscript" / "07_implementation.md",
+        ROOT / "docs" / "manuscript" / "02_architecture.md",
     ]
     for path in status_docs:
         text = path.read_text(encoding="utf-8")
@@ -388,8 +396,8 @@ def test_current_status_docs_pin_live_suite_baseline() -> None:
         ROOT / "docs" / "architecture.md",
         ROOT / "docs" / "native-plugin.md",
         ROOT / "docs" / "scholarship.md",
-        ROOT / "manuscript" / "07_implementation.md",
-        ROOT / "manuscript" / "02_architecture.md",
+        ROOT / "docs" / "manuscript" / "07_implementation.md",
+        ROOT / "docs" / "manuscript" / "02_architecture.md",
     ]
     for path in status_docs:
         text = path.read_text(encoding="utf-8")

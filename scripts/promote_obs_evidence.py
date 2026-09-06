@@ -23,7 +23,7 @@ from typing import Any
 
 SCHEMA = "synthobs.live_scenario.v2"
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_TARGET = ROOT / "manuscript" / "assets" / "obs"
+DEFAULT_TARGET = ROOT / "docs" / "manuscript" / "assets" / "obs"
 
 ASSET_SPECS: tuple[tuple[str, str, str, str], ...] = (
     ("scene_render", "scene_render", "obs_scene_render.png", "image/png"),

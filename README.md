@@ -46,7 +46,7 @@ plugin/fractisynth/  native libobs C plugin (CMake + src/fractisynth.c + locale)
 plugin/synthobs/     obspython console script (synthobs_console.py)
 scripts/             thin orchestrators (generate_figures.py, obs_scenario_probe.py, obs_ws_probe.py, verify_provenance_strip.py)
 lean/                Lean 4 invariant scaffold (console shape + fail-closed gates)
-manuscript/          Technical Design Blueprint (brand voice)
+docs/manuscript/          Technical Design Blueprint (brand voice)
 tests/               real-input suite, ≥90% coverage on src/
 ISA.md               Ideal State Artifact — system of record
 ```
@@ -136,7 +136,7 @@ decisions remain in [`ROADMAP.md`](ROADMAP.md) and [`ISA.md`](ISA.md).
 
 ```bash
 uv run python projects/working/SynthOBS/scripts/verify_provenance_strip.py \
-  projects/working/SynthOBS/manuscript/assets/obs/obs_telemetry_hud.png --json --expect-signature 8b1f58c1
+  projects/working/SynthOBS/docs/manuscript/assets/obs/obs_telemetry_hud.png --json --expect-signature 8b1f58c1
 ```
 
 The verifier extracts the LSB-embedded HUD payload from a PNG, recomputes the

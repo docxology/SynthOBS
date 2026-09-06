@@ -103,7 +103,7 @@ The planned public v1 distribution target is the GitHub repository
 intended to be the canonical public source for the engine, native plugin,
 obspython bridge, tests, installation instructions, manuscript, and versioned
 evidence metadata; the release boundary and remaining acceptance work are recorded
-in [`RELEASE.md`](../RELEASE.md).
+in [`RELEASE.md`](../../RELEASE.md).
 
 **Keywords:** OBS Studio, golden ratio, El Gran Sol fractal constant, Solar
 Wavefield Oscillator, space-weather telemetry, real-time DSP, broadcast engineering.

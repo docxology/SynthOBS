@@ -62,7 +62,7 @@ state is a physical reflection of space-weather dynamics.
 @fig:swo shows the calibration response across a swept range of solar flux for one,
 three, and seven active regions — the phase vector that drives the whole wavefield.
 
-![Solar Wavefield Oscillator calibration response. The generated sweep covers F10.7 values from 70 through 255 sfu in 5-sfu steps for 1, 3, and 7 active regions. Each line is the un-smoothed law `system_phase_vector = flux / spots × φ`; the displayed range (16.18–412.60) makes the inverse spot-count scaling and linear flux response directly inspectable. No telemetry value is imputed by this analytical figure.](../output/figures/swo_calibration.png){#fig:swo width=78%}
+![Solar Wavefield Oscillator calibration response. The generated sweep covers F10.7 values from 70 through 255 sfu in 5-sfu steps for 1, 3, and 7 active regions. Each line is the un-smoothed law `system_phase_vector = flux / spots × φ`; the displayed range (16.18–412.60) makes the inverse spot-count scaling and linear flux response directly inspectable. No telemetry value is imputed by this analytical figure.](../../output/figures/swo_calibration.png){#fig:swo width=78%}
 
 ## The EGS Gateway — the Phase Plane
 
@@ -98,11 +98,11 @@ the phase vector, and a flux dropout never disturbs the gateway lock. @fig:gatew
 sweeps the lock across the solar-wind range, marking the FractiAI nominal of
 551.7 km/s.
 
-![EGS Gateway phase lock. The teal curve evaluates the tested `gateway_filter()` from 200 to 900 km/s; the orange marker is the design point at 551.7 km/s, where the model lock is 0.9999 for $K_{\mathrm{EGS}}=2.539427$. The dashed teal line marks the wind field recovered from the current versioned live payload (367.9 km/s); the captioned statistics panel reports that run's fields verbatim, while the curve itself remains a deterministic model sweep.](../output/figures/gateway_lock.png){#fig:gateway width=78%}
+![EGS Gateway phase lock. The teal curve evaluates the tested `gateway_filter()` from 200 to 900 km/s; the orange marker is the design point at 551.7 km/s, where the model lock is 0.9999 for $K_{\mathrm{EGS}}=2.539427$. The dashed teal line marks the wind field recovered from the current versioned live payload (367.9 km/s); the captioned statistics panel reports that run's fields verbatim, while the curve itself remains a deterministic model sweep.](../../output/figures/gateway_lock.png){#fig:gateway width=78%}
 
-![Rendered fail-closed NOAA-to-SWO telemetry pipeline. F10.7/active-region and RTSW wind streams enter the same positive/finite/fresh gate; valid data reaches the SWO/Gateway, while malformed or stale data takes the red Hold State path and retains the last verified vector. The run-specific banner reports the current live payload fields (140.0 sfu, 6 active regions, 367.9 km/s, reported lock 0.5125) without presenting them as a population statistic.](../output/figures/telemetry_pipeline.png){#fig:telemetry-pipeline width=90%}
+![Rendered fail-closed NOAA-to-SWO telemetry pipeline. F10.7/active-region and RTSW wind streams enter the same positive/finite/fresh gate; valid data reaches the SWO/Gateway, while malformed or stale data takes the red Hold State path and retains the last verified vector. The run-specific banner reports the current live payload fields (140.0 sfu, 6 active regions, 367.9 km/s, reported lock 0.5125) without presenting them as a population statistic.](../../output/figures/telemetry_pipeline.png){#fig:telemetry-pipeline width=90%}
 
-![Rendered native telemetry-thread lifecycle. The five stages expose the operational sequence—curl initialization, three-source fetch, finite/fresh gate, mutex-protected publish, and abort/bounded join—and the annotation gives the implemented 60-second poll cadence. The figure distinguishes the worker's normal data path from its explicit shutdown path, making the cleanup obligation visible rather than leaving it in prose.](../output/figures/telemetry_thread.png){#fig:telemetry-thread width=90%}
+![Rendered native telemetry-thread lifecycle. The five stages expose the operational sequence—curl initialization, three-source fetch, finite/fresh gate, mutex-protected publish, and abort/bounded join—and the annotation gives the implemented 60-second poll cadence. The figure distinguishes the worker's normal data path from its explicit shutdown path, making the cleanup obligation visible rather than leaving it in prose.](../../output/figures/telemetry_thread.png){#fig:telemetry-thread width=90%}
 
 The gateway resolves not to a Boolean but to a **holographic interference verdict** —
 `holographic_gate()` reports constructive interference at the `AR14409` solar node as

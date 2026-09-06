@@ -42,7 +42,7 @@ Every line walks the same deterministic path: tokenize, dispatch on the verb,
 partition flags, validate, and either emit a typed command or refuse. The stages map
 one-to-one onto @eq:command_grammar-1 and @eq:command_grammar-2.
 
-![Rendered fail-closed parser pipeline for the complete four-verb grammar: `/mode`, `/transducer`, `/swo`, and `/dashboard`. The vertical path makes the successful sequence—raw line, balanced `shlex` tokenization, verb dispatch, verb-specific validation, and one of four typed command classes—explicit; the red side arrows show that malformed tokenization, unknown verbs, and invalid finite/range constraints all terminate at the same `CommandError` sink. The banner reports the four-verb/four-class contract and the three validation choke points.](../output/figures/command_parse_pipeline.png){#fig:command-parser-pipeline width=92%}
+![Rendered fail-closed parser pipeline for the complete four-verb grammar: `/mode`, `/transducer`, `/swo`, and `/dashboard`. The vertical path makes the successful sequence—raw line, balanced `shlex` tokenization, verb dispatch, verb-specific validation, and one of four typed command classes—explicit; the red side arrows show that malformed tokenization, unknown verbs, and invalid finite/range constraints all terminate at the same `CommandError` sink. The banner reports the four-verb/four-class contract and the three validation choke points.](../../output/figures/command_parse_pipeline.png){#fig:command-parser-pipeline width=92%}
 
 Figure @fig:command-parser-pipeline renders the parser’s single rejection sink.
 The accepted typed set is `{ModeCommand, BindCommand, CalibrateCommand,

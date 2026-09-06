@@ -180,7 +180,7 @@
       "sources": ["obsmodules", "obswebsocket"],
       "source_of_truth": ["plugin/fractisynth/src/fractisynth.c", "scripts/obs_scenario_probe.py"],
       "tests": ["tests/test_plugin_artifacts.py", "tests/test_obs_scenario_probe.py"],
-      "artifacts": ["manuscript/assets/obs/obs_manifest.json", "output/figures/plugin_lifecycle.png"]
+      "artifacts": ["docs/manuscript/assets/obs/obs_manifest.json", "output/figures/plugin_lifecycle.png"]
     },
     {
       "id": "TEL-001",
@@ -189,16 +189,16 @@
       "sources": ["noaaswpc", "noaaf107", "noaasunspot", "noaartsw", "libcurl"],
       "source_of_truth": ["src/synthobs/telemetry.py", "plugin/fractisynth/src/fractisynth.c"],
       "tests": ["tests/test_telemetry.py", "tests/test_solar_series.py", "tests/test_fail_closed_fuzz.py"],
-      "artifacts": ["manuscript/assets/obs/obs_manifest.json", "output/figures/telemetry_pipeline.png"]
+      "artifacts": ["docs/manuscript/assets/obs/obs_manifest.json", "output/figures/telemetry_pipeline.png"]
     },
     {
       "id": "REP-001",
       "class": "design-proposition",
       "statement": "Versioned inputs, deterministic generators, explicit commands, and separated live gates make this artifact inspectable and rerunnable within stated boundaries.",
       "sources": ["nasem2019", "wilson2014", "sandve2013", "wilkinson2016fair"],
-      "source_of_truth": ["manuscript/08_evaluation_reproducibility.md", "scripts/generate_figures.py"],
+      "source_of_truth": ["docs/manuscript/08_evaluation_reproducibility.md", "scripts/generate_figures.py"],
       "tests": ["tests/test_docs_contracts.py"],
-      "artifacts": ["output/figures/figure_manifest.json", "manuscript/assets/obs/obs_manifest.json"]
+      "artifacts": ["output/figures/figure_manifest.json", "docs/manuscript/assets/obs/obs_manifest.json"]
     },
     {
       "id": "CITE-001",
@@ -207,7 +207,7 @@
       "sources": ["smith2016softwarecitation", "cffschema"],
       "source_of_truth": ["CITATION.cff", "RELEASE.md", "README.md", "docs/scholarship.md"],
       "tests": ["tests/test_docs_contracts.py"],
-      "artifacts": ["CITATION.cff", "manuscript/08_evaluation_reproducibility.md"]
+      "artifacts": ["CITATION.cff", "docs/manuscript/08_evaluation_reproducibility.md"]
     },
     {
       "id": "PROV-001",
@@ -216,7 +216,7 @@
       "sources": ["wilkinson2016fair", "prov2013"],
       "source_of_truth": ["src/synthobs/provenance.py", "scripts/verify_provenance_strip.py"],
       "tests": ["tests/test_provenance.py", "tests/test_provenance_verify_tool.py"],
-      "artifacts": ["manuscript/assets/obs/obs_manifest.json", "manuscript/assets/obs/obs_telemetry_hud.png"]
+      "artifacts": ["docs/manuscript/assets/obs/obs_manifest.json", "docs/manuscript/assets/obs/obs_telemetry_hud.png"]
     },
     {
       "id": "FIG-001",
@@ -259,7 +259,7 @@
       "class": "external-context",
       "statement": "The H-alpha visual anchor is labelled as a wavelength provenance reference, not as evidence that the overlay measures solar spectroscopy.",
       "sources": ["nisthalpha"],
-      "source_of_truth": ["plugin/fractisynth/data/fractisynth.effect", "manuscript/00_abstract.md"],
+      "source_of_truth": ["plugin/fractisynth/data/fractisynth.effect", "docs/manuscript/00_abstract.md"],
       "tests": ["tests/test_gateway_and_interference.py"],
       "artifacts": ["output/figures/obs_scene_render.png"]
     }

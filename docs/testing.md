@@ -133,7 +133,7 @@ process:
 ```bash
 uv run python scripts/obs_ws_probe.py --scene FractiSynthTest --out output/live/obs_scene.png
 uv run python scripts/verify_provenance_strip.py \
-  manuscript/assets/obs/obs_telemetry_hud.png --json --expect-signature 8b1f58c1
+  docs/manuscript/assets/obs/obs_telemetry_hud.png --json --expect-signature 8b1f58c1
 uv run python scripts/obs_scenario_probe.py \
   --out output/live/$(date -u +%Y%m%dT%H%M%SZ) \
   --verify-audio --verify-provenance

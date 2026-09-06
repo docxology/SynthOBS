@@ -25,7 +25,7 @@ public v1 distribution is the GitHub repository
 [`docxology/SynthOBS`](https://github.com/docxology/SynthOBS), which is intended to
 carry the complete source, native OBS module, obspython bridge, tests, installation
 and usage documentation, manuscript sources, citation metadata, and versioned live
-evidence. The repository-level release contract in [`RELEASE.md`](../RELEASE.md)
+evidence. The repository-level release contract in [`RELEASE.md`](../../RELEASE.md)
 defines the clean-clone preflight and the remaining public-release gates.
 
 ## Contributions and system boundaries
@@ -41,7 +41,7 @@ The artifact makes five concrete contributions:
    `/dashboard`.
 4. `scripts/generate_figures.py` derives deterministic visualizations from the
    tested engine and records each figure's source in
-   [`output/figures/figure_manifest.json`](../output/figures/figure_manifest.json).
+   [`output/figures/figure_manifest.json`](../../output/figures/figure_manifest.json).
 5. The live OBS bundle in [`assets/obs/`](assets/obs/) preserves real compositor,
    telemetry-HUD, and audio-reactivity captures with hashes and six gate results.
 
@@ -64,7 +64,7 @@ and replicability described by the National Academies [@nasem2019], made concret
 through software-practice guidance [@wilson2014; @sandve2013] and FAIR stewardship
 [@wilkinson2016fair].
 
-The source ledger in [`docs/scholarship_sources.json`](../docs/scholarship_sources.json)
+The source ledger in [`docs/scholarship_sources.json`](../scholarship_sources.json)
 records that protocol for the material claims in this blueprint. Its source order
 is deliberately conservative: primary OBS and NOAA documentation grounds interface
 and data-product statements [@obsmodules; @obswebsocket; @noaaswpc; @noaaf107;
@@ -277,8 +277,8 @@ credential; it is intentionally exercised only through the real OBS connection:
 ```
 
 The native build and standalone CMake path are documented in
-[`docs/build-and-install.md`](../docs/build-and-install.md). The manuscript renderer
-consumes `manuscript/config.yaml`; its cover points to
+[`docs/build-and-install.md`](../build-and-install.md). The manuscript renderer
+consumes `docs/manuscript/config.yaml`; its cover points to
 `assets/obs/obs_scene_render.png`, while figure references resolve to the generated
 `output/figures/` directory.
 
@@ -287,7 +287,7 @@ consumes `manuscript/config.yaml`; its cover points to
 The current evidence establishes one real OBS run, not a statistical performance
 distribution. It does not claim that every OBS release, operating system, audio
 driver, or NOAA response shape will behave identically. The scoped follow-up work is
-maintained in [`TODO.md`](../TODO.md), including cross-platform/headless acceptance,
+maintained in [`TODO.md`](../../TODO.md), including cross-platform/headless acceptance,
 transported interaction clicks, and per-feed/filter visual captures. Native C↔Python
 parser parity, keyed provenance, and clean-environment wheel reproducibility are now
 closed with executable evidence recorded in the roadmap.

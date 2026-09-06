@@ -151,7 +151,7 @@ record fields, and reports the same short signature shown on the HUD:
 
 ```bash
 uv run python scripts/verify_provenance_strip.py \
-  manuscript/assets/obs/obs_telemetry_hud.png --json --expect-signature 8b1f58c1
+  docs/manuscript/assets/obs/obs_telemetry_hud.png --json --expect-signature 8b1f58c1
 ```
 
 The tool accepts RGB or RGBA PNG captures and fails closed on missing images, malformed

@@ -739,7 +739,7 @@ def copy_live_obs_evidence(outdir: Path) -> list[Path]:
         joined = ", ".join(str(p) for p in missing)
         raise FileNotFoundError(
             "versioned real OBS evidence screenshots are missing; rerun the live scenario "
-            f"and promote the passing captures into manuscript/assets/obs: {joined}"
+            f"and promote the passing captures into docs/manuscript/assets/obs: {joined}"
         )
     return copied
 
@@ -805,7 +805,7 @@ def write_figure_manifest(outdir: Path) -> Path:
         "deterministic": all(item["kind"] == "analytical" for item in figures),
         "analytical_count": sum(item["kind"] == "analytical" for item in figures),
         "live_capture_count": sum(item["kind"] == "live_obs_capture" for item in figures),
-        "live_manifest": "manuscript/assets/obs/obs_manifest.json",
+        "live_manifest": "docs/manuscript/assets/obs/obs_manifest.json",
         "figures": figures,
     }
     path = outdir / "figure_manifest.json"

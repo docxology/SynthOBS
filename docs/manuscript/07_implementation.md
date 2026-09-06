@@ -33,7 +33,7 @@ flowchart TB
 | `plugin/fractisynth/` | Native `libobs` C plugin — filters, draggable console source, dock, shared SWO, libcurl telemetry thread, CMake build. |
 | `plugin/synthobs/` | `obspython` console script — Goldilocks layout + 3-mode console + command line + dashboard helper, driving the engine inside OBS. |
 | `scripts/` | Thin orchestrators (figure generation) importing the engine. |
-| `manuscript/` | This Technical Design Blueprint. |
+| `docs/manuscript/` | This Technical Design Blueprint. |
 | `tests/` | Real-input test suite, ≥ 90% coverage on `src/`. |
 
 ## Calibration Laws Pinned Across Both Implementations
@@ -121,9 +121,9 @@ LSB provenance payload layout, and the fail-closed rule with the engine. The Pyt
 engine therefore remains authoritative; the C plugin is an OBS-bound implementation
 whose covered contracts are checked, never a second source of truth.
 
-![Python/native contract boundary. The tested Python reference and the C plugin exchange pinned $\varphi$ and $K_{\mathrm{EGS}}$ literals, then converge on executable contracts for constants, dimensions, limiter behavior, telemetry gates, and live behavior. The annotation records the acceptance thresholds—at least nine significant digits for $\varphi$ and less than $10^{-6}$ for $K_{\mathrm{EGS}}$—alongside the current 1217-test, 96.09%-coverage, native-build, and live-OBS evidence baseline.](../output/figures/parity_bridge.png){#fig:parity-bridge width=92%}
+![Python/native contract boundary. The tested Python reference and the C plugin exchange pinned $\varphi$ and $K_{\mathrm{EGS}}$ literals, then converge on executable contracts for constants, dimensions, limiter behavior, telemetry gates, and live behavior. The annotation records the acceptance thresholds—at least nine significant digits for $\varphi$ and less than $10^{-6}$ for $K_{\mathrm{EGS}}$—alongside the current 1217-test, 96.09%-coverage, native-build, and live-OBS evidence baseline.](../../output/figures/parity_bridge.png){#fig:parity-bridge width=92%}
 
-![FractiSynth OBS module lifecycle. The five states separate module load and source registration, curl/mutex initialization, concurrent video/audio/inspector rendering plus telemetry polling, bounded unload, and final curl cleanup. The upper annotation records four registered OBS source surfaces—three filters and the console source—and identifies the Qt dock as an optional frontend surface rather than counting it as a source registration.](../output/figures/plugin_lifecycle.png){#fig:plugin-lifecycle width=92%}
+![FractiSynth OBS module lifecycle. The five states separate module load and source registration, curl/mutex initialization, concurrent video/audio/inspector rendering plus telemetry polling, bounded unload, and final curl cleanup. The upper annotation records four registered OBS source surfaces—three filters and the console source—and identifies the Qt dock as an optional frontend surface rather than counting it as a source registration.](../../output/figures/plugin_lifecycle.png){#fig:plugin-lifecycle width=92%}
 
 The live OBS scenario gate is no longer a log-only claim. A real OBS 32.1.2 session
 loaded the installed FractiSynth bundle, accepted the `fractisynth_console` source,
@@ -134,11 +134,11 @@ engine-level interaction resolution, audio-meter delta, and LSB provenance in ru
 `20260717T153649Z`; the manifest does not claim live click transport through an OBS
 Interact window.
 
-![Live OBS compositor capture from scenario run `20260717T153649Z`. OBS Studio 32.1.2 renders the installed `fractisynth_console` source on a 3200×2000 base canvas, then obs-websocket captures a 1280×720 frame at the manifest-recorded scale factors (2.5× horizontal, 2.7778× vertical). The byte-hashed PNG passes the nonblank-content gate with dynamic range 161.93 and mean channel standard deviation 19.49; it is also the manuscript cover asset.](../output/figures/obs_scene_render.png){#fig:obs-live-scene width=90%}
+![Live OBS compositor capture from scenario run `20260717T153649Z`. OBS Studio 32.1.2 renders the installed `fractisynth_console` source on a 3200×2000 base canvas, then obs-websocket captures a 1280×720 frame at the manifest-recorded scale factors (2.5× horizontal, 2.7778× vertical). The byte-hashed PNG passes the nonblank-content gate with dynamic range 161.93 and mean channel standard deviation 19.49; it is also the manuscript cover asset.](../../output/figures/obs_scene_render.png){#fig:obs-live-scene width=90%}
 
-![Telemetry HUD capture from the same run. Blue-channel LSB extraction and checksum verification recover F10.7 flux 140.0 sfu, 6 active regions, solar-wind speed 367.9 km/s, lock strength 0.5125, phase bias 2.1089 rad, observation time, and visible signature `8b1f58c1`; the exact float values, asset hash, and gate result are recorded in `manuscript/assets/obs/obs_manifest.json`. The image demonstrates a recoverable record, not authenticated authorship.](../output/figures/obs_telemetry_hud.png){#fig:obs-live-telemetry width=90%}
+![Telemetry HUD capture from the same run. Blue-channel LSB extraction and checksum verification recover F10.7 flux 140.0 sfu, 6 active regions, solar-wind speed 367.9 km/s, lock strength 0.5125, phase bias 2.1089 rad, observation time, and visible signature `8b1f58c1`; the exact float values, asset hash, and gate result are recorded in `docs/manuscript/assets/obs/obs_manifest.json`. The image demonstrates a recoverable record, not authenticated authorship.](../../output/figures/obs_telemetry_hud.png){#fig:obs-live-telemetry width=90%}
 
-![Controlled-tone OBS capture used by the audio-reactivity gate. The verifier compares this frame with the versioned silent baseline over the 1280×33 bottom ROI of the 1280×720 image; the recorded mean absolute RGB delta is 48.5574 against an 8.0 threshold, with a maximum channel delta of 180. The source PNG remains the exact capture, while the manifest supplies the numerical interpretation.](../output/figures/obs_audio_tone.png){#fig:obs-live-audio width=90%}
+![Controlled-tone OBS capture used by the audio-reactivity gate. The verifier compares this frame with the versioned silent baseline over the 1280×33 bottom ROI of the 1280×720 image; the recorded mean absolute RGB delta is 48.5574 against an 8.0 threshold, with a maximum channel delta of 180. The source PNG remains the exact capture, while the manifest supplies the numerical interpretation.](../../output/figures/obs_audio_tone.png){#fig:obs-live-audio width=90%}
 
 The three captures above are load-bearing run evidence. The following image is
 deliberately a different evidence class: a user-supplied view of the host window
