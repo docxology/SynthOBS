@@ -14,10 +14,10 @@ import struct
 import sys
 from pathlib import Path
 
-from scripts.audit_scholarship import validate_scholarship_ledger
 from scripts.generate_figures import CONTEXTUAL_ASSETS, FIGURE_FILES, FIGURE_SOURCES
 from scripts.obs_scenario_probe import _image_content_gate, _png_to_rgba_bytes
 from scripts.verify_provenance_strip import record_summary, verify_png
+from synthobs.scholarship import validate_scholarship_ledger
 from synthobs.verification import score_audio_meter_delta
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -256,7 +256,15 @@ def test_referenceable_labels_are_unique_and_references_resolve() -> None:
 
 
 def test_scholarship_ledger_and_repository_citation_metadata_are_contracts() -> None:
-    result = validate_scholarship_ledger()
+    ledger_path = ROOT / "docs" / "scholarship_sources.json"
+    bib = (ROOT / "manuscript" / "references.bib").read_text(encoding="utf-8")
+
+    def path_exists(raw_path: str) -> bool:
+        return (ROOT / raw_path).exists()
+
+    result = validate_scholarship_ledger(
+        json.loads(ledger_path.read_text(encoding="utf-8")), bib, path_exists
+    )
     assert result["passed"], result["errors"]
     assert result["source_count"] == 19
     assert result["claim_count"] == 10
@@ -265,9 +273,9 @@ def test_scholarship_ledger_and_repository_citation_metadata_are_contracts() -> 
         assert token in cff
     assert cff.count("doi:") >= 3
 
-    mutant = json.loads((ROOT / "docs" / "scholarship_sources.json").read_text(encoding="utf-8"))
+    mutant = json.loads(ledger_path.read_text(encoding="utf-8"))
     mutant["sources"][0]["url"] = "https://example.invalid/fabricated"
-    assert validate_scholarship_ledger(mutant)["passed"] is False
+    assert validate_scholarship_ledger(mutant, bib, path_exists)["passed"] is False
 
 
 def test_public_distribution_metadata_and_install_contract_are_complete() -> None:
