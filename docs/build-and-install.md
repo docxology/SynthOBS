@@ -25,7 +25,7 @@ uv run python -m pytest tests --cov=synthobs --cov-fail-under=90
 ```
 
 This public-root command is the primary path. The local template integration may
-instead invoke the same files through `projects/working/SynthOBS`.
+instead invoke the same files through `projects/ongoing/Fracti/SynthOBS`.
 
 ## Quick path (macOS)
 

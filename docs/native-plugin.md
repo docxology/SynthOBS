@@ -4,7 +4,7 @@
 against `libobs`. It is the production transducer: an OBS-bound implementation of
 the tested Python contracts, **verified to load and run live in OBS 32.1.2**. This
 page documents its structure, the three filters, console source, telemetry thread, and lifecycle.
-The Python source-of-truth baseline is 1217 tests at 94.44% coverage; native acceptance
+The Python source-of-truth baseline is 1226 tests at 94.53% coverage; native acceptance
 is reported separately through the live OBS gates below.
 
 Source: [`plugin/fractisynth/src/fractisynth.c`](../plugin/fractisynth/src/fractisynth.c)
@@ -184,7 +184,7 @@ The C plugin is not a second source of truth. The φ literal, the SWO formula
 (`φ · flux/spots`), the fail-closed rule, and the soft-limiter curve are the declared
 contracts shared with [`src/synthobs`](../src/synthobs), and static/behavioral tests
 check those boundaries. When intended behavior is unclear, the Python engine and its
-1217-test suite are authoritative; the C plugin supplies the native OBS execution.
+1226-test suite are authoritative; the C plugin supplies the native OBS execution.
 
 The Telemetry HUD provenance strip can be checked from a captured PNG:
 

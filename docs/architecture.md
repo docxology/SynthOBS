@@ -6,12 +6,12 @@ implements native counterparts at the OBS boundary, and the obspython script is 
 bridge. The adapters are checked against the engine; they do not duplicate every
 Python operation that has no OBS-bound equivalent.
 
-![Three-layer SynthOBS architecture and evidence path. The upper constant surface feeds the tested Python engine, native libobs adapter, and obspython bridge; the adapters converge in the live OBS runtime. The figure reports the current 1217-test, 94.44%-coverage baseline and OBS target so the diagram separates source authority from integration evidence.](../output/figures/architecture_layers.png){#fig:docs-architecture-layers width=90%}
+![Three-layer SynthOBS architecture and evidence path. The upper constant surface feeds the tested Python engine, native libobs adapter, and obspython bridge; the adapters converge in the live OBS runtime. The figure reports the current 1226-test, 94.53%-coverage baseline and OBS target so the diagram separates source authority from integration evidence.](../output/figures/architecture_layers.png){#fig:docs-architecture-layers width=90%}
 
 ## Layer 1 — the Python engine (`src/synthobs/`)
 
 The engine is the **source of truth**. It has zero OBS dependency and zero network
-dependency in its core, which is exactly what makes it testable without external services. Fifteen
+dependency in its core, which is exactly what makes it testable without external services. Sixteen
 public modules plus the package initializer, each with one responsibility:
 
 | Module            | Responsibility                                                                                              |
@@ -31,6 +31,7 @@ public modules plus the package initializer, each with one responsibility:
 | `provenance.py`   | Telemetry-record packing, default unkeyed corruption-detecting checksum, opt-in HMAC-SHA-256 authenticity, LSB/visible-signature embedding, and fail-closed validation. |
 | `engine.py`       | `SynthEngine` — orchestrates calibration, layout, and modulation; refuses to modulate before calibration.    |
 | `verification.py` | Pure live-gate oracle: audio-meter ROI scoring (`uv.y > 0.955`) and `GateResult` pass/fail/skip contracts.   |
+| `artifacts.py`    | Binary artifact inspection for evidence promotion: SHA-256 digests, PNG IHDR dimensions, WAV PCM metadata (pure byte-level, no I/O). |
 | `__init__.py`     | Public package surface.                                                                                      |
 
 Full API in [engine.md](engine.md). The two phase-plane modules have their own

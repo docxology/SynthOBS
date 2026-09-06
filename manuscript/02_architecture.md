@@ -19,7 +19,7 @@ deliberate modular architecture choice [@gamma1994].
 Figure @fig:architecture-layers summarizes the paper's central reproducibility boundary:
 three implementation layers, one mathematical source of truth, and one live runtime
 at which the independent evidence paths converge. The annotation reports the current
-verified baseline of 1217 tests at 94.44% source coverage and the OBS 32.1.2 target;
+verified baseline of 1226 tests at 94.53% source coverage and the OBS 32.1.2 target;
 it is a status label, not a new performance claim.
 
 - **The Modality Control Decks.** Each of the three modes exposes an *irreducible

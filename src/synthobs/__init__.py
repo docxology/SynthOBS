@@ -82,6 +82,7 @@ from .provenance import (
     signature_bits,
     verify_authenticated_payload,
     verify_payload,
+    verify_rgba_strip,
 )
 from .telemetry import (
     DEFAULT_MAX_AGE_S,
@@ -218,6 +219,7 @@ __all__ = [
     "extract_lsb",
     "verify_payload",
     "verify_authenticated_payload",
+    "verify_rgba_strip",
     # live verification
     "AUDIO_METER_TOP_FRACTION",
     "GateResult",

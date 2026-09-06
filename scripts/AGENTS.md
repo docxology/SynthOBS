@@ -24,7 +24,7 @@
 | `generate_figures.py` | `synthobs` engine + matplotlib | `FIGURE_FILES`/`CONTEXTUAL_ASSETS`/`FIGURE_SOURCES` are pinned by `tests/test_docs_contracts.py`; regenerating figures changes hashed manifests |
 | `audit_scholarship.py` | `synthobs.scholarship.validate_scholarship_ledger` | reads `docs/scholarship_sources.json` + `manuscript/references.bib`; exit 1 on any validation error (fail-closed) |
 | `verify_provenance_strip.py` | `synthobs.provenance` | `verify_png`/`record_summary` are imported by tests |
-| `promote_obs_evidence.py` | self-contained promotion gate | no engine import: implements the fail-closed hash/PNG/WAV checks inline and rewrites the `synthobs.live_scenario.v2` manifest; target defaults to `manuscript/assets/obs/` |
+| `promote_obs_evidence.py` | `synthobs.artifacts` | fail-closed hash/PNG/WAV checks delegated to the tested engine (`sha256_bytes`/`png_dimensions`/`wav_metadata`); the script wires file I/O and rewrites the `synthobs.live_scenario.v2` manifest; target defaults to `manuscript/assets/obs/` |
 | `obs_scenario_probe.py` | `synthobs.verification`, `synthobs.provenance`, `synthobs.interaction`, `scripts.verify_provenance_strip` | interactive live-OBS instrument, not a unit-tested module; its pure helpers (`_image_content_gate`, `_png_to_rgba_bytes`) ARE tested |
 | `obs_ws_probe.py` | self-contained obs-websocket v5 client | interactive live-OBS instrument; `websocket-client` is a dev extra imported in a `try/except` so import never crashes without it |
 | `package_smoke.py` | `venv`/`subprocess` | requires a built wheel (`uv build`); runs the engine with `-I` (isolated) to prove zero runtime deps |

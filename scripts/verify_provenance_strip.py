@@ -28,10 +28,8 @@ if str(_SRC) not in sys.path:
 from synthobs.provenance import (  # noqa: E402
     ProvenanceError,
     TelemetryRecord,
-    extract_lsb,
     short_signature,
-    verify_authenticated_payload,
-    verify_payload,
+    verify_rgba_strip,
 )
 
 
@@ -60,10 +58,7 @@ def _png_to_rgba_bytes(path: Path) -> tuple[bytes, int, int]:
 def verify_png(path: str | Path, *, hmac_key: bytes | bytearray | None = None) -> TelemetryRecord:
     """Extract and verify a checksum payload, optionally requiring HMAC authenticity."""
     rgba, width, height = _png_to_rgba_bytes(Path(path))
-    payload = extract_lsb(rgba, width, height)
-    if hmac_key is not None:
-        return verify_authenticated_payload(payload, hmac_key)
-    return verify_payload(payload)
+    return verify_rgba_strip(rgba, width, height, hmac_key=hmac_key)
 
 
 def record_summary(rec: TelemetryRecord) -> dict[str, Any]:

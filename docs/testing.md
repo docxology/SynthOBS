@@ -25,12 +25,12 @@ flowchart TB
 ## Run the suite
 
 ```bash
-cd projects/working/SynthOBS
+cd projects/ongoing/Fracti/SynthOBS
 # the project ships a local venv; or use uv
 PYTHONPATH="$PWD/src" python -m pytest tests/ -q
 ```
 
-Current state: **1217 passed**, **94.44 % coverage** (≥ 90 % gate).
+Current state: **1226 passed**, **94.53 % coverage** (≥ 90 % gate).
 
 ```bash
 # with coverage gate (module invocation avoids stale console-script shebangs in symlinked worktrees)
@@ -46,7 +46,7 @@ the one annotated in that file's own test bodies where an ISC range applies.
 
 The **Tests** column is the *collected* count (parametrized cases expand — e.g.
 `test_constants_and_layout.py` fans geometry invariants across the φ grid into 742
-cases), so the column sums to the full 1217-test suite.
+cases), so the column sums to the full 1226-test suite.
 
 | File                                     | Tests | ISCs         | Covers                                                                                                  |
 | ---------------------------------------- | ----: | ------------ | ------------------------------------------------------------------------------------------------------- |
@@ -60,6 +60,8 @@ cases), so the column sums to the full 1217-test suite.
 | `tests/test_history.py`                  |    32 | —            | bounded telemetry history, eviction, normalization, and latest-sample behavior                          |
 | `tests/test_provenance.py`               |    53 | —            | telemetry record packing, checksum/HMAC authenticity modes, LSB/visible-signature contracts, integrity + fail-closed validation |
 | `tests/test_provenance_verify_tool.py`   |     6 | —            | real PNG provenance-strip verification, RGB/RGBA screenshot handling, CLI signature/HMAC rejection  |
+| `tests/test_artifacts.py`                |     5 | —            | engine-side binary artifact inspection: SHA-256 digests, PNG IHDR dimensions, WAV PCM metadata, fail-closed malformed-byte rejection |
+| `tests/test_promote_obs_evidence_tool.py`|     4 | —            | promotion-boundary wiring: manifest hashing/profiling, staged bundle writes vs dry-run, failed-gate and corrupt-capture fail-closed rejection |
 | `tests/test_interaction_and_layers.py`   |    24 | —            | seven feed targets, layer rail, marker drop, dashboard plans, dashboard command dry-runs                |
 | `tests/test_plugin_artifacts.py`         |    23 | 55–64, 93–94 | native C plugin/source static structure, optional real C syntax smoke, audio-reactive uniforms + envelope release hold, X-ray/Kp wiring, graph axes, inspector, dock, obspython bridge, φ/K_EGS pins |
 | `tests/test_fail_closed_fuzz.py`         |    45 | 145–154, 183 | adversarial NaN/±Inf battery across parser, telemetry (incl. the sunspots `int()` boundary), Kp, gateway, SWO, interaction, and provenance boundaries, with positive controls |
@@ -68,9 +70,7 @@ cases), so the column sums to the full 1217-test suite.
 | `tests/test_lean_invariants.py`          |     3 | —            | Lean scaffold has no `sorry` / custom `axiom`, `lake build` passes when Lake is available, and the Lean φ/K_EGS literals are bound to the Python constants |
 | `tests/test_obs_scenario_probe.py`       |     4 | —            | live scenario manifest schema, skip semantics, and `--require-live` exit behavior                       |
 | `tests/test_verification.py`             |    11 | —            | audio-meter ROI delta oracle, live-gate result validation, and fail-closed `ValueError` guards (bad metrics, dims, channels, ROI) — 100% of `verification.py` |
-| **Total**                                | **1217** |          |                                                                                                         |
-
-## The real-input policy
+| **Total**                                | **1226** |          |                                                                                                         |
 
 Every test uses real data, real computation, and real HTTP responses. The patterns:
 
@@ -111,7 +111,7 @@ hard-codes, and `test_phi_literal_matches_python` asserts both that the literal 
 C source *and* that it equals `PHI` numerically. If anyone edits either side, the test
 fails — drift between the engine and the transducer can never pass silently.
 
-![Rendered Python/native parity contract. The Python reference and C plugin pin the same φ and K_EGS constants and are checked against shared contracts for dimensions, limiter behavior, telemetry gates, and live behavior; the annotation states the ≥9-significant-digit φ pin, <1e−6 K_EGS tolerance, and current 1217-test, 94.44%-coverage/native-build/live-OBS evidence baseline.](../output/figures/parity_bridge.png){#fig:docs-parity-bridge width=92%}
+![Rendered Python/native parity contract. The Python reference and C plugin pin the same φ and K_EGS constants and are checked against shared contracts for dimensions, limiter behavior, telemetry gates, and live behavior; the annotation states the ≥9-significant-digit φ pin, <1e−6 K_EGS tolerance, and current 1226-test, 94.53%-coverage/native-build/live-OBS evidence baseline.](../output/figures/parity_bridge.png){#fig:docs-parity-bridge width=92%}
 
 ## Native build verification (beyond unit tests)
 

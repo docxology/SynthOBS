@@ -63,7 +63,7 @@ Author affiliation: **FractiAI / Active Inference Institute**.
 
 | Aspect | State |
 | --- | --- |
-| Python engine | **Source of truth.** 1217 tests, 94.44 % coverage, real I/O throughout; values are regenerated from the current source. |
+| Python engine | **Source of truth.** 1226 tests, 94.53 % coverage, real I/O throughout; values are regenerated from the current source. |
 | Native C plugin | **Loads live in OBS 32.1.2.** Built, ad-hoc signed, installed; libcurl telemetry thread hits live NOAA SWPC. Seven feed targets, the layer rail, marker drops, X-ray/Kp graphing, graph axes, inspector modes, audio-reactive shader uniforms, and dock controls are statically pinned. See [build-and-install.md](build-and-install.md). |
 | obspython console | Imports guarded; drives the real engine via `apply_command`, including deterministic dashboard plan/build dry-runs outside OBS. |
 | Lean scaffold | `lean/SynthOBS/Invariants.lean` builds with Lake and rejects `sorry` / custom `axiom` placeholders in the default suite when Lake is available. |

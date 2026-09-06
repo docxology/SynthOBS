@@ -13,7 +13,7 @@ The machine-readable source and claim ledger lives in
 ./.venv/bin/python scripts/audit_scholarship.py
 ```
 
-The current deterministic verification baseline is **1217 tests with 94.44% source
+The current deterministic verification baseline is **1226 tests with 94.53% source
 coverage**, generated from the checked-in test run; the six live OBS gates are reported
 independently in the versioned manifest.
 
@@ -80,7 +80,7 @@ the Python parser tests can establish fail-closed behavior over fixed payloads, 
 only the versioned live manifest can establish that one installed OBS binary
 rendered a non-black scene and preserved the telemetry strip. This separation is
 the same reason the evaluation chapter reports the six live gates independently
-from the 1217-test deterministic suite.
+from the 1226-test deterministic suite.
 
 ## Scope and limits
 

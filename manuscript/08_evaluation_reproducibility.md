@@ -126,7 +126,7 @@ not evidence that the native plugin loaded into the recorded OBS build.
 | --- | --- | --- |
 | Python engine | package `1.618.0`, `src/synthobs/` | reference implementation |
 | Author affiliation | FractiAI / Active Inference Institute | publication metadata and software provenance |
-| Test collection | 1217 tests, 94.44% coverage | unit, parser, integration, static artifact, scholarship, public-release, and verification contracts |
+| Test collection | 1226 tests, 94.53% coverage | unit, parser, integration, static artifact, scholarship, public-release, and verification contracts |
 | OBS Studio | 32.1.2 | live host and compositor |
 | obs-websocket | 5.7.3 | scene/source control and screenshot capture; the protocol surface is documented by the OBS project [@obswebsocket] |
 | OBS base canvas | 3200 × 2000 | source composition canvas |
@@ -260,7 +260,7 @@ From the project root, the deterministic engine and figure paths are:
 ./.venv/bin/python scripts/generate_figures.py
 ```
 
-The first command must collect 1217 tests and report 94.44% coverage (and at least 90%). The
+The first command must collect 1226 tests and report 94.53% coverage (and at least 90%). The
 second command must read the versioned real OBS bundle, verify its hashes and six
 passing gates, generate the analytical figures, copy the three live captures, and
 write `output/figures/figure_manifest.json`. The operator-context screenshot is

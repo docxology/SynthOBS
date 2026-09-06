@@ -41,7 +41,7 @@ Author affiliation: **FractiAI / Active Inference Institute**.
 ## Layout
 
 ```
-src/synthobs/        tested engine, 15 public modules (constants, layout, telemetry, swo, gateway, dsp, console, commands, interaction, layers, interference, history, provenance, engine, verification)
+src/synthobs/        tested engine, 16 public modules (constants, layout, telemetry, swo, gateway, dsp, console, commands, interaction, layers, interference, history, provenance, artifacts, engine, verification)
 plugin/fractisynth/  native libobs C plugin (CMake + src/fractisynth.c + locale)
 plugin/synthobs/     obspython console script (synthobs_console.py)
 scripts/             thin orchestrators (generate_figures.py, obs_scenario_probe.py, obs_ws_probe.py, verify_provenance_strip.py)
@@ -61,7 +61,7 @@ uv run python -m pytest tests/ --cov=synthobs --cov-report=term-missing
 uv run python -m pytest projects/ongoing/Fracti/SynthOBS/tests/ --cov=synthobs --cov-report=term-missing
 ```
 
-1217 tests, **94.44%** coverage, real I/O (HTTP exercised via `pytest-httpserver`,
+1226 tests, **94.53%** coverage, real I/O (HTTP exercised via `pytest-httpserver`,
 real numeric examples, fixed seeds); these values are regenerated from the verification run.
 
 Lean invariant scaffold:

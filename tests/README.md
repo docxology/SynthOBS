@@ -1,6 +1,6 @@
 # `tests/` — the real-input suite
 
-**1217 tests, 94.44 % coverage** on `src/synthobs` (≥ 90 % gate). Real I/O throughout —
+**1226 tests, 94.53 % coverage** on `src/synthobs` (≥ 90 % gate). Real I/O throughout —
 HTTP is exercised with `pytest-httpserver`, numerics with real concrete inputs (including
 `±1e9`, `±inf`, `nan`), files with real temp files, and the C plugin / Lean scaffold by
 reading and building the real artifacts.
@@ -13,8 +13,8 @@ Per-file counts, the ISC map, and the real-input policy: [`../docs/testing.md`](
 # from a public clone or this project root
 uv run pytest tests/ --cov=synthobs --cov-fail-under=90
 
-# from the template root (project is symlinked into projects/working/SynthOBS)
-uv run pytest projects/working/SynthOBS/tests/ --cov=synthobs --cov-fail-under=90
+# from the template root (project is symlinked into projects/ongoing/Fracti/SynthOBS)
+uv run pytest projects/ongoing/Fracti/SynthOBS/tests/ --cov=synthobs --cov-fail-under=90
 
 # from this project, against src/
 PYTHONPATH="$PWD/src" python -m pytest tests/ -q

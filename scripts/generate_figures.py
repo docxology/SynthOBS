@@ -473,7 +473,7 @@ def fig_architecture(outdir: Path) -> Path:
         ax,
         [
             "3 layers · 1 source-of-truth engine",
-            "1217 tests · 94.44% src coverage",
+            "1226 tests · 94.53% src coverage",
             "live target: OBS 32.1.2",
         ],
         xy=(0.02, 0.64),
@@ -658,7 +658,7 @@ def fig_parity_bridge(outdir: Path) -> Path:
         [
             "φ pin: ≥9 significant digits",
             "K_EGS pin: < 1e−6 tolerance",
-            "1217 tests · 94.44% coverage · native build · live OBS",
+            "1226 tests · 94.53% coverage · native build · live OBS",
         ],
         xy=(0.02, 0.84),
         facecolor=LINEN,

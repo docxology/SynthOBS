@@ -10,16 +10,25 @@ bytes, recomputes hashes/format metadata, and writes a normalized manifest.
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import os
 import re
 import shutil
-import struct
+import sys
 import tempfile
-import wave
 from pathlib import Path
 from typing import Any
+
+_SRC = Path(__file__).resolve().parents[1] / "src"
+if str(_SRC) not in sys.path:
+    sys.path.insert(0, str(_SRC))
+
+from synthobs.artifacts import (  # noqa: E402
+    ArtifactError,
+    png_dimensions,
+    sha256_bytes,
+    wav_metadata,
+)
 
 SCHEMA = "synthobs.live_scenario.v2"
 ROOT = Path(__file__).resolve().parents[1]
@@ -39,11 +48,7 @@ class PromotionError(RuntimeError):
 
 
 def _sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
+    return sha256_bytes(path.read_bytes())
 
 
 def _source_run_id(manifest: dict[str, Any], source_dir: Path) -> str:
@@ -75,24 +80,17 @@ def _capture_path(source_dir: Path, manifest: dict[str, Any], key: str) -> Path:
 
 
 def _png_dimensions(path: Path) -> tuple[int, int]:
-    raw = path.read_bytes()
-    if raw[:8] != b"\x89PNG\r\n\x1a\n" or len(raw) < 24:
-        raise PromotionError(f"not a valid PNG capture: {path}")
-    return struct.unpack(">II", raw[16:24])
+    try:
+        return png_dimensions(path.read_bytes())
+    except ArtifactError as exc:
+        raise PromotionError(f"{exc}: {path}") from exc
 
 
 def _wav_metadata(path: Path) -> dict[str, int | str]:
     try:
-        with wave.open(str(path), "rb") as handle:
-            return {
-                "media_type": "audio/wav",
-                "sample_rate_hz": handle.getframerate(),
-                "channels": handle.getnchannels(),
-                "sample_width_bits": handle.getsampwidth() * 8,
-                "frames": handle.getnframes(),
-            }
-    except (EOFError, wave.Error) as exc:
-        raise PromotionError(f"not a valid WAV capture: {path}: {exc}") from exc
+        return wav_metadata(path.read_bytes())
+    except ArtifactError as exc:
+        raise PromotionError(f"{exc}: {path}") from exc
 
 
 def validate_source(source_dir: Path) -> dict[str, Any]:

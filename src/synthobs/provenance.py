@@ -61,7 +61,7 @@ __all__ = [
     "embed_lsb",
     "extract_lsb",
     "verify_payload",
-    "verify_authenticated_payload",
+    "verify_rgba_strip",
 ]
 
 
@@ -440,3 +440,23 @@ def verify_authenticated_payload(payload: bytes, key: bytes | bytearray) -> Tele
     if not hmac.compare_digest(bytes(payload[PAYLOAD_SIZE:]), expected):
         raise ProvenanceError("HMAC mismatch — payload authenticity could not be established")
     return record
+
+
+def verify_rgba_strip(
+    rgba: bytes,
+    width: int,
+    height: int,
+    *,
+    hmac_key: bytes | bytearray | None = None,
+) -> TelemetryRecord:
+    """Extract and verify the provenance strip from a whole RGBA frame.
+
+    Single engine entrypoint behind the image-I/O side of the provenance
+    verifier: LSB extraction, checksum validation, and (when *hmac_key* is
+    given) HMAC-SHA-256 authenticity all happen here, so callers never
+    re-implement the validation chain.
+    """
+    payload = extract_lsb(rgba, width, height)
+    if hmac_key is not None:
+        return verify_authenticated_payload(payload, hmac_key)
+    return verify_payload(payload)
