@@ -13,7 +13,7 @@ The machine-readable source and claim ledger lives in
 ./.venv/bin/python scripts/audit_scholarship.py
 ```
 
-The current deterministic verification baseline is **1217 tests with 96.09% source
+The current deterministic verification baseline is **1217 tests with 94.44% source
 coverage**, generated from the checked-in test run; the six live OBS gates are reported
 independently in the versioned manifest.
 

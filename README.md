@@ -61,7 +61,7 @@ uv run python -m pytest tests/ --cov=synthobs --cov-report=term-missing
 uv run python -m pytest projects/ongoing/Fracti/SynthOBS/tests/ --cov=synthobs --cov-report=term-missing
 ```
 
-1217 tests, **96.09%** coverage, real I/O (HTTP exercised via `pytest-httpserver`,
+1217 tests, **94.44%** coverage, real I/O (HTTP exercised via `pytest-httpserver`,
 real numeric examples, fixed seeds); these values are regenerated from the verification run.
 
 Lean invariant scaffold:

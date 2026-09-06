@@ -110,7 +110,7 @@ plugin/fractisynth/build.sh
 Every executable geometric, telemetry, and DSP claim in this blueprint is exercised
 by the real-input test suite over the reference engine—including the three pinned laws
 @eq:swo-phase-vector, @eq:gateway-lock, and @eq:phi-soft-limit and their fail-closed
-boundaries. The current gate is 1217 project tests at 96.09% coverage, thirteen
+boundaries. The current gate is 1217 project tests at 94.44% coverage, thirteen
 deterministic engine-derived figures plus three versioned live OBS captures, the native
 `plugin/fractisynth/build.sh` build, and a buildable Lean scaffold
 for the structural invariants that should never drift. The native C plugin shares the
@@ -121,7 +121,7 @@ LSB provenance payload layout, and the fail-closed rule with the engine. The Pyt
 engine therefore remains authoritative; the C plugin is an OBS-bound implementation
 whose covered contracts are checked, never a second source of truth.
 
-![Python/native contract boundary. The tested Python reference and the C plugin exchange pinned $\varphi$ and $K_{\mathrm{EGS}}$ literals, then converge on executable contracts for constants, dimensions, limiter behavior, telemetry gates, and live behavior. The annotation records the acceptance thresholds—at least nine significant digits for $\varphi$ and less than $10^{-6}$ for $K_{\mathrm{EGS}}$—alongside the current 1217-test, 96.09%-coverage, native-build, and live-OBS evidence baseline.](../output/figures/parity_bridge.png){#fig:parity-bridge width=92%}
+![Python/native contract boundary. The tested Python reference and the C plugin exchange pinned $\varphi$ and $K_{\mathrm{EGS}}$ literals, then converge on executable contracts for constants, dimensions, limiter behavior, telemetry gates, and live behavior. The annotation records the acceptance thresholds—at least nine significant digits for $\varphi$ and less than $10^{-6}$ for $K_{\mathrm{EGS}}$—alongside the current 1217-test, 94.44%-coverage, native-build, and live-OBS evidence baseline.](../output/figures/parity_bridge.png){#fig:parity-bridge width=92%}
 
 ![FractiSynth OBS module lifecycle. The five states separate module load and source registration, curl/mutex initialization, concurrent video/audio/inspector rendering plus telemetry polling, bounded unload, and final curl cleanup. The upper annotation records four registered OBS source surfaces—three filters and the console source—and identifies the Qt dock as an optional frontend surface rather than counting it as a source registration.](../output/figures/plugin_lifecycle.png){#fig:plugin-lifecycle width=92%}
 

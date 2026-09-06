@@ -22,7 +22,7 @@ from synthobs.verification import score_audio_meter_delta
 
 ROOT = Path(__file__).resolve().parents[1]
 CURRENT_TEST_COUNT = "1217"
-CURRENT_COVERAGE = "96.09"
+CURRENT_COVERAGE = "94.44"
 
 
 def test_engine_is_stdlib_only() -> None:
@@ -369,6 +369,7 @@ def test_current_status_docs_do_not_contain_stale_baselines() -> None:
         "98.13",
         "98.18",
         "96.95",
+        "96.09",
     )
     status_docs = [
         ROOT / "README.md",

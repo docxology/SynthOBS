@@ -23,7 +23,7 @@ claim.
 | `SYNTHOBS-ARCHIVE-DOI` | Concept DOI `10.5281/zenodo.21418687` resolves live to version deposit `21418901` (`state: submitted`, `publication_date: 2026-07-17`), whose metadata matches the repo version/author/ORCID/license and links back to the exact `v1.618.0` tag via `related_identifiers`; `CITATION.cff` and `README.md` carry the same DOI. |
 | `SYNTHOBS-C-PARITY` | `plugin/fractisynth/src/rtsw_parser.h` is a standalone dependency-free parser; `tests/test_c_parity_behavioral.py` compiles and executes it against current, shuffled, inactive, stale, future, and malformed RTSW rows. |
 | `SYNTHOBS-PROV-HMAC` | `build_authenticated_payload` and `verify_authenticated_payload` provide opt-in HMAC-SHA-256 authenticity; verifier tests cover missing, wrong, empty, and recomputed-key cases, and keys remain outside manifests/source. |
-| `SYNTHOBS-PACKAGE-REPRO` | `scripts/package_smoke.py` installs the `uv build` wheel with `--no-index --no-deps` into a fresh isolated environment; the workflow runs the 1217-test/96.09%-coverage gate, figure generation, and package smoke. |
+| `SYNTHOBS-PACKAGE-REPRO` | `scripts/package_smoke.py` installs the `uv build` wheel with `--no-index --no-deps` into a fresh isolated environment; the workflow runs the 1217-test/94.44%-coverage gate, figure generation, and package smoke. |
 
 ## Guardrails for every item
 

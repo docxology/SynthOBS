@@ -113,7 +113,7 @@ uv build
 uv run python scripts/package_smoke.py
 ```
 
-The expected current baseline is **1217 passing tests** and **96.09% coverage**
+The expected current baseline is **1217 passing tests** and **94.44% coverage**
 on `src/synthobs`. Figure generation must validate the versioned live evidence
 manifest before writing the analytical and live-capture figures.
 
@@ -155,7 +155,7 @@ coverage, and per-filter/per-feed visual captures remain scoped in [`TODO.md`](T
 **Public v1 is affirmative.** All gates above are satisfied: the repository is
 public, `v1.618.0` is tagged and released with the regenerated PDF/HTML and
 built package attached, the clean-clone preflight passes (1217 tests,
-96.09% coverage), and concept DOI `10.5281/zenodo.21418687` (version DOI
+94.44% coverage), and concept DOI `10.5281/zenodo.21418687` (version DOI
 `10.5281/zenodo.21418901`) archives the exact tagged source and artifacts,
 with the DOI printed on the manuscript's own cover page. Remaining scope (`SYNTHOBS-OBS-CI`,
 `SYNTHOBS-OBS-INTERACTION`, `SYNTHOBS-LIVE-MATRIX`, `SYNTHOBS-FILTER-VISUALS`)

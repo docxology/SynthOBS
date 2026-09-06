@@ -4,7 +4,7 @@
 against `libobs`. It is the production transducer: an OBS-bound implementation of
 the tested Python contracts, **verified to load and run live in OBS 32.1.2**. This
 page documents its structure, the three filters, console source, telemetry thread, and lifecycle.
-The Python source-of-truth baseline is 1217 tests at 96.09% coverage; native acceptance
+The Python source-of-truth baseline is 1217 tests at 94.44% coverage; native acceptance
 is reported separately through the live OBS gates below.
 
 Source: [`plugin/fractisynth/src/fractisynth.c`](../plugin/fractisynth/src/fractisynth.c)

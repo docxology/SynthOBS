@@ -1,6 +1,6 @@
 # `tests/` — the real-input suite
 
-**1217 tests, 96.09 % coverage** on `src/synthobs` (≥ 90 % gate). Real I/O throughout —
+**1217 tests, 94.44 % coverage** on `src/synthobs` (≥ 90 % gate). Real I/O throughout —
 HTTP is exercised with `pytest-httpserver`, numerics with real concrete inputs (including
 `±1e9`, `±inf`, `nan`), files with real temp files, and the C plugin / Lean scaffold by
 reading and building the real artifacts.

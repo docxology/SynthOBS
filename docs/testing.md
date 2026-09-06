@@ -30,7 +30,7 @@ cd projects/working/SynthOBS
 PYTHONPATH="$PWD/src" python -m pytest tests/ -q
 ```
 
-Current state: **1217 passed**, **96.09 % coverage** (≥ 90 % gate).
+Current state: **1217 passed**, **94.44 % coverage** (≥ 90 % gate).
 
 ```bash
 # with coverage gate (module invocation avoids stale console-script shebangs in symlinked worktrees)
@@ -111,7 +111,7 @@ hard-codes, and `test_phi_literal_matches_python` asserts both that the literal 
 C source *and* that it equals `PHI` numerically. If anyone edits either side, the test
 fails — drift between the engine and the transducer can never pass silently.
 
-![Rendered Python/native parity contract. The Python reference and C plugin pin the same φ and K_EGS constants and are checked against shared contracts for dimensions, limiter behavior, telemetry gates, and live behavior; the annotation states the ≥9-significant-digit φ pin, <1e−6 K_EGS tolerance, and current 1217-test, 96.09%-coverage/native-build/live-OBS evidence baseline.](../output/figures/parity_bridge.png){#fig:docs-parity-bridge width=92%}
+![Rendered Python/native parity contract. The Python reference and C plugin pin the same φ and K_EGS constants and are checked against shared contracts for dimensions, limiter behavior, telemetry gates, and live behavior; the annotation states the ≥9-significant-digit φ pin, <1e−6 K_EGS tolerance, and current 1217-test, 94.44%-coverage/native-build/live-OBS evidence baseline.](../output/figures/parity_bridge.png){#fig:docs-parity-bridge width=92%}
 
 ## Native build verification (beyond unit tests)
 

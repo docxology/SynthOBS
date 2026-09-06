@@ -6,7 +6,7 @@ implements native counterparts at the OBS boundary, and the obspython script is 
 bridge. The adapters are checked against the engine; they do not duplicate every
 Python operation that has no OBS-bound equivalent.
 
-![Three-layer SynthOBS architecture and evidence path. The upper constant surface feeds the tested Python engine, native libobs adapter, and obspython bridge; the adapters converge in the live OBS runtime. The figure reports the current 1217-test, 96.09%-coverage baseline and OBS target so the diagram separates source authority from integration evidence.](../output/figures/architecture_layers.png){#fig:docs-architecture-layers width=90%}
+![Three-layer SynthOBS architecture and evidence path. The upper constant surface feeds the tested Python engine, native libobs adapter, and obspython bridge; the adapters converge in the live OBS runtime. The figure reports the current 1217-test, 94.44%-coverage baseline and OBS target so the diagram separates source authority from integration evidence.](../output/figures/architecture_layers.png){#fig:docs-architecture-layers width=90%}
 
 ## Layer 1 — the Python engine (`src/synthobs/`)
 
