@@ -135,9 +135,12 @@ decisions remain in [`ROADMAP.md`](ROADMAP.md) and [`ISA.md`](ISA.md).
 ## Verify a Telemetry HUD provenance strip
 
 ```bash
-uv run python projects/ongoing/Fracti/SynthOBS/scripts/verify_provenance_strip.py \
-  projects/ongoing/Fracti/SynthOBS/manuscript/assets/obs/obs_telemetry_hud.png --json --expect-signature 8b1f58c1
+uv run python scripts/verify_provenance_strip.py \
+  manuscript/assets/obs/obs_telemetry_hud.png --json --expect-signature 8b1f58c1
 ```
+
+Commands on this page are relative to the repo root; in the template sidecar checkout,
+prefix them with `projects/ongoing/Fracti/SynthOBS/`.
 
 The verifier extracts the LSB-embedded HUD payload from a PNG, recomputes the
 checksum, and reports the recovered flux, active-region count, wind speed, lock
@@ -147,7 +150,7 @@ both accepted; tampered or undersized captures fail closed.
 ## Run the live OBS scenario verifier
 
 ```bash
-uv run python projects/ongoing/Fracti/SynthOBS/scripts/obs_scenario_probe.py \
+uv run python scripts/obs_scenario_probe.py \
   --out output/live/$(date -u +%Y%m%dT%H%M%SZ) \
   --password "$OBS_WEBSOCKET_PASSWORD" \
   --verify-audio --verify-provenance --require-live
@@ -165,7 +168,7 @@ same files and records the exact hashes and audio metadata used by the compariso
 After a passing run, promote its exact bytes into the versioned manuscript bundle:
 
 ```bash
-uv run python projects/ongoing/Fracti/SynthOBS/scripts/promote_obs_evidence.py output/live/<ts>
+uv run python scripts/promote_obs_evidence.py output/live/<ts>
 ```
 
 ## Build the native plugin (FractiSynth)
