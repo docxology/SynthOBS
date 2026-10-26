@@ -41,7 +41,7 @@ Author affiliation: **FractiAI / Active Inference Institute**.
 ## Layout
 
 ```
-src/synthobs/        tested engine, 16 public modules (constants, layout, telemetry, swo, gateway, dsp, console, commands, interaction, layers, interference, history, provenance, artifacts, engine, verification)
+src/synthobs/        tested engine, 17 public modules (constants, layout, telemetry, swo, gateway, dsp, console, commands, interaction, layers, interference, history, provenance, artifacts, engine, scholarship, verification)
 plugin/fractisynth/  native libobs C plugin (CMake + src/fractisynth.c + locale)
 plugin/synthobs/     obspython console script (synthobs_console.py)
 scripts/             thin orchestrators (generate_figures.py, obs_scenario_probe.py, obs_ws_probe.py, verify_provenance_strip.py)

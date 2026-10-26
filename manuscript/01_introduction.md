@@ -133,13 +133,14 @@ claim attached to the evidence class that can actually falsify it.
 
 This treatment follows the software-citation principles of importance, credit,
 unique identification, persistence, accessibility, and specificity
-[@smith2016softwarecitation]. The planned public home is
-[`docxology/SynthOBS`](https://github.com/docxology/SynthOBS); the current candidate
-also carries `CITATION.cff` metadata conforming to the Citation File Format schema
-[@cffschema]. A repository URL is the active project identity. The eventual public
-tag, commit, and archival identifier will be the precise scholarly identity for a
-reported run. That distinction is why the release contract does not invent a DOI
-before the public artifact exists.
+[@smith2016softwarecitation]. The public home is
+[`docxology/SynthOBS`](https://github.com/docxology/SynthOBS); the released `v1.618.0`
+tree carries `CITATION.cff` metadata conforming to the Citation File Format schema
+[@cffschema]. A repository URL is the active project identity. The public tag,
+commit, and archival identifier are the precise scholarly identity for a reported
+run: tag `v1.618.0`, concept DOI `10.5281/zenodo.21418687`, version deposit
+`10.5281/zenodo.21418901`. The release contract minted no DOI before the public
+artifact existed.
 
 The contribution can be stated as three design propositions:
 

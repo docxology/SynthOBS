@@ -1,8 +1,8 @@
 # AGENTS.md — `SynthOBS/src/synthobs`
 
-> Local-only path under `projects/ongoing/DataTools/` — matched by the
+> Local-only path under `projects/ongoing/Fracti/` — matched by the
 > root `.gitignore` rule `projects/*`; never commit. Repo-wide policy:
-> see `/Volumes/external_drive/Git/template/projects/ongoing/AGENTS.md`.
+> see `projects/ongoing/AGENTS.md` in the template checkout.
 
 ## What this is
 
@@ -11,7 +11,7 @@ Python package `synthobs`.
 ## Layout (verified by direct listing, 2026-08-29)
 
 ```
-README.md, __init__.py, commands.py, console.py, constants.py, dsp.py, engine.py, gateway.py, history.py, interaction.py, interference.py, layers.py, layout.py, provenance.py, swo.py, telemetry.py, verification.py
+README.md, __init__.py, artifacts.py, commands.py, console.py, constants.py, dsp.py, engine.py, gateway.py, history.py, interaction.py, interference.py, layers.py, layout.py, provenance.py, scholarship.py, swo.py, telemetry.py, verification.py
 ```
 
 ## Gotchas

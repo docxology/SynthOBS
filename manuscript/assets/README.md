@@ -6,4 +6,4 @@ WAV, operator-context screenshot) with its machine manifest
 `obs/obs_manifest.json`. Analytical figures are NOT stored here — they are
 generated into `../../output/figures/` by `scripts/generate_figures.py`.
 
-Part of the DataTools lane (local-only, never committed). Parent: `../README.md`.
+Part of the Fracti lane (local-only, never committed). Parent: `../README.md`.

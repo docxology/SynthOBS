@@ -6,7 +6,7 @@ verification guide.
 
 ## Public checkout and prerequisites
 
-For the eventual public v1 distribution, clone the canonical repository first:
+Clone the canonical public repository first:
 
 ```bash
 git clone https://github.com/docxology/SynthOBS.git

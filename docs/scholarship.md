@@ -43,23 +43,23 @@ repository URL identifies the continuing project; a version, commit, and release
 archive identify the particular object used for a result. This follows the six
 software-citation principles of importance, credit and attribution, unique
 identification, persistence, accessibility, and specificity ([Smith et al., 2016](https://force11.org/info/software-citation-principles-published-2016/)).
-The CFF file is the machine-readable citation surface for the candidate release and
-follows the [CFF schema guidance](https://github.com/citation-file-format/citation-file-format/blob/main/schema-guide.md).
+The CFF file is the machine-readable citation surface for the release and follows the
+[CFF schema guidance](https://github.com/citation-file-format/citation-file-format/blob/main/schema-guide.md).
 
-For the current candidate, use the following citation until a public tag and archive
-record exist:
+Release `v1.618.0` is tagged, released, and archived, so cite the exact tag and its
+version deposit:
 
 ```text
 Friedman, Daniel Ari. SynthOBS & FractiSynth v1.618.0. FractiAI /
-Active Inference Institute. https://github.com/docxology/SynthOBS
+Active Inference Institute. https://github.com/docxology/SynthOBS/releases/tag/v1.618.0
+DOI: 10.5281/zenodo.21418901 (concept DOI 10.5281/zenodo.21418687)
 ```
 
-After public release, cite the exact `v1.618.0` tag and, when minted, its archival
-DOI. The DOI is intentionally not invented in this sidecar: the release owner must
-mint or register it after the public commit exists, then add it to `CITATION.cff`,
-the README citation block, and the release notes. A GitHub URL is useful for active
-development, but it is not a substitute for a versioned archive when a persistent
-scholarly record is required.
+The concept DOI `10.5281/zenodo.21418687` always resolves to the latest archived
+version; the `v1.618.0` deposit is `10.5281/zenodo.21418901`. `CITATION.cff`, the
+README citation block, and the release notes carry the same identifiers. A GitHub URL
+is useful for active development, but it is not a substitute for a versioned archive
+when a persistent scholarly record is required.
 
 When citing a result produced with SynthOBS, record the software version or commit,
 OBS and obs-websocket versions, platform, relevant input-product URLs, and the

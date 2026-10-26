@@ -20,13 +20,14 @@ scientific-visualization software lineage documented for Matplotlib
 
 ### Public distribution and affiliation
 
-SynthOBS is authored under **FractiAI / Active Inference Institute**. The planned
-public v1 distribution is the GitHub repository
-[`docxology/SynthOBS`](https://github.com/docxology/SynthOBS), which is intended to
-carry the complete source, native OBS module, obspython bridge, tests, installation
-and usage documentation, manuscript sources, citation metadata, and versioned live
-evidence. The repository-level release contract in [`RELEASE.md`](../RELEASE.md)
-defines the clean-clone preflight and the remaining public-release gates.
+SynthOBS is authored under **FractiAI / Active Inference Institute**. The public v1
+distribution is the GitHub repository
+[`docxology/SynthOBS`](https://github.com/docxology/SynthOBS) at release `v1.618.0`
+(concept DOI `10.5281/zenodo.21418687`), which carries the complete source, native OBS
+module, obspython bridge, tests, installation and usage documentation, manuscript
+sources, citation metadata, and versioned live evidence. The repository-level release
+contract in [`RELEASE.md`](../RELEASE.md) defines the clean-clone preflight and the
+release gates.
 
 ## Contributions and system boundaries
 

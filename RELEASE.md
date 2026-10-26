@@ -23,7 +23,7 @@ Software Heritage:
 [`swh:1:snp:282b236c662b3caf77d823f175b4d3af35e568e2`](https://archive.softwareheritage.org/swh:1:snp:282b236c662b3caf77d823f175b4d3af35e568e2/).
 
 The author affiliation is **FractiAI / Active Inference Institute**. The repository
-is intended to be the canonical public source for the Python engine, native OBS
+is the canonical public source for the Python engine, native OBS
 module, obspython bridge, tests, documentation, manuscript, and evidence metadata.
 
 ## Release contents

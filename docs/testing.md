@@ -25,9 +25,9 @@ flowchart TB
 ## Run the suite
 
 ```bash
-cd projects/ongoing/Fracti/SynthOBS
-# the project ships a local venv; or use uv
-PYTHONPATH="$PWD/src" python -m pytest tests/ -q
+# from the repo root (or the template's projects/ongoing/Fracti/SynthOBS symlink)
+uv sync --extra dev
+uv run python -m pytest tests/ -q
 ```
 
 Current state: **1226 passed**, **94.53 % coverage** (≥ 90 % gate).

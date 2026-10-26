@@ -1,6 +1,6 @@
 # Using FractiSynth in OBS
 
-The public distribution target is [`docxology/SynthOBS`](https://github.com/docxology/SynthOBS).
+The public distribution is [`docxology/SynthOBS`](https://github.com/docxology/SynthOBS).
 From a clean checkout, follow [`build-and-install.md`](build-and-install.md) first;
 this page describes the actual OBS source, filter, dock, and obspython workflows
 after the module is installed. Author affiliation: **FractiAI / Active Inference

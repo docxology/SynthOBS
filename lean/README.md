@@ -7,4 +7,4 @@ EGS-gateway literals. Build with `cd lean && lake build` (toolchain pinned in
 `lean-toolchain`; see AGENTS.md). Contents: SynthOBS/, SynthOBS.lean,
 lake-manifest.json, lakefile.lean, lean-toolchain.
 
-Part of the DataTools lane (local-only, never committed). Parent: `../README.md`.
+Part of the Fracti lane (local-only, never committed). Parent: `../README.md`.

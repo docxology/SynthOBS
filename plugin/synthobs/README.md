@@ -7,4 +7,4 @@ including `apply_command` for the `/mode`, `/transducer`, `/swo`,
 deterministic dashboard plan/build dry-runs outside OBS. Install/usage
 details: `../../docs/usage.md` and `../../docs/command-grammar.md`.
 
-Part of the DataTools lane (local-only, never committed). Parent: `../README.md`.
+Part of the Fracti lane (local-only, never committed). Parent: `../README.md`.

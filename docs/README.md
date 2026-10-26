@@ -11,12 +11,11 @@ two. This directory is the complete, standalone documentation for all three.
 
 ## Public distribution
 
-The planned public v1 home is [`docxology/SynthOBS`](https://github.com/docxology/SynthOBS).
-That repository is intended to contain the complete source and operational path:
-the dependency-free engine, native OBS module, obspython bridge, tests, build/install
-instructions, usage guide, manuscript, citation metadata, and versioned evidence.
-The current sidecar is local to the FractiAI publication workflow; the release
-contract and clean-clone preflight are in [`../RELEASE.md`](../RELEASE.md).
+SynthOBS is public at [`docxology/SynthOBS`](https://github.com/docxology/SynthOBS), the
+canonical source for the dependency-free engine, native OBS module, obspython bridge,
+tests, build/install instructions, usage guide, manuscript, citation metadata, and
+versioned evidence. Release `v1.618.0` is tagged and published; the release contract
+and clean-clone preflight are in [`../RELEASE.md`](../RELEASE.md).
 
 Author affiliation: **FractiAI / Active Inference Institute**.
 
@@ -69,7 +68,6 @@ Author affiliation: **FractiAI / Active Inference Institute**.
 | Lean scaffold | `lean/SynthOBS/Invariants.lean` builds with Lake and rejects `sorry` / custom `axiom` placeholders in the default suite when Lake is available. |
 | Manuscript | Expanded research-grade manuscript, 16 manifest figures (13 analytical + 3 live OBS captures) plus one operator-context asset, and evaluation/reproducibility chapter. |
 
-This checkout is a **local publication sidecar** and is intentionally not committed
-to the public template repository. That boundary is separate from the planned public
-distribution at [`docxology/SynthOBS`](https://github.com/docxology/SynthOBS). Use
-[`../RELEASE.md`](../RELEASE.md) as the source of truth for public-v1 readiness.
+[`docxology/SynthOBS`](https://github.com/docxology/SynthOBS) is the canonical public
+distribution for this source tree. Use [`../RELEASE.md`](../RELEASE.md) as the source of
+truth for the release contract and clean-clone preflight.

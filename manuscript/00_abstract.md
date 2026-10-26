@@ -98,9 +98,10 @@ software-citation principles for credit, version specificity, persistence, and
 accessibility [@smith2016softwarecitation], with machine-readable metadata in
 `CITATION.cff` [@cffschema].
 
-The planned public v1 distribution target is the GitHub repository
-[`docxology/SynthOBS`](https://github.com/docxology/SynthOBS). That repository is
-intended to be the canonical public source for the engine, native plugin,
+The public v1 distribution is the GitHub repository
+[`docxology/SynthOBS`](https://github.com/docxology/SynthOBS) — release `v1.618.0`,
+archived under concept DOI `10.5281/zenodo.21418687`. That repository is the
+canonical public source for the engine, native plugin,
 obspython bridge, tests, installation instructions, manuscript, and versioned
 evidence metadata; the release boundary and remaining acceptance work are recorded
 in [`RELEASE.md`](../RELEASE.md).

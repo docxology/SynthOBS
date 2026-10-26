@@ -1,8 +1,8 @@
 # AGENTS.md — `SynthOBS/src`
 
-> Local-only path under `projects/ongoing/DataTools/` — matched by the
+> Local-only path under `projects/ongoing/Fracti/` — matched by the
 > root `.gitignore` rule `projects/*`; never commit. Repo-wide policy:
-> see `/Volumes/external_drive/Git/template/projects/ongoing/AGENTS.md`.
+> see `projects/ongoing/AGENTS.md` in the template checkout.
 
 ## What this is
 
