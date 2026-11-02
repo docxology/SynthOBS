@@ -1,8 +1,6 @@
 # AGENTS.md — `SynthOBS/lean`
 
-> Local-only path under `projects/ongoing/Fracti/` — matched by the
-> root `.gitignore` rule `projects/*`; never commit. Repo-wide policy:
-> see `projects/ongoing/AGENTS.md` in the template checkout.
+> Repo-wide policy for template projects is maintained in the template repository, not restated here.
 
 ## What this is
 
