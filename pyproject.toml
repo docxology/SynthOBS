@@ -13,7 +13,7 @@ description = "Golden-ratio OBS broadcast console (SynthOBS) + native transducer
 authors = [
     {name = "Daniel Ari Friedman", email = "daniel@activeinference.institute"},
 ]
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 # The importable engine (src/synthobs) is stdlib-only by design — that is the whole
 # "tested engine is the single source of truth" claim. numpy/matplotlib are needed
 # only by the figure/analysis scripts (the `figures` extra), and pyyaml was unused.
