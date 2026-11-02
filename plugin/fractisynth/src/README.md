@@ -7,4 +7,4 @@ calibration struct, and the libcurl telemetry thread), `fractisynth_dock.cpp`
 feed parser), `sha256.h` (provenance hashing), `text8x8.h` (8x8 bitmap font
 for HUD rendering).
 
-Part of the DataTools lane (local-only, never committed). Parent: `../README.md`.
+Part of the DataTools lane. Parent: `../README.md`.

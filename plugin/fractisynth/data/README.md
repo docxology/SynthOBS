@@ -5,4 +5,4 @@ effects — `fractisynth.effect` (video filter), `fractisynth_console.effect`
 (generated console source, audio-reactive uniforms), `fractisynth_inspector.effect`
 (Zoom Inspector loupe) — and `locale/` (en-US.ini strings).
 
-Part of the DataTools lane (local-only, never committed). Parent: `../README.md`.
+Part of the DataTools lane. Parent: `../README.md`.

@@ -7,4 +7,4 @@ phi/EGS literals, and fail-closed SWO/provenance acceptance predicates — with
 no `sorry` and no custom axioms. See AGENTS.md for the theorem inventory and
 build command (`cd lean && lake build`).
 
-Part of the DataTools lane (local-only, never committed). Parent: `../README.md`.
+Part of the DataTools lane. Parent: `../README.md`.
