@@ -1,5 +1,12 @@
 # SynthOBS & FractiSynth (v1.618)
 
+<p align="center">
+  <a href="https://github.com/docxology/SynthOBS/actions/workflows/verify.yml"><img alt="verify.yml workflow status on main" src="https://github.com/docxology/SynthOBS/actions/workflows/verify.yml/badge.svg?branch=main"></a>
+  <a href="https://doi.org/10.5281/zenodo.21418687"><img alt="Digital Object Identifier (DOI), Zenodo record: 10.5281/zenodo.21418687" src="https://zenodo.org/badge/DOI/10.5281/zenodo.21418687.svg"></a>
+  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue"></a>
+  <img alt="Requires Python 3.11 or newer" src="https://img.shields.io/badge/python-3.11%2B-3776AB?logo=python&logoColor=white">
+</p>
+
 > A golden-ratio broadcast console and native `libobs` transducer, calibrated by
 > live solar telemetry.
 
@@ -49,6 +56,40 @@ lean/                Lean 4 invariant scaffold (console shape + fail-closed gate
 manuscript/          Technical Design Blueprint (brand voice)
 tests/               real-input suite, ≥90% coverage on src/
 ISA.md               Ideal State Artifact — system of record
+```
+
+### Package map
+
+Generated on 2026-11-12 from the `import` statements under `src/synthobs/`. An arrow from A to B means code in A imports B; arrows already implied by a longer path are left out, so the picture shows layering rather than every edge. It shows 12 of the package's 17 top-level parts: the largest ones that import or are imported by others.
+
+```mermaid
+flowchart LR
+    accTitle: Internal dependency map of the synthobs package
+    accDescr: Generated from import statements in src/synthobs. Each box is a module of the package; an arrow from A to B means code in A imports B; arrows already implied by a longer path are omitted. Most-imported: constants, console, dsp.
+    n_telemetry["telemetry.py"]
+    n_commands["commands.py"]
+    n_engine["engine.py"]
+    n_layout["layout.py"]
+    n_dsp["dsp.py"]
+    n_console["console.py"]
+    n_swo["swo.py"]
+    n_interaction["interaction.py"]
+    n_interference["interference.py"]
+    n_gateway["gateway.py"]
+    n_constants["constants.py"]
+    n_layers["layers.py"]
+    n_commands --> n_console
+    n_dsp --> n_constants
+    n_engine --> n_console
+    n_engine --> n_dsp
+    n_engine --> n_interference
+    n_engine --> n_layout
+    n_engine --> n_swo
+    n_engine --> n_telemetry
+    n_gateway --> n_constants
+    n_layers --> n_interaction
+    n_layout --> n_constants
+    n_swo --> n_gateway
 ```
 
 ## Test
