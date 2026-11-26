@@ -5,7 +5,7 @@ HTTP is exercised with `pytest-httpserver`, numerics with real concrete inputs (
 `±1e9`, `±inf`, `nan`), files with real temp files, and the C plugin / Lean scaffold by
 reading and building the real artifacts.
 
-Per-file counts, the ISC map, and the real-input policy: [`../docs/testing.md`](../docs/testing.md).
+Per-file counts, the ISC map, and the real-input policy: [`../docs/testing.md`](testing.md).
 
 ## Run
 
@@ -13,8 +13,6 @@ Per-file counts, the ISC map, and the real-input policy: [`../docs/testing.md`](
 # from a public clone or this project root
 uv run pytest tests/ --cov=synthobs --cov-fail-under=90
 
-# from the template root (project is symlinked into projects/ongoing/Fracti/SynthOBS)
-uv run pytest projects/ongoing/Fracti/SynthOBS/tests/ --cov=synthobs --cov-fail-under=90
 
 # from this project, against src/
 PYTHONPATH="$PWD/src" python -m pytest tests/ -q

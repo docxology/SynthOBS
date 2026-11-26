@@ -1,7 +1,7 @@
 # SynthOBS TODO — scoped future work
 
 This is the single actionable backlog for SynthOBS. Completed work belongs in
-[`ROADMAP.md`](ROADMAP.md) and historical decisions remain in [`ISA.md`](ISA.md);
+[`ROADMAP.md`](ROADMAP.md) and historical decisions remain in [`ISA.md`](history/ISA.md);
 new follow-up work should be added here before it appears in another status page.
 Each item has a bounded completion test so “planned” does not become an unmeasured
 claim.

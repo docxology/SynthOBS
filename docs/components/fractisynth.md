@@ -55,7 +55,7 @@ cmake --build build
 
 Drop the build output into your OBS `plugins/` (or `obs-plugins/64bit/`) directory,
 or build in-tree under `obs-studio/plugins/fractisynth/`. Full guide + verification:
-[`../../docs/build-and-install.md`](../../docs/build-and-install.md).
+[`../../docs/build-and-install.md`](../build-and-install.md).
 
 > Status: **compile-verified and loaded live in OBS 32.1.2** (macOS arm64). The module
 > appears in OBS's `Loaded Modules` list, the libcurl thread locks a live NOAA SWPC

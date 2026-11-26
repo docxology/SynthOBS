@@ -25,12 +25,15 @@ flowchart TB
 ## Run the suite
 
 ```bash
-# from the repo root (or the template's projects/ongoing/Fracti/SynthOBS symlink)
-uv sync --extra dev
+# from the standalone project root
+uv sync --locked --extra dev --python 3.15
 uv run python -m pytest tests/ -q
 ```
 
-Current state: **1226 passed**, **94.53 % coverage** (≥ 90 % gate).
+The suite collects **1226 tests**. A clean offline run reached **94.53 %
+branch coverage** (≥ 90 % gate). It skips the full native source syntax probe
+when the matching OBS SDK headers are unavailable. The portable C parser
+parity harness runs independently of those headers.
 
 ```bash
 # with coverage gate (module invocation avoids stale console-script shebangs in symlinked worktrees)
@@ -133,7 +136,7 @@ process:
 ```bash
 uv run python scripts/obs_ws_probe.py --scene FractiSynthTest --out output/live/obs_scene.png
 uv run python scripts/verify_provenance_strip.py \
-  manuscript/assets/obs/obs_telemetry_hud.png --json --expect-signature 8b1f58c1
+  docs/manuscript/assets/obs/obs_telemetry_hud.png --json --expect-signature 8b1f58c1
 uv run python scripts/obs_scenario_probe.py \
   --out output/live/$(date -u +%Y%m%dT%H%M%SZ) \
   --verify-audio --verify-provenance
@@ -145,7 +148,7 @@ an isolated verification scene, fits a `fractisynth_console` source to the OBS b
 canvas, captures `scene_render.png`, `audio_silent.png`, `audio_tone.png`,
 `telemetry_hud.png`, and writes a `manifest.json` with explicit `pass` / `fail` / `skip`
 gates. Skips, missing required gates, and visually blank screenshots are non-fatal unless
-`--require-live` is supplied, which becomes actionable under [`TODO.md`](../TODO.md)
+`--require-live` is supplied, which becomes actionable under [`TODO.md`](TODO.md)
 once a headless OBS target exists.
 
 ## Adding a test

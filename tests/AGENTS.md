@@ -5,7 +5,7 @@
 ## What this is
 
 The real-input test suite for the `synthobs` engine (20 test modules;
-per-file coverage map and the no-mock/real-I/O policy live in `README.md`
+per-file coverage map and the no-mock/real-I/O policy live in [the test inventory](../docs/test-inventory.md)
 and `../docs/testing.md`). Run with the project's own config
 (`pyproject.toml`: `testpaths = ["tests"]`, coverage `fail_under = 90`):
 
@@ -24,7 +24,7 @@ numerics with real concrete inputs (including NaN/±Inf batteries in
 ## Layout (verified by direct listing, 2026-08-29)
 
 ```
-README.md, __init__.py, conftest.py, test_artifacts.py, test_c_parity_behavioral.py, test_console_and_commands.py, test_constants_and_layout.py, test_docs_contracts.py, test_engine.py, test_fail_closed_fuzz.py, test_gateway_and_interference.py, test_history.py, test_interaction_and_layers.py, test_lean_invariants.py, test_obs_scenario_probe.py, test_plugin_artifacts.py, test_promote_obs_evidence_tool.py, test_provenance.py, test_provenance_verify_tool.py, test_solar_series.py, test_swo_and_dsp.py, test_telemetry.py, test_verification.py
+__init__.py, conftest.py, test_artifacts.py, test_c_parity_behavioral.py, test_console_and_commands.py, test_constants_and_layout.py, test_docs_contracts.py, test_engine.py, test_fail_closed_fuzz.py, test_gateway_and_interference.py, test_history.py, test_interaction_and_layers.py, test_lean_invariants.py, test_obs_scenario_probe.py, test_plugin_artifacts.py, test_promote_obs_evidence_tool.py, test_provenance.py, test_provenance_verify_tool.py, test_solar_series.py, test_swo_and_dsp.py, test_telemetry.py, test_verification.py
 ```
 
 ## Gotchas

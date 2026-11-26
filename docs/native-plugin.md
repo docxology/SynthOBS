@@ -190,7 +190,7 @@ The Telemetry HUD provenance strip can be checked from a captured PNG:
 
 ```bash
 uv run python scripts/verify_provenance_strip.py \
-  manuscript/assets/obs/obs_telemetry_hud.png --json --expect-signature 8b1f58c1
+  docs/manuscript/assets/obs/obs_telemetry_hud.png --json --expect-signature 8b1f58c1
 ```
 
 The verifier uses the same length prefix, blue-channel LSB extraction, checksum, and

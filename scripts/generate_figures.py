@@ -182,7 +182,7 @@ def _stats_box(
 def _live_manifest() -> dict:
     """Read the canonical live evidence bundle for run-specific annotations."""
 
-    path = Path(__file__).resolve().parents[1] / "manuscript" / "assets" / "obs" / "obs_manifest.json"
+    path = Path(__file__).resolve().parents[1] / "docs" / "manuscript" / "assets" / "obs" / "obs_manifest.json"
     if not path.exists():
         return {}
     return json.loads(path.read_text(encoding="utf-8"))
@@ -703,7 +703,7 @@ def copy_live_obs_evidence(outdir: Path) -> list[Path]:
     """Copy the versioned, verified real OBS screenshots into figure output."""
 
     root = Path(__file__).resolve().parents[1]
-    srcdir = root / "manuscript" / "assets" / "obs"
+    srcdir = root / "docs" / "manuscript" / "assets" / "obs"
     manifest_path = srcdir / "obs_manifest.json"
     if not manifest_path.exists():
         raise FileNotFoundError(f"versioned live OBS manifest is missing: {manifest_path}")
@@ -739,7 +739,7 @@ def copy_live_obs_evidence(outdir: Path) -> list[Path]:
         joined = ", ".join(str(p) for p in missing)
         raise FileNotFoundError(
             "versioned real OBS evidence screenshots are missing; rerun the live scenario "
-            f"and promote the passing captures into manuscript/assets/obs: {joined}"
+            f"and promote the passing captures into docs/manuscript/assets/obs: {joined}"
         )
     return copied
 
@@ -748,7 +748,7 @@ def copy_contextual_assets(outdir: Path) -> list[Path]:
     """Copy manuscript-context images without promoting them into the figure manifest."""
 
     root = Path(__file__).resolve().parents[1]
-    srcdir = root / "manuscript" / "assets" / "obs"
+    srcdir = root / "docs" / "manuscript" / "assets" / "obs"
     copied: list[Path] = []
     for name in CONTEXTUAL_ASSETS:
         src = srcdir / name
@@ -805,11 +805,44 @@ def write_figure_manifest(outdir: Path) -> Path:
         "deterministic": all(item["kind"] == "analytical" for item in figures),
         "analytical_count": sum(item["kind"] == "analytical" for item in figures),
         "live_capture_count": sum(item["kind"] == "live_obs_capture" for item in figures),
-        "live_manifest": "manuscript/assets/obs/obs_manifest.json",
+        "live_manifest": "docs/manuscript/assets/obs/obs_manifest.json",
         "figures": figures,
     }
     path = outdir / "figure_manifest.json"
     path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    return path
+
+
+# The publication labels are stable across the PDF and accessible HTML.
+PUBLICATION_FIGURES = {
+    "fig:architecture-layers": ("architecture_layers.png", "Diagram connecting shared constants, the Python engine, and the OBS adapters."),
+    "fig:layout": ("goldilocks_layout.png", "Viewport partition with the main output on the left and stacked panels on the right."),
+    "fig:golden-split": ("golden_split.png", "A golden-ratio split showing the exact integer lengths of the two parts."),
+    "fig:spiral": ("golden_spiral.png", "Sampled golden spiral used to form the wipe transition."),
+    "fig:limiter": ("phi_soft_limiter.png", "Soft-limiter response compared with hard clipping."),
+    "fig:phi-matrix": ("phi_matrix.png", "Matrix showing the scale applied to the spatial coordinates."),
+    "fig:swo": ("swo_calibration.png", "Solar Wavefield Oscillator response curves across flux and active-region values."),
+    "fig:gateway": ("gateway_lock.png", "Phase-lock response as solar-wind speed varies, with the design point marked."),
+    "fig:telemetry-pipeline": ("telemetry_pipeline.png", "Telemetry validation flow, including the last-good-vector fallback."),
+    "fig:telemetry-thread": ("telemetry_thread.png", "Lifecycle of the native telemetry worker from initialization through shutdown."),
+    "fig:command-parser-pipeline": ("command_parse_pipeline.png", "Command parsing and rejection flow for the four supported verbs."),
+    "fig:parity-bridge": ("parity_bridge.png", "Diagram of shared constants and parity checks across the Python and native layers."),
+    "fig:plugin-lifecycle": ("plugin_lifecycle.png", "Lifecycle from native module load and registration through shutdown."),
+    "fig:obs-live-scene": ("obs_scene_render.png", "Retained OBS scene frame showing the FractiSynth console."),
+    "fig:obs-live-telemetry": ("obs_telemetry_hud.png", "Retained console capture with the telemetry heads-up display."),
+    "fig:obs-live-audio": ("obs_audio_tone.png", "Retained console frame during the controlled-tone audio test."),
+    "fig:obs-operator-window": ("obs_operator_window.png", "Operator-context screenshot showing the OBS console and mixer."),
+}
+
+
+def write_publication_figure_registry(outdir: Path) -> Path:
+    """Register the generated publication images for renderer validation."""
+    registry = {
+        label: {"filename": filename, "alt_text": alt_text, "generated_by": "generate_figures.py"}
+        for label, (filename, alt_text) in PUBLICATION_FIGURES.items()
+    }
+    path = outdir / "figure_registry.json"
+    path.write_text(json.dumps(registry, indent=2) + "\n", encoding="utf-8")
     return path
 
 
@@ -827,6 +860,7 @@ def main() -> None:
     for path in copy_contextual_assets(outdir):
         print(str(path))
     print(str(write_figure_manifest(outdir)))
+    print(str(write_publication_figure_registry(outdir)))
 
 
 if __name__ == "__main__":

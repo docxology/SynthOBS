@@ -18,7 +18,7 @@ from synthobs.scholarship import validate_scholarship_ledger  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 LEDGER = ROOT / "docs" / "scholarship_sources.json"
-BIB = ROOT / "manuscript" / "references.bib"
+BIB = ROOT / "docs" / "manuscript" / "references.bib"
 
 
 def main() -> int:

@@ -1,0 +1,61 @@
+claims:
+  - claim_id: golden-ratio
+    kind: number
+    value: "1.61803398875"
+    source: PHI_C_LITERAL
+    artifact_path: src/synthobs/constants.py
+  - claim_id: reader-wavelength-nm
+    kind: number
+    value: 1030
+    source: LAMBDA_READER_NM
+    artifact_path: src/synthobs/constants.py
+  - claim_id: h-alpha-wavelength-nm
+    kind: number
+    value: 656.28
+    source: LAMBDA_H_ALPHA_NM
+    artifact_path: src/synthobs/constants.py
+  - claim_id: gateway-key
+    kind: number
+    value: "2.539427"
+    source: EGS_GATEWAY_KEY_C_LITERAL
+    artifact_path: src/synthobs/constants.py
+  - claim_id: collected-test-baseline
+    kind: number
+    value: 1226
+    source: CURRENT_TEST_COUNT, verified against actual pytest collection
+    artifact_path: tests/test_docs_contracts.py
+  - claim_id: branch-coverage-baseline
+    kind: number
+    value: "94.53%"
+    source: CURRENT_COVERAGE for the Python engine
+    artifact_path: tests/test_docs_contracts.py
+  - claim_id: retained-obs-canvas-width
+    kind: number
+    value: 3200
+    source: obs.base_canvas.width
+    artifact_path: docs/manuscript/assets/obs/obs_manifest.json
+  - claim_id: retained-audio-comparison-pixels
+    kind: number
+    value: 42240
+    source: gates.audio_reactivity.metrics.compared_pixels
+    artifact_path: docs/manuscript/assets/obs/obs_manifest.json
+  - claim_id: retained-tone-sample-rate-khz
+    kind: number
+    value: 48
+    source: assets.controlled_tone.sample_rate_hz divided by 1000
+    artifact_path: docs/manuscript/assets/obs/obs_manifest.json
+  - claim_id: retained-controlled-tone-hz
+    kind: number
+    value: 440
+    source: controlled-tone waveform
+    artifact_path: docs/manuscript/assets/obs/controlled_tone.wav
+  - claim_id: operator-context-width
+    kind: number
+    value: 1604
+    source: source PNG width
+    artifact_path: docs/manuscript/assets/obs/obs_operator_window.png
+  - claim_id: operator-context-height
+    kind: number
+    value: 1858
+    source: source PNG height
+    artifact_path: docs/manuscript/assets/obs/obs_operator_window.png

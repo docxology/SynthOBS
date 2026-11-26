@@ -20,12 +20,12 @@ matching the Qt minor version used by OBS. From a clean checkout, run the Python
 verification before installing the native module:
 
 ```bash
-uv sync --extra dev
-uv run python -m pytest tests --cov=synthobs --cov-fail-under=90
+uv sync --locked --extra dev --python 3.15
+uv run --no-sync python scripts/generate_figures.py
+uv run --no-sync python -m pytest tests --cov=synthobs --cov-fail-under=90
 ```
 
-This public-root command is the primary path. The local template integration may
-instead invoke the same files through `projects/ongoing/Fracti/SynthOBS`.
+Run those commands from the standalone project root.
 
 ## Quick path (macOS)
 

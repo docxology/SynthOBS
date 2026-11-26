@@ -30,6 +30,10 @@ portable contracts. The C plugin implements native counterparts at the OBS bound
 and is checked against the constants and selected behavioral contracts; the
 obspython script imports the engine.
 
+Start with the [documentation index](docs/README.md), the
+[OBS installation guide](docs/build-and-install.md), or the
+[offline manuscript build](docs/rendering.md).
+
 ## Public v1 distribution
 
 SynthOBS is public at
@@ -41,7 +45,7 @@ versioned OBS evidence. Release `v1.618.0` is tagged and published:
 [Zenodo archival deposit, DOI 10.5281/zenodo.21418687](https://doi.org/10.5281/zenodo.21418687)
 (concept DOI, always resolves to the latest archived version — the exact
 `v1.618.0` deposit is `10.5281/zenodo.21418901`).
-Release gates and clean-clone instructions are in [`RELEASE.md`](RELEASE.md).
+Release gates and clean-clone instructions are in [`RELEASE.md`](docs/RELEASE.md).
 
 Author affiliation: **FractiAI / Active Inference Institute**.
 
@@ -53,7 +57,7 @@ plugin/fractisynth/  native libobs C plugin (CMake + src/fractisynth.c + locale)
 plugin/synthobs/     obspython console script (synthobs_console.py)
 scripts/             thin orchestrators (generate_figures.py, obs_scenario_probe.py, obs_ws_probe.py, verify_provenance_strip.py)
 lean/                Lean 4 invariant scaffold (console shape + fail-closed gates)
-manuscript/          Technical Design Blueprint (brand voice)
+docs/manuscript/     Technical Design Blueprint and retained evidence
 tests/               real-input suite, ≥90% coverage on src/
 ISA.md               Ideal State Artifact — system of record
 ```
@@ -95,11 +99,9 @@ flowchart LR
 ## Test
 
 ```bash
-# From a public clone (or this project root)
-uv run python -m pytest tests/ --cov=synthobs --cov-report=term-missing
-
-# In the template sidecar checkout, use the symlinked project path instead:
-uv run python -m pytest projects/ongoing/Fracti/SynthOBS/tests/ --cov=synthobs --cov-report=term-missing
+uv sync --locked --extra dev --python 3.15
+uv run --no-sync python scripts/generate_figures.py
+uv run --no-sync python -m pytest tests/ --cov=synthobs --cov-fail-under=90
 ```
 
 1226 tests, **94.53%** coverage, real I/O (HTTP exercised via `pytest-httpserver`,
@@ -170,18 +172,18 @@ machine-readable citation metadata.
 
 ## Future work
 
-The single scoped backlog is [`TODO.md`](TODO.md). Completed phases and historical
-decisions remain in [`ROADMAP.md`](ROADMAP.md) and [`ISA.md`](ISA.md).
+The single scoped backlog is [`TODO.md`](docs/TODO.md). Completed phases and historical
+decisions remain in [`ROADMAP.md`](docs/ROADMAP.md) and [`ISA.md`](docs/history/ISA.md).
 
 ## Verify a Telemetry HUD provenance strip
 
 ```bash
 uv run python scripts/verify_provenance_strip.py \
-  manuscript/assets/obs/obs_telemetry_hud.png --json --expect-signature 8b1f58c1
+  docs/manuscript/assets/obs/obs_telemetry_hud.png --json --expect-signature 8b1f58c1
 ```
 
 Commands on this page are relative to the repo root; in the template sidecar checkout,
-prefix them with `projects/ongoing/Fracti/SynthOBS/`.
+run these commands from the standalone project root.
 
 The verifier extracts the LSB-embedded HUD payload from a PNG, recomputes the
 checksum, and reports the recovered flux, active-region count, wind speed, lock
