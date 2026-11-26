@@ -41,6 +41,6 @@ the registered verb set. Equation @eq:command_grammar-2 is enforced verb-by-verb
 below and rendered in Figure @fig:command-parser-pipeline.
 
 The complete grammar, including dashboard planning/building and telemetry examples,
-lives in [the parse-pipeline module](06b_command_telemetry_parse_pipeline_and_summary.md).
+lives in [the parse-pipeline module](https://github.com/docxology/SynthOBS/blob/main/docs/manuscript/06b_command_telemetry_parse_pipeline_and_summary.md).
 The macro/filter-routing material lives in
-[the adjacent command module](06a_command_macros_and_filter_routing.md).
+[the adjacent command module](https://github.com/docxology/SynthOBS/blob/main/docs/manuscript/06a_command_macros_and_filter_routing.md).

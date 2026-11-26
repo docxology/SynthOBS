@@ -9,7 +9,7 @@ kernels (`fractisynth.c` — three filters + generated console source;
 `fractisynth_dock.cpp` — Qt dock), `data/` holds the OBS `.effect` shaders
 and `locale/` localization. Build via `./build.sh --install` (macOS verified
 path) or CMake (`cmake -B build -DOBS_ROOT=...`); release builds require
-libcurl. `README.md` documents the filters, the process-global SWO struct,
+libcurl. [The FractiSynth guide](../../docs/components/fractisynth.md) documents the filters, the process-global SWO struct,
 and the 60 s NOAA SWPC telemetry thread; build/load evidence lives in
 `../../docs/build-and-install.md`. The C constants are checked against the
 Python engine by `tests/test_plugin_artifacts.py` and the CI
@@ -18,7 +18,7 @@ Python engine by `tests/test_plugin_artifacts.py` and the CI
 ## Layout (verified by direct listing, 2026-08-29)
 
 ```
-data/, src/, CMakeLists.txt, README.md, build.sh
+data/, src/, CMakeLists.txt, build.sh
 ```
 
 ## Gotchas

@@ -62,9 +62,9 @@ scalar. Those three values feed the Wavefield Console shader, the Telemetry HUD,
 gateway dock, so the visual surface breathes from the acoustic envelope without ever
 letting raw, non-finite audio poison the display.
 
-![The FractiSynth $\varphi$ harmonic limiter (robin's-egg) versus naive hard clipping (dashed charcoal) for threshold $\tau=1$. Marigold guides mark the symmetric identity band $|x|\le 1/\varphi=0.618034$; outside that band the tested `phi_soft_limit()` curve remains monotone, sign-preserving, and bounded by $|y|\le\tau$ while approaching the ceiling smoothly. The statistics panel records the exact knee and the fail-closed handling of non-finite inputs.](../output/figures/phi_soft_limiter.png){#fig:limiter width=74%}
+![The FractiSynth $\varphi$ harmonic limiter (robin's-egg) versus naive hard clipping (dashed charcoal) for threshold $\tau=1$. Marigold guides mark the symmetric identity band $|x|\le 1/\varphi=0.618034$; outside that band the tested `phi_soft_limit()` curve remains monotone, sign-preserving, and bounded by $|y|\le\tau$ while approaching the ceiling smoothly. The statistics panel records the exact knee and the fail-closed handling of non-finite inputs.](../../output/figures/phi_soft_limiter.png){#fig:limiter width=74%}
 
-![Homogeneous spatial transform matrix used by the calibrated video path. The two spatial axes are scaled by $1/\varphi=0.618034$, the homogeneous coordinate remains 1, and the worked 1920×1080 example rounds to 1187×667 pixels. Cell values and the color scale expose the diagonal-only transform implemented by `spatial_scale_matrix()`; the source footer identifies the companion `video_calibrated_dims()` calculation.](../output/figures/phi_matrix.png){#fig:phi-matrix width=62%}
+![Homogeneous spatial transform matrix used by the calibrated video path. The two spatial axes are scaled by $1/\varphi=0.618034$, the homogeneous coordinate remains 1, and the worked 1920×1080 example rounds to 1187×667 pixels. Cell values and the color scale expose the diagonal-only transform implemented by `spatial_scale_matrix()`; the source footer identifies the companion `video_calibrated_dims()` calculation.](../../output/figures/phi_matrix.png){#fig:phi-matrix width=62%}
 
 ## Single Source of Truth
 

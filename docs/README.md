@@ -15,7 +15,7 @@ SynthOBS is public at [`docxology/SynthOBS`](https://github.com/docxology/SynthO
 canonical source for the dependency-free engine, native OBS module, obspython bridge,
 tests, build/install instructions, usage guide, manuscript, citation metadata, and
 versioned evidence. Release `v1.618.0` is tagged and published; the release contract
-and clean-clone preflight are in [`../RELEASE.md`](../RELEASE.md).
+and clean-clone preflight are in [release contract](RELEASE.md).
 
 Author affiliation: **FractiAI / Active Inference Institute**.
 
@@ -34,9 +34,12 @@ Author affiliation: **FractiAI / Active Inference Institute**.
 | [build-and-install.md](build-and-install.md) | Build, sign, and install the plugin into OBS — with the verified load evidence |
 | [usage.md](usage.md) | Actually use FractiSynth inside OBS: add the filters, run the console script |
 | [formal-invariants.md](formal-invariants.md) | Build the Lean 4 invariant scaffold for console shape and fail-closed gates |
-| [testing.md](testing.md) | Understand the measured real-I/O coverage suite and how to run it |
+| [Manuscript](manuscript/README.md), [rendering and evidence](rendering.md) | Edit the blueprint and build PDF and HTML from the retained evidence |
+| [Component guides](components/README.md), [scripts](scripts.md) | Find source and build boundaries |
+| [Testing](testing.md), [test inventory](test-inventory.md) | Understand the measured real-I/O coverage suite and how to run it |
 | [scholarship.md](scholarship.md) | Read the source hierarchy, claim-to-evidence policy, and citation ledger |
-| [../TODO.md](../TODO.md) | Track the scoped, evidence-backed future work |
+| [TODO.md](TODO.md), [roadmap](ROADMAP.md), [historical commissioning notes](history/ISA.md) | Follow maintenance and development history |
+| [Release contract](RELEASE.md), [CI workflows](workflows.md), [repository metadata](github.md) | Inspect distribution and automation |
 
 ## The 60-second tour
 
@@ -63,11 +66,11 @@ Author affiliation: **FractiAI / Active Inference Institute**.
 | Aspect | State |
 | --- | --- |
 | Python engine | **Source of truth.** 1226 tests, 94.53 % coverage, real I/O throughout; values are regenerated from the current source. |
-| Native C plugin | **Loads live in OBS 32.1.2.** Built, ad-hoc signed, installed; libcurl telemetry thread hits live NOAA SWPC. Seven feed targets, the layer rail, marker drops, X-ray/Kp graphing, graph axes, inspector modes, audio-reactive shader uniforms, and dock controls are statically pinned. See [build-and-install.md](build-and-install.md). |
+| Native C plugin | The retained OBS 32.1.2 run records a macOS build and live telemetry. The local verification path checks retained captures and portable contracts. Seven feed targets, the layer rail, marker drops, X-ray/Kp graphing, graph axes, inspector modes, audio-reactive shader uniforms, and dock controls are statically pinned. See [build-and-install.md](build-and-install.md). |
 | obspython console | Imports guarded; drives the real engine via `apply_command`, including deterministic dashboard plan/build dry-runs outside OBS. |
 | Lean scaffold | `lean/SynthOBS/Invariants.lean` builds with Lake and rejects `sorry` / custom `axiom` placeholders in the default suite when Lake is available. |
 | Manuscript | Expanded research-grade manuscript, 16 manifest figures (13 analytical + 3 live OBS captures) plus one operator-context asset, and evaluation/reproducibility chapter. |
 
 [`docxology/SynthOBS`](https://github.com/docxology/SynthOBS) is the canonical public
-distribution for this source tree. Use [`../RELEASE.md`](../RELEASE.md) as the source of
+distribution for this source tree. Use [release contract](RELEASE.md) as the source of
 truth for the release contract and clean-clone preflight.

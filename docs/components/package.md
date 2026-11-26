@@ -7,9 +7,9 @@ implements the small native kernels at the OBS boundary and is checked against t
 contracts; the obspython script (`plugin/synthobs/`) imports this engine rather than
 duplicating its logic.
 
-Full API reference: [`../../docs/engine.md`](../../docs/engine.md). Golden-ratio math:
-[`../../docs/golden-ratio.md`](../../docs/golden-ratio.md). System map:
-[`../../docs/architecture.md`](../../docs/architecture.md).
+Full API reference: [`../../docs/engine.md`](../engine.md). Golden-ratio math:
+[`../../docs/golden-ratio.md`](../golden-ratio.md). System map:
+[`../../docs/architecture.md`](../architecture.md).
 
 ## The 15 modules
 

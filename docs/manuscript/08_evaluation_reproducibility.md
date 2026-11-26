@@ -26,7 +26,7 @@ distribution is the GitHub repository
 (concept DOI `10.5281/zenodo.21418687`), which carries the complete source, native OBS
 module, obspython bridge, tests, installation and usage documentation, manuscript
 sources, citation metadata, and versioned live evidence. The repository-level release
-contract in [`RELEASE.md`](../RELEASE.md) defines the clean-clone preflight and the
+contract in [`RELEASE.md`](https://github.com/docxology/SynthOBS/blob/main/docs/RELEASE.md) defines the clean-clone preflight and the
 release gates.
 
 ## Contributions and system boundaries
@@ -42,8 +42,8 @@ The artifact makes five concrete contributions:
    `/dashboard`.
 4. `scripts/generate_figures.py` derives deterministic visualizations from the
    tested engine and records each figure's source in
-   [`output/figures/figure_manifest.json`](../output/figures/figure_manifest.json).
-5. The live OBS bundle in [`assets/obs/`](assets/obs/) preserves real compositor,
+   `output/figures/figure_manifest.json`.
+5. The live OBS bundle in [`assets/obs/`](https://github.com/docxology/SynthOBS/tree/main/docs/manuscript/assets/obs) preserves real compositor,
    telemetry-HUD, and audio-reactivity captures with hashes and six gate results.
 
 The boundary is intentional. Python tests establish mathematical and parser
@@ -65,7 +65,7 @@ and replicability described by the National Academies [@nasem2019], made concret
 through software-practice guidance [@wilson2014; @sandve2013] and FAIR stewardship
 [@wilkinson2016fair].
 
-The source ledger in [`docs/scholarship_sources.json`](../docs/scholarship_sources.json)
+The source ledger in [`docs/scholarship_sources.json`](https://github.com/docxology/SynthOBS/blob/main/docs/scholarship_sources.json)
 records that protocol for the material claims in this blueprint. Its source order
 is deliberately conservative: primary OBS and NOAA documentation grounds interface
 and data-product statements [@obsmodules; @obswebsocket; @noaaswpc; @noaaf107;
@@ -137,7 +137,7 @@ not evidence that the native plugin loaded into the recorded OBS build.
 
 The evidence bundle was captured in run `20260717T153649Z` after rebuilding and
 installing the native FractiSynth bundle against OBS 32.1.2. Its manifest is the
-machine-readable record of the run: [`obs_manifest.json`](assets/obs/obs_manifest.json).
+machine-readable record of the run: [`obs_manifest.json`](https://github.com/docxology/SynthOBS/blob/main/docs/manuscript/assets/obs/obs_manifest.json).
 The exact PNG bytes, silent baseline, and controlled WAV are checked into the manuscript
 asset directory, so the audio delta can be independently recomputed and the cover and
 generated figure directory are derived from the same real OBS run.
@@ -278,8 +278,8 @@ credential; it is intentionally exercised only through the real OBS connection:
 ```
 
 The native build and standalone CMake path are documented in
-[`docs/build-and-install.md`](../docs/build-and-install.md). The manuscript renderer
-consumes `manuscript/config.yaml`; its cover points to
+[`docs/build-and-install.md`](https://github.com/docxology/SynthOBS/blob/main/docs/build-and-install.md). The manuscript renderer
+consumes `docs/manuscript/config.yaml`; its cover points to
 `assets/obs/obs_scene_render.png`, while figure references resolve to the generated
 `output/figures/` directory.
 
@@ -288,7 +288,7 @@ consumes `manuscript/config.yaml`; its cover points to
 The current evidence establishes one real OBS run, not a statistical performance
 distribution. It does not claim that every OBS release, operating system, audio
 driver, or NOAA response shape will behave identically. The scoped follow-up work is
-maintained in [`TODO.md`](../TODO.md), including cross-platform/headless acceptance,
+maintained in [`TODO.md`](https://github.com/docxology/SynthOBS/blob/main/docs/TODO.md), including cross-platform/headless acceptance,
 transported interaction clicks, and per-feed/filter visual captures. Native C↔Python
 parser parity, keyed provenance, and clean-environment wheel reproducibility are now
 closed with executable evidence recorded in the roadmap.

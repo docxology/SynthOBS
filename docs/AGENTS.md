@@ -22,11 +22,11 @@ native plugin: `architecture.md`, `engine.md`, `golden-ratio.md`,
 
 ## How docs here are maintained
 
-- Keep per-topic files scoped; the manuscript (`manuscript/`) sources its
+- Keep per-topic files scoped; the manuscript (`docs/manuscript/`) sources its
   content from these docs and the formal Lean layer (`lean/`).
 - Commands must be copied from `README.md`/`pyproject.toml`, never invented.
 
 ## Notes for agents
 
 - Never commit anything under `output/`.
-- `manuscript/` is the publication bundle: see `manuscript/AGENTS.md`.
+- The publication bundle lives at [`docs/manuscript/`](manuscript/AGENTS.md).

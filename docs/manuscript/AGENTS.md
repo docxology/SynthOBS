@@ -13,11 +13,11 @@
 
 ## Conventions
 
-- Figure links target `../output/figures/*` — generated artifacts
+- Figure links target `../../output/figures/*` — generated artifacts
   (`uv run python scripts/generate_figures.py`); the figure manifest is
   `output/figures/figure_manifest.json` (16 entries: 13 analytical + 3 promoted
   live captures, per root `README.md`). Links resolve only after local generation.
-- `04_fractisynth.md` contains Mermaid diagrams with `{{...}}` node labels —
+- Several sections contain Mermaid diagrams with `{{...}}` node labels —
   these are Mermaid syntax, not unresolved template tokens (verified against
   the renderer conventions).
 - Citations resolve against `references.bib` via Pandoc.

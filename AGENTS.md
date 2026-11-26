@@ -1,8 +1,7 @@
 # AGENTS.md — SynthOBS / FractiSynth
 
-Working rules for agents in this project. (LOCAL-ONLY sidecar project, symlinked
-into the template at `projects/ongoing/Fracti/SynthOBS`; never committed to the public
-template tree. Lane moved from `DataTools` to `Fracti` in the 2026-08-30 reorg.)
+Working rules for the public standalone SynthOBS and FractiSynth repository.
+The [documentation index](docs/README.md) links to the current project guides.
 
 ## Architecture
 
@@ -31,8 +30,8 @@ template tree. Lane moved from `DataTools` to `Fracti` in the 2026-08-30 reorg.)
 ## Commands
 
 ```bash
-uv run python projects/ongoing/Fracti/SynthOBS/scripts/generate_figures.py
-uv run pytest projects/ongoing/Fracti/SynthOBS/tests/ --cov=synthobs --cov-fail-under=90
+uv run python scripts/generate_figures.py
+uv run pytest tests/ --cov=synthobs --cov-fail-under=90
 ```
 
 ## Manuscript voice

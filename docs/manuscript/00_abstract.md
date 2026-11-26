@@ -35,7 +35,7 @@ v_{\text{phase}} = \frac{\Phi_{10.7}}{N_{\text{spots}}} \cdot \varphi
 $$ {#eq:abstract-swo-vector}
 
 while the **El Gran Sol Gateway** maps an accepted solar-wind speed onto the
-*phase* plane through @eq:abstract-egs-key:
+*phase* plane through @eq:abstract-egs-key.
 
 $$
 \theta_{\text{bias}} = \left(2\pi \cdot \frac{w}{w_{\text{ref}}} \cdot K_{\mathrm{EGS}}\right) \bmod 2\pi,
@@ -104,7 +104,7 @@ archived under concept DOI `10.5281/zenodo.21418687`. That repository is the
 canonical public source for the engine, native plugin,
 obspython bridge, tests, installation instructions, manuscript, and versioned
 evidence metadata; the release boundary and remaining acceptance work are recorded
-in [`RELEASE.md`](../RELEASE.md).
+in [`RELEASE.md`](https://github.com/docxology/SynthOBS/blob/main/docs/RELEASE.md).
 
 **Keywords:** OBS Studio, golden ratio, El Gran Sol fractal constant, Solar
 Wavefield Oscillator, space-weather telemetry, real-time DSP, broadcast engineering.

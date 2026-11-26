@@ -34,8 +34,8 @@ The public repository must include, in one inspectable source tree:
 - `plugin/fractisynth/` — the native C `libobs` module and macOS build/install path;
 - `plugin/synthobs/` — the obspython console bridge;
 - `tests/`, `scripts/`, and `lean/` — executable verification and reproduction paths;
-- `README.md`, `docs/`, `TODO.md`, `ROADMAP.md`, `CITATION.cff`, and the manuscript;
-- `manuscript/assets/obs/` — the hashed, versioned live OBS evidence bundle.
+- `README.md`, `docs/`, and `CITATION.cff`;
+- `docs/manuscript/assets/obs/` — the hashed, versioned live OBS evidence bundle.
 
 `output/` is regeneratable and ignored by source control. The final PDF and HTML
 should be regenerated from the committed tree and attached to the GitHub release.
@@ -51,13 +51,11 @@ DOI should be the one with the DOI printed on it. The correct order:
    deposit lineage; the concept DOI is fixed at first-version creation and
    never changes across later versions, so once one exists it can be embedded
    safely in every future render).
-2. **Embed** that DOI in `manuscript/config.yaml`'s `publication.doi` field —
+2. **Embed** that DOI in `docs/manuscript/config.yaml`'s `publication.doi` field —
    the render pipeline's `_publication_doi_line()` (`infrastructure/rendering/
    _pdf_title_page_publishing.py`) prints it on the PDF cover automatically.
    Do not hand-edit LaTeX for this.
-3. **Re-render**: `uv run python scripts/pipeline/stage_03_render.py --project
-   <name>` from the template root (not just `scripts/generate_figures.py` —
-   that only regenerates figures, not the title page).
+3. **Re-render**: use the [pinned renderer workflow](rendering.md).
 4. **Re-verify**: rerun the full test suite, the scholarship audit, and a
    raster/text read of the rendered cover page (`pdftotext -f 1 -l 1 ... |
    grep <doi>`) to confirm the DOI actually landed, not just that the
@@ -81,7 +79,7 @@ release.
 
 The public release must preserve the software's identity as well as its executable
 behavior. Before tagging, run the scholarship audit and confirm that every manuscript
-citation resolves to `manuscript/references.bib`. Figures must exist first — the
+citation resolves to `docs/manuscript/references.bib`. Figures must exist first — the
 audit and `test_docs_contracts.py` both check that manuscript claims resolve to
 real files under `output/figures/`:
 
@@ -105,7 +103,7 @@ Run this from a fresh public checkout:
 ```bash
 git clone https://github.com/docxology/SynthOBS.git
 cd SynthOBS
-uv sync --extra dev
+uv sync --locked --extra dev --python 3.15
 uv run python scripts/generate_figures.py
 uv run python -m pytest tests --cov=synthobs --cov-fail-under=90
 uv run python scripts/audit_scholarship.py
@@ -113,7 +111,7 @@ uv build
 uv run python scripts/package_smoke.py
 ```
 
-The expected current baseline is **1226 passing tests** and **94.53% coverage**
+The expected current baseline is **1226 collected tests** and **94.53% coverage**
 on `src/synthobs`. Figure generation must validate the versioned live evidence
 manifest before writing the analytical and live-capture figures.
 
@@ -132,8 +130,8 @@ Restart OBS, confirm the FractiSynth module loads, then add the
 **SynthOBS — φ Wavefield Console** source or a FractiSynth video/audio filter.
 For the obspython bridge, open **Tools → Scripts**, add
 `plugin/synthobs/synthobs_console.py`, and use the documented command grammar.
-The complete build details are in [`docs/build-and-install.md`](docs/build-and-install.md)
-and the in-OBS workflow is in [`docs/usage.md`](docs/usage.md).
+The complete build details are in [`docs/build-and-install.md`](build-and-install.md)
+and the in-OBS workflow is in [`docs/usage.md`](usage.md).
 
 ## Public artifact verification
 
