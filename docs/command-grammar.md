@@ -120,7 +120,7 @@ The obspython console script (`plugin/synthobs/synthobs_console.py`) exposes
 engine** with the result — returning a status string on success or an `ERROR: …` string
 on `CommandError` (never a crash):
 
-![Rendered parser and rejection path used by `apply_command(line)`. Four verbs (`/mode`, `/transducer`, `/swo`, `/dashboard`) pass through balanced tokenization, dispatch, and verb-specific validation into four typed command classes; malformed tokenization, unknown verbs, and invalid values converge on one explicit `CommandError` sink.](../output/figures/command_parse_pipeline.png){#fig:docs-apply-command width=92%}
+Rendered parser and rejection path used by `apply_command(line)`. Four verbs (`/mode`, `/transducer`, `/swo`, `/dashboard`) pass through balanced tokenization, dispatch, and verb-specific validation into four typed command classes; malformed tokenization, unknown verbs, and invalid values converge on one explicit `CommandError` sink. The [documented figure build](rendering.md#generate-and-check-the-evidence) writes `output/figures/command_parse_pipeline.png`.
 
 `apply_command(line)` consumes the same four typed results shown in the figure.
 Successful commands drive the engine and return a status string; `CommandError`

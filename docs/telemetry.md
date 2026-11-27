@@ -104,7 +104,7 @@ from synthobs.telemetry import (
 The oscillator turns a validated reading into **one number** — the *phase vector* —
 that every downstream stage scales against. The full amplitude-plane pipeline:
 
-![Rendered fail-closed NOAA-to-SWO telemetry pipeline. F10.7/active-region and RTSW wind feeds share a positive/finite/fresh gate; valid data reaches SWO/Gateway and invalid or stale data enters Hold State, which retains the last verified vector. The banner records the run-specific payload fields without treating them as a statistical sample.](../output/figures/telemetry_pipeline.png){#fig:docs-telemetry-pipeline width=92%}
+Rendered fail-closed NOAA-to-SWO telemetry pipeline. F10.7/active-region and RTSW wind feeds share a positive/finite/fresh gate; valid data reaches SWO/Gateway and invalid or stale data enters Hold State, which retains the last verified vector. The banner records the run-specific payload fields without treating them as a statistical sample. The [documented figure build](rendering.md#generate-and-check-the-evidence) writes `output/figures/telemetry_pipeline.png`.
 
 The kernel is `phase_vector(flux, spots)` in `synthobs.swo`, defined as
 `(flux / spots) · φ`.
@@ -180,7 +180,7 @@ The C plugin (`plugin/fractisynth/src/fractisynth.c`) mirrors this exactly. Its
 background libcurl thread (`telemetry_thread_fn`) runs this loop on a
 `TELEMETRY_POLL_SECONDS` (= 60) cadence:
 
-![Rendered native telemetry-thread lifecycle. The sequence is curl initialization, F10.7/spots/wind fetch, finite/fresh gating, mutex-protected publication, and abort plus bounded join; the 60-second `TELEMETRY_POLL_SECONDS` cadence is stated in the figure rather than inferred from spacing.](../output/figures/telemetry_thread.png){#fig:docs-telemetry-thread width=92%}
+Rendered native telemetry-thread lifecycle. The sequence is curl initialization, F10.7/spots/wind fetch, finite/fresh gating, mutex-protected publication, and abort plus bounded join; the 60-second `TELEMETRY_POLL_SECONDS` cadence is stated in the figure rather than inferred from spacing. The [documented figure build](rendering.md#generate-and-check-the-evidence) writes `output/figures/telemetry_thread.png`.
 
 - `synchronize_swo_calibration()` implements the identical formula
   `(current_flux / active_spots) * EGS_PHI` and the identical fail-closed guard

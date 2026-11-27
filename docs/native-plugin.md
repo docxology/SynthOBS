@@ -152,7 +152,7 @@ cleanly** with no shutdown delay (see [build-and-install.md](build-and-install.m
 
 ## Lifecycle summary
 
-![Rendered FractiSynth load, runtime, and unload lifecycle. The five states show source registration, curl/mutex initialization, concurrent video/audio/inspector rendering plus telemetry operation, bounded stop/join, and cleanup. The annotation distinguishes four registered OBS source surfaces—three filters plus the console source—from the optional Qt dock, so the figure does not count a frontend dock as an OBS source registration.](../output/figures/plugin_lifecycle.png){#fig:docs-plugin-lifecycle width=92%}
+Rendered FractiSynth load, runtime, and unload lifecycle. The five states show source registration, curl/mutex initialization, concurrent video/audio/inspector rendering plus telemetry operation, bounded stop/join, and cleanup. The annotation distinguishes four registered OBS source surfaces—three filters plus the console source—from the optional Qt dock, so the figure does not count a frontend dock as an OBS source registration. The [documented figure build](rendering.md#generate-and-check-the-evidence) writes `output/figures/plugin_lifecycle.png`.
 
 ## Console feeds and targets
 
