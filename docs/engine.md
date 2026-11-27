@@ -106,7 +106,7 @@ golden_spiral_points(n: int, *, a: float = 1.0, start_theta: float = 0.0) -> lis
 `assemble_viewport` splits the canvas horizontally (primary = major ≈ 61.8 % width), then
 splits the right column vertically (console = major height, telemetry = minor):
 
-![Rendered `assemble_viewport()` geometry for a 1920×1080 canvas. The exact regions are primary 1187×1080, console 733×667, and telemetry 733×413; their areas close over the full canvas and the footer records zero gap and zero overlap.](../output/figures/goldilocks_layout.png){#fig:engine-viewport width=92%}
+Rendered `assemble_viewport()` geometry for a 1920×1080 canvas. The exact regions are primary 1187×1080, console 733×667, and telemetry 733×413; their areas close over the full canvas and the footer records zero gap and zero overlap. The [documented figure build](rendering.md#generate-and-check-the-evidence) writes `output/figures/goldilocks_layout.png`.
 
 ### `class Region`
 

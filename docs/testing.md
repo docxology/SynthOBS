@@ -114,7 +114,7 @@ hard-codes, and `test_phi_literal_matches_python` asserts both that the literal 
 C source *and* that it equals `PHI` numerically. If anyone edits either side, the test
 fails — drift between the engine and the transducer can never pass silently.
 
-![Rendered Python/native parity contract. The Python reference and C plugin pin the same φ and K_EGS constants and are checked against shared contracts for dimensions, limiter behavior, telemetry gates, and live behavior; the annotation states the ≥9-significant-digit φ pin, <1e−6 K_EGS tolerance, and current 1226-test, 94.53%-coverage/native-build/live-OBS evidence baseline.](../output/figures/parity_bridge.png){#fig:docs-parity-bridge width=92%}
+The Python reference and C plugin pin the same φ and K_EGS constants. The parity diagram summarizes checks for dimensions, limiter behavior, and telemetry gates. The nearby sections describe the evidence required for native builds and live OBS. The [documented figure build](rendering.md#generate-and-check-the-evidence) writes `output/figures/parity_bridge.png`.
 
 ## Native build verification (beyond unit tests)
 

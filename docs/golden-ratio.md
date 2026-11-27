@@ -55,7 +55,7 @@ the two parts always sum back to `total` with no rounding gap — the major part
 `round(total · INV_PHI)` and the minor is the exact remainder. This is what lets a
 viewport tile without a one-pixel seam.
 
-![Rendered integer-exact golden split. The 1000-unit worked example produces major 618 and residual minor 382, with 618 + 382 = 1000 exactly; the visual percentages are diagnostic displays of the $1/\varphi$ and $1/\varphi^2$ shares, while the residual rule is what prevents a rounding seam.](../output/figures/golden_split.png){#fig:docs-golden-split width=90%}
+Rendered integer-exact golden split. The 1000-unit worked example produces major 618 and residual minor 382, with 618 + 382 = 1000 exactly; the visual percentages are diagnostic displays of the $1/\varphi$ and $1/\varphi^2$ shares, while the residual rule is what prevents a rounding seam. The [documented figure build](rendering.md#generate-and-check-the-evidence) writes `output/figures/golden_split.png`.
 
 > **Invariant subtlety (documented gotcha).** Successive `REGION` sizes shrink by
 > **1/φ² per region**, *not* 1/φ. The true per-cut invariant is `major / remaining =
@@ -88,9 +88,8 @@ assemble_viewport(width: int, height: int) -> Viewport
   (major ≈61.8 % height) and telemetry strip (minor ≈38.2 %). `tiles_exactly()` is `True`
   and `primary_fraction()` returns `primary.area / canvas.area`:
 
-  See the rendered viewport partition in
-  [the layout figure](../output/figures/goldilocks_layout.png), which makes the
-  exact three-deck tiling visible without a diagrammatic text surrogate.
+  The [documented figure build](rendering.md#generate-and-check-the-evidence) writes
+  the three-deck tiling to `output/figures/goldilocks_layout.png`.
 
 ## 2. The audio soft limiter (`dsp.phi_soft_limit`)
 
@@ -106,7 +105,7 @@ it the excess is compressed by `headroom · tanh(excess / (headroom·φ))` — w
 `headroom = threshold − knee == threshold · 1/φ²` — so the magnitude approaches but
 **never hard-clips** the ceiling.
 
-![Rendered φ soft-limiter transfer curve at threshold 1. The identity band is $|x|\le1/\varphi=0.618034$; the smooth branch remains sign-preserving and bounded by the ceiling, while the dashed hard clip is shown as the rejected comparison.](../output/figures/phi_soft_limiter.png){#fig:phi-limiter width=88%}
+Rendered φ soft-limiter transfer curve at threshold 1. The identity band is $|x|\le1/\varphi=0.618034$; the smooth branch remains sign-preserving and bounded by the ceiling, while the dashed hard clip is shown as the rejected comparison. The [documented figure build](rendering.md#generate-and-check-the-evidence) writes `output/figures/phi_soft_limiter.png`.
 
 Properties the suite verifies (ISC-27..31):
 
@@ -145,7 +144,7 @@ spatial_scale_matrix(factor: float = PHI) -> list[list[float]]
   `1/φ` (the suite asserts `m[0][0] == m[1][1] ≈ INV_PHI`); the homogeneous entry
   `m[2][2]` stays `1.0`. A non-finite or zero `factor` raises `ValueError` (ISC-32):
 
-  ![Rendered homogeneous spatial scale matrix. The x/y diagonal is $1/\varphi=0.618034$, the homogeneous entry is 1, and 1920×1080 calibrates to 1187×667 pixels after integer rounding.](../output/figures/phi_matrix.png){#fig:docs-phi-matrix width=68%}
+  Rendered homogeneous spatial scale matrix. The x/y diagonal is $1/\varphi=0.618034$, the homogeneous entry is 1, and 1920×1080 calibrates to 1187×667 pixels after integer rounding. The [documented figure build](rendering.md#generate-and-check-the-evidence) writes `output/figures/phi_matrix.png`.
 
 ## Why integer-exactness matters
 

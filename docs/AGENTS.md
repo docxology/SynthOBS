@@ -12,11 +12,10 @@ native plugin: `architecture.md`, `engine.md`, `golden-ratio.md`,
 
 - Root `README.md` is the user entry point (quickstart, regenerate-figures,
   package smoke gate); `docs/` holds the deeper per-subsystem references.
-- Figures referenced from docs live under `output/figures/` and are
-  **generated artifacts** (regenerate with
-  `uv run python scripts/generate_figures.py`; `output/` is git-ignored).
-  Doc links to them are valid after a local figure generation; do not treat
-  their absence in a fresh checkout as broken doc structure.
+- Public guides describe generated figures in text and point to the
+  [figure build](rendering.md#generate-and-check-the-evidence). The generated
+  `output/figures/` directory belongs to the local build. Keep render-required
+  image references in the manuscript.
 - Scholarship claims are audited via `scripts/audit_scholarship.py`
   (see `docs/scholarship.md` and `scholarship_sources.json`).
 
