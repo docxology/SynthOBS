@@ -104,8 +104,10 @@ uv run --no-sync python scripts/generate_figures.py
 uv run --no-sync python -m pytest tests/ --cov=synthobs --cov-fail-under=90
 ```
 
-1226 tests, **94.53%** coverage, real I/O (HTTP exercised via `pytest-httpserver`,
-real numeric examples, fixed seeds); these values are regenerated from the verification run.
+A retained verification run recorded 1,226 tests and 94.53% coverage.
+The suite uses numerical fixtures and local HTTP tests. See the
+[documentation index](docs/README.md) for the separate native OBS evidence
+and [offline manuscript build](docs/rendering.md).
 
 Lean invariant scaffold:
 
